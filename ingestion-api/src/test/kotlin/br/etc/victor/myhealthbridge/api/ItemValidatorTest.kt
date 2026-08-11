@@ -31,6 +31,22 @@ class ItemValidatorTest {
         assertEquals(envelope.periodStart, envelope.periodEnd)
     }
 
+    /**
+     * The digest is the identity of an Observed Record Version already stored. Changing how the
+     * canonical form is built would fork every existing record into a second version on the next
+     * re-read, silently, so the rendering of an item without unknown properties is pinned here.
+     */
+    @Test
+    fun `pins the canonical rendering of an item that carries nothing unknown`() {
+        val envelope = accept(Envelopes.heartRate())
+
+        assertEquals(
+            """{"mapperVersion":"samsung-health-heart-rate/1","observedAt":{"instant":"2026-08-10T22:00:00Z","offset":"-03:00"},"recordType":"heart_rate","samsungUid":"uid-1","sourceProvenance":{"sourceApp":{"id":"com.example.shealth","kind":"known"},"sourceDevice":{"id":"device-1","kind":"known"}},"state":{"kind":"present","normalizedPayload":{"heartRate":{"unit":"/min","value":72}},"period":{"end":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"},"start":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"}},"sourcePayload":{"com.samsung.health.heart_rate.unit":"/min","heart_rate":"72"}}}""",
+            envelope.canonicalJson,
+            "the canonical form changed, so every stored digest for this shape is now stale",
+        )
+    }
+
     @Test
     fun `accepts a removal that keeps only the identity`() {
         val envelope = accept(Envelopes.removal())

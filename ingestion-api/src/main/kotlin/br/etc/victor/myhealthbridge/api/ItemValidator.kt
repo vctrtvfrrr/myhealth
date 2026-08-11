@@ -9,10 +9,10 @@ import br.etc.victor.myhealthbridge.contract.SourceProvenance
 import br.etc.victor.myhealthbridge.contract.ZonedInstant
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonObject
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.TreeSet
@@ -105,7 +105,7 @@ class ItemValidator(private val recordType: String) {
 
         // The last thing that can fail is the rendering the digest is taken over, so it fails as a
         // rejection of this one item rather than as an error of the request it arrived in.
-        val canonicalJson = CanonicalJson.renderOrNull(canonicalElement(envelope))
+        val canonicalJson = CanonicalJson.renderOrNull(canonicalElement(envelope, item))
             ?: return ItemValidation.Invalid(listOf(RejectionCode.INVALID_PAYLOAD))
 
         return ItemValidation.Valid(
@@ -127,54 +127,84 @@ class ItemValidator(private val recordType: String) {
      * into a rounded one and a large exponent into an error. Both would be silent: the digest, and the
      * envelope kept beside it, would stop describing what the source actually reported. Here the
      * payloads pass through untouched and the decimal handling belongs to [CanonicalJson] alone.
+     *
+     * Every level also carries over the properties it did not itself write, so that a field added by a
+     * newer client survives instead of being accepted and dropped. The batch root is not part of this:
+     * it is transport framing, not something the source observed.
      */
-    private fun canonicalElement(envelope: HealthRecordEnvelope): JsonObject = buildJsonObject {
+    private fun canonicalElement(envelope: HealthRecordEnvelope, raw: JsonObject): JsonObject = buildJsonObject {
         put("recordType", recordType)
         put("samsungUid", envelope.samsungUid)
         put("mapperVersion", envelope.mapperVersion)
-        put("observedAt", canonical(envelope.observedAt))
-        putJsonObject("sourceProvenance") {
-            put("sourceApp", canonical(envelope.sourceProvenance.sourceApp))
-            put("sourceDevice", canonical(envelope.sourceProvenance.sourceDevice))
-        }
-        put("state", canonical(envelope.state))
+        put("observedAt", canonical(envelope.observedAt, raw.node("observedAt")))
+        put("sourceProvenance", canonical(envelope.sourceProvenance, raw.node("sourceProvenance")))
+        put("state", canonical(envelope.state, raw.node("state")))
+        // recordType counts as written: it belongs to the batch root, and an envelope must not shadow it.
+        retainUnknown(raw, "recordType", "samsungUid", "mapperVersion", "observedAt", "sourceProvenance", "state")
     }
 
-    private fun canonical(instant: ZonedInstant) = buildJsonObject {
+    private fun canonical(instant: ZonedInstant, raw: JsonObject?) = buildJsonObject {
         put("instant", instant.instant)
         put("offset", instant.offset)
+        retainUnknown(raw, "instant", "offset")
     }
 
-    private fun canonical(period: SourcePeriod) = buildJsonObject {
-        put("start", canonical(period.start))
-        put("end", canonical(period.end))
+    private fun canonical(period: SourcePeriod, raw: JsonObject?) = buildJsonObject {
+        put("start", canonical(period.start, raw.node("start")))
+        put("end", canonical(period.end, raw.node("end")))
+        retainUnknown(raw, "start", "end")
     }
 
-    private fun canonical(identity: SourceIdentity) = buildJsonObject {
+    private fun canonical(provenance: SourceProvenance, raw: JsonObject?) = buildJsonObject {
+        put("sourceApp", canonical(provenance.sourceApp, raw.node("sourceApp")))
+        put("sourceDevice", canonical(provenance.sourceDevice, raw.node("sourceDevice")))
+        retainUnknown(raw, "sourceApp", "sourceDevice")
+    }
+
+    private fun canonical(identity: SourceIdentity, raw: JsonObject?) = buildJsonObject {
         when (identity) {
             is SourceIdentity.Known -> {
                 put("kind", "known")
                 put("id", identity.id)
+                retainUnknown(raw, "kind", "id")
             }
 
-            SourceIdentity.Unknown -> put("kind", "unknown")
+            SourceIdentity.Unknown -> {
+                put("kind", "unknown")
+                retainUnknown(raw, "kind")
+            }
         }
     }
 
-    private fun canonical(state: RecordState) = buildJsonObject {
+    private fun canonical(state: RecordState, raw: JsonObject?) = buildJsonObject {
         when (state) {
             is RecordState.Present -> {
                 put("kind", PRESENT)
-                put("period", canonical(state.period))
+                put("period", canonical(state.period, raw.node("period")))
                 put("sourcePayload", state.sourcePayload)
                 put("normalizedPayload", state.normalizedPayload)
+                retainUnknown(raw, "kind", "period", "sourcePayload", "normalizedPayload")
             }
 
             is RecordState.Removed -> {
                 put("kind", REMOVED)
-                state.period?.let { put("period", canonical(it)) }
+                state.period?.let { put("period", canonical(it, raw.node("period"))) }
+                retainUnknown(raw, "kind", "period")
             }
         }
+    }
+
+    private fun JsonObject?.node(key: String): JsonObject? = this?.get(key) as? JsonObject
+
+    /**
+     * Carries into the canonical document whatever this contract version could not interpret.
+     *
+     * Inside the digest rather than beside it: an unknown property is part of what the source reported,
+     * and leaving it out would let two observations that differ only by it collapse onto one Observed
+     * Record Version, discarding the second on the uniqueness constraint.
+     */
+    private fun JsonObjectBuilder.retainUnknown(raw: JsonObject?, vararg written: String) {
+        raw?.forEach { (key, value) -> if (key !in written) put(key, value) }
     }
 
     private fun resolveMapper(
