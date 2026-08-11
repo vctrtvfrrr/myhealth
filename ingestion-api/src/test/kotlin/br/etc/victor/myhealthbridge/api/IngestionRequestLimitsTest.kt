@@ -127,6 +127,31 @@ class IngestionRequestLimitsTest : IngestionApiTest() {
         }
     }
 
+    /**
+     * Replacing a malformed sequence would persist a repaired Samsung UID that nobody sent, and would
+     * map two distinct byte sequences onto the same Health Record Identity.
+     */
+    @Test
+    fun `refuses a body that is not valid UTF-8`() {
+        val batch = Envelopes.batch(items = listOf(Envelopes.heartRate(samsungUid = PLACEHOLDER)))
+        // 0xC3 opens a two byte sequence, so on its own inside the string the text cannot be recovered.
+        val body = batch.substringBefore(PLACEHOLDER).toByteArray() +
+            byteArrayOf(0xC3.toByte()) +
+            batch.substringAfter(PLACEHOLDER).toByteArray()
+
+        val response = api.post(body = body, token = token)
+
+        assertEquals(400, response.status)
+        assertEquals("invalid_request", problemCode(response.body))
+        assertEquals(
+            0,
+            countOf(
+                "select count(*) from health_record_identity where samsung_uid like '%' || chr(65533) || '%'",
+            ),
+            "an identifier repaired with the replacement character was persisted",
+        )
+    }
+
     @Test
     fun `answers a refused batch as a problem document`() {
         val response = api.post(body = ByteArray(0), token = token)
@@ -154,6 +179,7 @@ class IngestionRequestLimitsTest : IngestionApiTest() {
     }
 
     private companion object {
+        const val PLACEHOLDER = "uid-utf8-placeholder"
         const val MAX_ITEMS = IngestionConfig.DEFAULT_MAX_ITEMS
         const val MAX_BYTES = IngestionConfig.DEFAULT_MAX_BYTES
     }

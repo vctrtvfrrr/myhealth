@@ -1,7 +1,6 @@
 package br.etc.victor.myhealthbridge.api
 
 import br.etc.victor.myhealthbridge.contract.HealthRecordEnvelope
-import br.etc.victor.myhealthbridge.contract.IngestionContract
 import br.etc.victor.myhealthbridge.contract.RecordState
 import br.etc.victor.myhealthbridge.contract.RejectionCode
 import br.etc.victor.myhealthbridge.contract.SourceIdentity
@@ -11,7 +10,9 @@ import br.etc.victor.myhealthbridge.contract.ZonedInstant
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.TreeSet
@@ -34,14 +35,8 @@ class ObservedEnvelope(
     val observedAt: Instant,
     val periodStart: Instant?,
     val periodEnd: Instant?,
+    val canonicalJson: String,
 ) {
-    val canonicalJson: String = CanonicalJson.render(
-        JsonObject(
-            (IngestionContract.json.encodeToJsonElement(envelope) as JsonObject) +
-                ("recordType" to JsonPrimitive(recordType)),
-        ),
-    )
-
     val digest: ByteArray = CanonicalJson.digest(canonicalJson)
 
     val stateName: String = when (envelope.state) {
@@ -100,21 +95,86 @@ class ItemValidator(private val recordType: String) {
             else -> RecordState.Removed(period = period?.wire)
         }
 
+        val envelope = HealthRecordEnvelope(
+            samsungUid = samsungUid!!,
+            observedAt = observedAt!!.wire,
+            mapperVersion = mapperVersion!!,
+            sourceProvenance = provenance!!,
+            state = recordState,
+        )
+
+        // The last thing that can fail is the rendering the digest is taken over, so it fails as a
+        // rejection of this one item rather than as an error of the request it arrived in.
+        val canonicalJson = CanonicalJson.renderOrNull(canonicalElement(envelope))
+            ?: return ItemValidation.Invalid(listOf(RejectionCode.INVALID_PAYLOAD))
+
         return ItemValidation.Valid(
             ObservedEnvelope(
                 recordType = recordType,
-                envelope = HealthRecordEnvelope(
-                    samsungUid = samsungUid!!,
-                    observedAt = observedAt!!.wire,
-                    mapperVersion = mapperVersion!!,
-                    sourceProvenance = provenance!!,
-                    state = recordState,
-                ),
+                envelope = envelope,
                 observedAt = observedAt.instant,
                 periodStart = period?.start,
                 periodEnd = period?.end,
+                canonicalJson = canonicalJson,
             ),
         )
+    }
+
+    /**
+     * Builds the digested document explicitly rather than through the wire serializer.
+     *
+     * The serializer re-encodes a JSON number through `Double`, which turns a high precision decimal
+     * into a rounded one and a large exponent into an error. Both would be silent: the digest, and the
+     * envelope kept beside it, would stop describing what the source actually reported. Here the
+     * payloads pass through untouched and the decimal handling belongs to [CanonicalJson] alone.
+     */
+    private fun canonicalElement(envelope: HealthRecordEnvelope): JsonObject = buildJsonObject {
+        put("recordType", recordType)
+        put("samsungUid", envelope.samsungUid)
+        put("mapperVersion", envelope.mapperVersion)
+        put("observedAt", canonical(envelope.observedAt))
+        putJsonObject("sourceProvenance") {
+            put("sourceApp", canonical(envelope.sourceProvenance.sourceApp))
+            put("sourceDevice", canonical(envelope.sourceProvenance.sourceDevice))
+        }
+        put("state", canonical(envelope.state))
+    }
+
+    private fun canonical(instant: ZonedInstant) = buildJsonObject {
+        put("instant", instant.instant)
+        put("offset", instant.offset)
+    }
+
+    private fun canonical(period: SourcePeriod) = buildJsonObject {
+        put("start", canonical(period.start))
+        put("end", canonical(period.end))
+    }
+
+    private fun canonical(identity: SourceIdentity) = buildJsonObject {
+        when (identity) {
+            is SourceIdentity.Known -> {
+                put("kind", "known")
+                put("id", identity.id)
+            }
+
+            SourceIdentity.Unknown -> put("kind", "unknown")
+        }
+    }
+
+    private fun canonical(state: RecordState) = buildJsonObject {
+        when (state) {
+            is RecordState.Present -> {
+                put("kind", PRESENT)
+                put("period", canonical(state.period))
+                put("sourcePayload", state.sourcePayload)
+                put("normalizedPayload", state.normalizedPayload)
+            }
+
+            is RecordState.Removed -> {
+                put("kind", REMOVED)
+                state.period?.let { put("period", canonical(it)) }
+            }
+        }
     }
 
     private fun resolveMapper(

@@ -40,12 +40,12 @@ object IngestionLog {
     }
 
     /** Names the failure by type and SQL state only, so a diagnosis never needs the health content. */
-    fun unavailable(failure: Throwable?) {
+    fun unavailable(failure: Throwable) {
         logger.warn(
             "ingestion unavailable code={} failure={} sqlState={}",
             BatchErrorCode.INGESTION_TEMPORARILY_UNAVAILABLE.wireValue,
-            failure?.let { it::class.java.name } ?: "timeout",
-            failure?.sqlState() ?: "none",
+            failure::class.java.name,
+            failure.sqlState() ?: "none",
         )
     }
 

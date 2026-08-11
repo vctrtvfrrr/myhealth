@@ -3,14 +3,17 @@ package br.etc.victor.myhealthbridge.api
 import br.etc.victor.myhealthbridge.contract.RecordState
 import br.etc.victor.myhealthbridge.contract.RejectionCode
 import br.etc.victor.myhealthbridge.contract.SourceIdentity
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class ItemValidatorTest {
@@ -187,6 +190,18 @@ class ItemValidatorTest {
         assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), reject(Envelopes.heartRate(beatsPerMinute = "1e999")))
     }
 
+    /**
+     * The number is valid JSON and sits in the faithful source payload, so nothing before the canonical
+     * rendering has any reason to look at it.
+     */
+    @Test
+    fun `rejects an item carrying a number no decimal can represent`() {
+        assertEquals(
+            listOf(RejectionCode.INVALID_PAYLOAD),
+            reject(withSourcePayload("""{"heart_rate":1e9999999999}""")),
+        )
+    }
+
     @Test
     fun `rejects a unit that is not the UCUM beats per minute`() {
         assertEquals(listOf(RejectionCode.INVALID_UNIT), reject(Envelopes.heartRate(unit = "bpm")))
@@ -217,6 +232,22 @@ class ItemValidatorTest {
         assertNotEquals(digest, accept(Envelopes.heartRate(beatsPerMinute = "73")).digest.toHex())
     }
 
+    /**
+     * A decimal beyond what a double can hold must survive into the digest and the stored envelope, or
+     * two different observations become one and the preserved content stops being faithful.
+     */
+    @Test
+    fun `preserves a source payload decimal that no double could hold`() {
+        val precise = accept(withSourcePayload("""{"reading":0.1000000000000000000001}"""))
+        val rounded = accept(withSourcePayload("""{"reading":0.1}"""))
+
+        assertTrue(
+            precise.canonicalJson.contains("0.1000000000000000000001"),
+            "the canonical envelope lost precision: ${precise.canonicalJson}",
+        )
+        assertNotEquals(rounded.digest.toHex(), precise.digest.toHex())
+    }
+
     @Test
     fun `treats a payload that only looks different as the same version`() {
         assertEquals(
@@ -243,6 +274,13 @@ class ItemValidatorTest {
                 )
                 ),
         )
+    }
+
+    private fun withSourcePayload(sourcePayload: String): JsonObject {
+        val state = (Envelopes.heartRate()["state"] as JsonObject) +
+            ("sourcePayload" to Json.parseToJsonElement(sourcePayload).jsonObject)
+
+        return JsonObject(Envelopes.heartRate() + ("state" to JsonObject(state)))
     }
 
     private fun accept(item: JsonObject): ObservedEnvelope =

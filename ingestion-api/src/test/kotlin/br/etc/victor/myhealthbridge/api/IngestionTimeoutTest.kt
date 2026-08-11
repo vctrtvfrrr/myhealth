@@ -19,6 +19,7 @@ class IngestionTimeoutTest : IngestionApiTest(mapOf("INGESTION_TIMEOUT_SECONDS" 
     @Test
     fun `answers 503 and rolls the whole ingestion back when it cannot finish in time`() {
         val ingestionsBefore = countOf("select count(*) from ingestion")
+        val resultsBefore = countOf("select count(*) from ingestion_item")
         val pool = Executors.newSingleThreadExecutor()
 
         val response = try {
@@ -51,6 +52,11 @@ class IngestionTimeoutTest : IngestionApiTest(mapOf("INGESTION_TIMEOUT_SECONDS" 
             ingestionsBefore,
             countOf("select count(*) from ingestion"),
             "the ingestion row survived a transaction that never committed",
+        )
+        assertEquals(
+            resultsBefore,
+            countOf("select count(*) from ingestion_item"),
+            "a positional result survived a transaction that never committed",
         )
     }
 

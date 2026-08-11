@@ -3,6 +3,7 @@ package br.etc.victor.myhealthbridge.api
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 class CanonicalJsonTest {
@@ -62,7 +63,21 @@ class CanonicalJsonTest {
         )
     }
 
-    private fun render(json: String) = CanonicalJson.render(Json.parseToJsonElement(json))
+    @Test
+    fun `refuses a number no decimal can represent instead of throwing`() {
+        assertNull(renderOrNull("""{"a":1e9999999999}"""))
+        assertNull(renderOrNull("""{"a":1e-9999999999}"""))
+        assertNull(renderOrNull("""{"a":[{"b":1e9999999999}]}"""), "a nested number must be found too")
+    }
+
+    @Test
+    fun `still renders an exponent a decimal can carry, without expanding it`() {
+        assertEquals("""{"a":1E+999999}""", render("""{"a":1e999999}"""))
+    }
+
+    private fun render(json: String) = requireNotNull(renderOrNull(json))
+
+    private fun renderOrNull(json: String) = CanonicalJson.renderOrNull(Json.parseToJsonElement(json))
 
     private fun ByteArray.toHex() = joinToString("") { "%02x".format(it) }
 }

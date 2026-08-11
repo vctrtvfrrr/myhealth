@@ -16,7 +16,6 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -104,8 +103,11 @@ class IngestionEndpoint(
         val bytes = readBounded(config.maxBytes) ?: return BatchRequest.Refused(BatchErrorCode.BATCH_TOO_LARGE)
         if (bytes.isEmpty()) return BatchRequest.Refused(BatchErrorCode.INVALID_REQUEST)
 
-        val root = runCatching { IngestionContract.json.parseToJsonElement(bytes.decodeToString()) }
-            .getOrNull() as? JsonObject
+        // Strict UTF-8: replacing a malformed sequence would store a repaired identifier or payload
+        // that nobody sent, and would collapse two distinct byte sequences into one record.
+        val root = runCatching {
+            IngestionContract.json.parseToJsonElement(bytes.decodeToString(throwOnInvalidSequence = true))
+        }.getOrNull() as? JsonObject
             ?: return BatchRequest.Refused(BatchErrorCode.INVALID_REQUEST)
 
         val items = root["items"] as? JsonArray ?: return BatchRequest.Refused(BatchErrorCode.INVALID_REQUEST)
@@ -125,15 +127,16 @@ class IngestionEndpoint(
         return BatchRequest.Accepted(deviceId, contractVersion, recordType, items)
     }
 
+    /**
+     * The deadline lives in the store, with the transaction it has to bound. Cancelling this coroutine
+     * would not stop a blocking driver, and would let a cancelled ingestion commit anyway.
+     */
     private suspend fun persist(
         deviceId: Long,
         contractVersion: Int,
         validated: List<ItemValidation>,
     ): IngestionResponse? = try {
-        val timeoutMs = TimeUnit.SECONDS.toMillis(config.timeoutSeconds.toLong())
-        withTimeoutOrNull(timeoutMs) {
-            withContext(Dispatchers.IO) { store.persist(deviceId, contractVersion, Instant.now(), validated) }
-        }.also { if (it == null) IngestionLog.unavailable(null) }
+        withContext(Dispatchers.IO) { store.persist(deviceId, contractVersion, Instant.now(), validated) }
     } catch (failure: Exception) {
         IngestionLog.unavailable(failure)
         null

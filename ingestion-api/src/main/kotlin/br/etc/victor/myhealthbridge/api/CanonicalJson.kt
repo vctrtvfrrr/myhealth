@@ -17,7 +17,13 @@ import java.security.MessageDigest
  */
 object CanonicalJson {
 
-    fun render(element: JsonElement): String = StringBuilder().apply { write(element) }.toString()
+    /**
+     * Returns null for a document this rendering cannot express, which is a number whose exponent is
+     * outside what a decimal can carry. JSON allows `1e9999999999`; a decimal cannot hold it, and a
+     * digest cannot be computed over a value nobody can represent.
+     */
+    fun renderOrNull(element: JsonElement): String? =
+        runCatching { StringBuilder().apply { write(element) }.toString() }.getOrNull()
 
     fun digest(canonical: String): ByteArray =
         MessageDigest.getInstance("SHA-256").digest(canonical.toByteArray(Charsets.UTF_8))
