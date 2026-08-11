@@ -6,7 +6,7 @@ MyHealth Bridge é um sistema pessoal para copiar os dados de saúde e atividade
 
 ## Estado do projeto
 
-O projeto está em fase inicial de especificação e ainda não possui uma versão executável. A implementação será construída como um monorepo Kotlin/Gradle.
+O projeto está em fase inicial. O monorepo Kotlin/Gradle já existe e é construível, com os três módulos previstos criados e sem comportamento de domínio implementado.
 
 ## Arquitetura planejada
 
@@ -35,8 +35,35 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 - [`docs/adr/`](docs/adr/) registra as decisões arquiteturais.
 - [Issue #1](https://git.codelab.tec.br/vctrtvfrrr/myhealth/issues/1) contém a especificação completa e está marcada como pronta para implementação.
 
+## Módulos
+
+| Módulo | Descrição |
+| --- | --- |
+| `contract` | Contrato de transporte versionado compartilhado pelos dois lados. Não depende do módulo Android nem do módulo da API. |
+| `ingestion-api` | API de ingestão Ktor. Depende de `contract`. |
+| `android-app` | Aplicativo Android (Jetpack Compose). Depende de `contract`. |
+
 ## Desenvolvimento
 
-Os comandos de build, testes e execução serão adicionados quando o scaffold do monorepo estiver disponível. O desenvolvimento requer um aparelho Android físico com Samsung Health e o Samsung Health Data SDK em modo de desenvolvedor; emuladores não suportam a integração real.
+### Pré-requisitos
+
+- JDK 21 ou superior para executar o Gradle. O código é compilado para Java 17 por meio de um toolchain, baixado automaticamente quando ausente.
+- Android SDK instalado, com o caminho declarado em `local.properties` (`sdk.dir=...`) ou na variável `ANDROID_HOME`. O arquivo `local.properties` não é versionado.
+
+### Comandos
+
+| Comando | Efeito |
+| --- | --- |
+| `./gradlew build` | Compila e testa os três módulos. |
+| `./gradlew test` | Executa apenas os testes dos módulos JVM. |
+| `./gradlew :ingestion-api:run` | Sobe a API de ingestão em `http://localhost:8080` (porta configurável por `PORT`). |
+| `./gradlew :android-app:assembleDebug` | Gera o APK de depuração em `android-app/build/outputs/apk/debug/`. |
+| `./gradlew :android-app:installDebug` | Instala o APK no aparelho ou emulador conectado. |
+
+O desenvolvimento da integração requer um aparelho Android físico com Samsung Health e o Samsung Health Data SDK em modo de desenvolvedor; emuladores não suportam a integração real.
+
+### Integração contínua
+
+O workflow `.gitea/workflows/build.yml` executa `./gradlew build` a cada push e a cada pull request, e falha quando qualquer módulo quebra.
 
 Dados pessoais, credenciais da VPS, tokens, chaves de assinatura e fixtures derivadas de medições reais não devem ser adicionados ao repositório.
