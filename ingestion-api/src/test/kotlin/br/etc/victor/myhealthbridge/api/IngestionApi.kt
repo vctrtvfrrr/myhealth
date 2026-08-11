@@ -107,7 +107,7 @@ class IngestionApi(
         val status = connection.responseCode
         val stream = if (status < HttpURLConnection.HTTP_BAD_REQUEST) connection.inputStream else connection.errorStream
         val text = stream?.use { it.readBytes().decodeToString() }.orEmpty()
-        return Response(status, text, connection.contentType)
+        return Response(status, text, connection.contentType, connection.headerFields.orEmpty())
     }
 
     private fun launch(arguments: List<String>, output: File): Process {
@@ -143,7 +143,18 @@ class IngestionApi(
         throw AssertionError("the process never served /health:\n${logs()}")
     }
 
-    data class Response(val status: Int, val body: String, val contentType: String?)
+    data class Response(
+        val status: Int,
+        val body: String,
+        val contentType: String?,
+        private val headers: Map<String?, List<String>>,
+    ) {
+        /** HTTP header names are case insensitive, and the status line arrives under a null key. */
+        fun header(name: String): String? = headers.entries
+            .firstOrNull { it.key?.equals(name, ignoreCase = true) == true }
+            ?.value
+            ?.firstOrNull()
+    }
 
     private companion object {
         const val CHUNK_BYTES = 8 * 1024

@@ -106,11 +106,9 @@ class IngestionRequestLimitsTest : IngestionApiTest() {
     }
 
     @Test
-    fun `refuses a batch whose version or record type is structurally invalid`() {
+    fun `refuses a batch whose version is not an integer or whose record type is structurally invalid`() {
         val item = Envelopes.heartRate(samsungUid = "uid-invalid-batch")
         val roots = listOf(
-            Envelopes.batch(contractVersion = 2, items = listOf(item)),
-            Envelopes.batch(contractVersion = 0, items = listOf(item)),
             """{"contractVersion":"1","recordType":"heart_rate","items":[$item]}""",
             """{"recordType":"heart_rate","items":[$item]}""",
             """{"contractVersion":1,"items":[$item]}""",

@@ -34,7 +34,9 @@ enum class BatchErrorCode(val status: Int, val title: String) {
     BATCH_TOO_LARGE(413, "The request body exceeds the configured byte limit"),
     INVALID_REQUEST(400, "The request body is not a batch document"),
     TOO_MANY_ITEMS(422, "The batch carries more items than the configured limit"),
-    INVALID_BATCH(422, "The batch version or record type is structurally invalid"),
+    INVALID_BATCH(422, "The batch record type is structurally invalid or the version is not an integer"),
+    CONTRACT_VERSION_TOO_OLD(426, "The declared contract version is below the minimum this API supports"),
+    CONTRACT_VERSION_TOO_NEW(426, "The declared contract version is above what this API supports"),
     INGESTION_TEMPORARILY_UNAVAILABLE(503, "The ingestion store is unavailable"),
     ;
 

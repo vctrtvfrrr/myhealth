@@ -4,6 +4,7 @@ import br.etc.victor.myhealthbridge.contract.BatchErrorCode
 import br.etc.victor.myhealthbridge.contract.IngestionContract
 import br.etc.victor.myhealthbridge.contract.IngestionResponse
 import br.etc.victor.myhealthbridge.contract.ProblemDetails
+import br.etc.victor.myhealthbridge.contract.SupportedContractRange
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -45,6 +46,26 @@ fun Route.readiness(dataSource: DataSource) {
     }
 }
 
+/**
+ * The Supported Contract Range, served to anyone who asks and without touching the database.
+ *
+ * Unauthenticated because a client has to be able to diagnose "I must be updated" before it holds a
+ * device token; independent of PostgreSQL because it is precisely while the service is degraded that
+ * the client most needs to tell an outage apart from a Contract Incompatibility, and coupling the two
+ * would make a database loss look like the opposite diagnosis.
+ */
+fun Route.contractRange() {
+    get("/ingestion-contract") {
+        call.respondText(
+            IngestionContract.json.encodeToString(
+                SupportedContractRange.serializer(),
+                SupportedContractRange.PUBLISHED,
+            ),
+            ContentType.Application.Json,
+        )
+    }
+}
+
 fun Route.ingestion(endpoint: IngestionEndpoint) {
     post("/ingestions") {
         endpoint.handle(call)
@@ -63,6 +84,7 @@ class IngestionEndpoint(
 
     suspend fun handle(call: ApplicationCall) {
         val startedAt = System.nanoTime()
+        call.declareContractRange()
 
         val request = try {
             call.read()
@@ -111,20 +133,31 @@ class IngestionEndpoint(
             ?: return BatchRequest.Refused(BatchErrorCode.INVALID_REQUEST)
 
         val items = root["items"] as? JsonArray ?: return BatchRequest.Refused(BatchErrorCode.INVALID_REQUEST)
-        if (items.size > config.maxItems) return BatchRequest.Refused(BatchErrorCode.TOO_MANY_ITEMS)
 
-        val contractVersion = (root["contractVersion"] as? JsonPrimitive)
+        // A batch that declares no integer version is a malformed document, not an old client: no
+        // release ever sent one, so reading its absence as an earlier version would invent a past.
+        val declaredVersion = (root["contractVersion"] as? JsonPrimitive)
             ?.takeIf { !it.isString }
             ?.content
-            ?.toIntOrNull()
+            ?.toBigIntegerOrNull()
+            ?: return BatchRequest.Refused(BatchErrorCode.INVALID_BATCH)
+
+        // Incompatibility is answered before the resource limits, so that a client which must be
+        // updated is never told to send a smaller batch: it would shrink and retry forever, since no
+        // size of an incompatible batch can be accepted.
+        IngestionContract.incompatibilityOf(declaredVersion)?.let { return BatchRequest.Refused(it) }
+
+        if (items.size > config.maxItems) return BatchRequest.Refused(BatchErrorCode.TOO_MANY_ITEMS)
+
         val recordType = (root["recordType"] as? JsonPrimitive)?.takeIf { it.isString }?.content
 
         // An empty batch carries no observation, so accepting it would only record an unusable ingestion.
-        if (contractVersion != IngestionContract.CURRENT_VERSION || recordType.isNullOrEmpty() || items.isEmpty()) {
+        if (recordType.isNullOrEmpty() || items.isEmpty()) {
             return BatchRequest.Refused(BatchErrorCode.INVALID_BATCH)
         }
 
-        return BatchRequest.Accepted(deviceId, contractVersion, recordType, items)
+        // Safe: a version inside the range is one this build speaks, so it fits an Int by construction.
+        return BatchRequest.Accepted(deviceId, declaredVersion.toInt(), recordType, items)
     }
 
     /**
@@ -152,6 +185,17 @@ class IngestionEndpoint(
             val items: List<JsonElement>,
         ) : BatchRequest
     }
+}
+
+/**
+ * Announces the Supported Contract Range on every answer this endpoint gives, refusals included.
+ *
+ * Carrying it on a successful answer too is the point: a client learns that the minimum moved while
+ * it is still working, instead of learning it at the request that already broke.
+ */
+private fun ApplicationCall.declareContractRange() {
+    response.headers.append(IngestionContract.MINIMUM_HEADER, IngestionContract.MINIMUM_VERSION.toString())
+    response.headers.append(IngestionContract.RECOMMENDED_HEADER, IngestionContract.RECOMMENDED_VERSION.toString())
 }
 
 private fun ApplicationCall.bearerToken(): String? =

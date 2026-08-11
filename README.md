@@ -95,13 +95,24 @@ As migrations Flyway rodam na inicialização. Se qualquer uma falhar, a API reg
 
 ### Endpoints
 
-| Endpoint          | Autenticação      | Efeito                                                                                                 |
-| ----------------- | ----------------- | ------------------------------------------------------------------------------------------------------ |
-| `GET /health`     | Não               | Liveness. Não acessa o banco: responde `200` enquanto o processo estiver vivo.                         |
-| `GET /ready`      | Não               | Readiness. Responde `200` com banco alcançável e migrations aplicadas; `503` caso contrário.            |
-| `POST /ingestions` | `Bearer <token>` | Recebe um lote homogêneo de envelopes canônicos e devolve um resultado por posição enviada.             |
+| Endpoint                  | Autenticação     | Efeito                                                                                       |
+| ------------------------- | ---------------- | -------------------------------------------------------------------------------------------- |
+| `GET /health`             | Não              | Liveness. Não acessa o banco: responde `200` enquanto o processo estiver vivo.               |
+| `GET /ready`              | Não              | Readiness. Responde `200` com banco alcançável e migrations aplicadas; `503` caso contrário.  |
+| `GET /ingestion-contract` | Não              | Publica o Supported Contract Range: `minimumVersion` e `recommendedVersion`. Não acessa o banco. |
+| `POST /ingestions`        | `Bearer <token>` | Recebe um lote homogêneo de envelopes canônicos e devolve um resultado por posição enviada.   |
 
 Não existe endpoint de consulta, alteração ou exclusão de Health Records: a superfície HTTP é só ingestão e saúde.
+
+### Compatibilidade do contrato
+
+O lote declara a sua Ingestion Contract Version e a API declara o Supported Contract Range, de modo que aplicativo e servidor possam ser atualizados em momentos diferentes. Hoje o range é unitário: mínima, recomendada e atual valem `1`. Ver ADR `0007`.
+
+Toda resposta de `POST /ingestions`, inclusive os problem documents, carrega `Ingestion-Contract-Minimum` e `Ingestion-Contract-Recommended`, para que a divergência apareça antes de algo quebrar. `GET /ingestion-contract` responde os mesmos números sem autenticação e sem depender do banco, porque é justamente com o serviço degradado que o cliente precisa distinguir uma queda de uma incompatibilidade.
+
+Uma versão fora do range recebe `426` com código estável: `contract_version_too_old` quando o aplicativo precisa ser atualizado, `contract_version_too_new` quando o servidor é que está atrasado. Os dois códigos são publicados desde já, mesmo com o range unitário tornando o primeiro inalcançável, para que a chegada de uma segunda versão não exija release coordenada dos dois lados. Um lote sem `contractVersion`, ou com valor não inteiro, continua sendo `invalid_batch`: é documento malformado, não cliente antigo.
+
+Campo desconhecido na raiz do lote ou no envelope é ignorado e fica fora do digest, então não gera uma nova Observed Record Version. Campo novo dentro de `sourcePayload` entra no digest e gera outra versão observada, porque um `sourcePayload` diferente é uma observação diferente.
 
 O lote declara `contractVersion`, `recordType` e `items`; o tipo de registro aparece somente na raiz. Cada resultado traz `index` e `status` — `accepted`, `already_present` ou `rejected` —, e um item rejeitado traz códigos estáveis e ordenados. `accepted` e `already_present` significam igualmente que a observação está durável, o que permite ao aplicativo remover o item da outbox. Erros de lote usam RFC 9457 Problem Details com um `code` estável e não ecoam nada do que foi recebido.
 

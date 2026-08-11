@@ -1,0 +1,3 @@
+# Declare the supported contract range instead of accepting several versions
+
+Only one Ingestion Contract Version has ever existed, so the API declares a Supported Contract Range whose minimum, recommended and current versions are all the same, and rejects every other version. Accepting a range of versions is deferred until a second version genuinely exists, because inventing one now would be a contract change with no demand behind it. What cannot be deferred is the declaration and the Contract Incompatibility errors: both stable codes ship now, including the one no request can reach yet, so that the arrival of a second version does not require releasing the application and the API together, which is the coupling this negotiation exists to remove.

@@ -1,5 +1,7 @@
 package br.etc.victor.myhealthbridge.api
 
+import br.etc.victor.myhealthbridge.contract.IngestionContract
+import br.etc.victor.myhealthbridge.contract.SupportedContractRange
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.MethodOrderer
@@ -45,8 +47,27 @@ class IngestionUnavailableTest : IngestionApiTest() {
         assertFalse(response.body.contains("results"), "a refused batch must carry no positional results")
     }
 
+    /**
+     * Coupling this to the database would make an outage look like a Contract Incompatibility, which is
+     * the opposite diagnosis: it would send the Data Owner to update an application that was correct.
+     */
     @Test
     @Order(4)
+    fun `still publishes the supported contract range once the database is gone`() {
+        val response = api.get("/ingestion-contract")
+
+        assertEquals(200, response.status)
+        assertEquals(
+            IngestionContract.json.encodeToString(
+                SupportedContractRange.serializer(),
+                SupportedContractRange.PUBLISHED,
+            ),
+            response.body,
+        )
+    }
+
+    @Test
+    @Order(5)
     fun `never wrote the failure details into the log`() {
         val logs = api.logs()
 

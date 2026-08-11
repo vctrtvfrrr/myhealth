@@ -3,13 +3,61 @@ package br.etc.victor.myhealthbridge.contract
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import java.math.BigInteger
 
 class IngestionContractTest {
 
     @Test
     fun `pins the wire version so that a bump is a deliberate change`() {
         assertEquals(1, IngestionContract.CURRENT_VERSION)
+    }
+
+    @Test
+    fun `answers no incompatibility inside the supported contract range`() {
+        (IngestionContract.MINIMUM_VERSION..IngestionContract.CURRENT_VERSION).forEach { version ->
+            assertNull(
+                IngestionContract.incompatibilityOf(version.toBigInteger()),
+                "version $version must be accepted",
+            )
+        }
+    }
+
+    @Test
+    fun `tells the two sides of the range apart, because the remediation is opposite`() {
+        assertEquals(
+            BatchErrorCode.CONTRACT_VERSION_TOO_OLD,
+            IngestionContract.incompatibilityOf((IngestionContract.MINIMUM_VERSION - 1).toBigInteger()),
+        )
+        assertEquals(
+            BatchErrorCode.CONTRACT_VERSION_TOO_NEW,
+            IngestionContract.incompatibilityOf((IngestionContract.CURRENT_VERSION + 1).toBigInteger()),
+        )
+    }
+
+    /** JSON integers have no width limit, and one too wide for an Int is still above the range. */
+    @Test
+    fun `reads a version beyond an Int as above the range, not as malformed`() {
+        assertEquals(
+            BatchErrorCode.CONTRACT_VERSION_TOO_NEW,
+            IngestionContract.incompatibilityOf(BigInteger("99999999999")),
+        )
+        assertEquals(
+            BatchErrorCode.CONTRACT_VERSION_TOO_OLD,
+            IngestionContract.incompatibilityOf(BigInteger("-99999999999")),
+        )
+    }
+
+    @Test
+    fun `publishes the supported contract range without a current version`() {
+        assertEquals(
+            """{"minimumVersion":1,"recommendedVersion":1}""",
+            IngestionContract.json.encodeToString(
+                SupportedContractRange.serializer(),
+                SupportedContractRange.PUBLISHED,
+            ),
+        )
     }
 
     /**

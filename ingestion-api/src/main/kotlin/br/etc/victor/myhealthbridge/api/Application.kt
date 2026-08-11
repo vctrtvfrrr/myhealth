@@ -79,6 +79,7 @@ fun Application.module(dataSource: DataSource, config: IngestionConfig) {
     routing {
         liveness()
         readiness(dataSource)
+        contractRange()
         ingestion(endpoint)
     }
 }
