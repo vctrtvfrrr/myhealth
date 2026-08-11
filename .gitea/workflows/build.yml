@@ -19,3 +19,8 @@ jobs:
       - uses: android-actions/setup-android@v3
 
       - run: ./gradlew build --no-daemon
+
+      - run: ./gradlew :ingestion-api:buildImage --no-daemon
+
+      - name: Verify the image runs as uid 1000
+        run: test "$(docker run --rm --entrypoint id myhealthbridge-api:local -u)" = "1000"
