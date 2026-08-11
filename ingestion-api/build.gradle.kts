@@ -16,6 +16,7 @@ dependencies {
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.netty)
     implementation(libs.flyway.core)
+    implementation(libs.hikaricp)
     runtimeOnly(libs.flyway.database.postgresql)
     runtimeOnly(libs.postgresql)
     runtimeOnly(libs.logback.classic)
