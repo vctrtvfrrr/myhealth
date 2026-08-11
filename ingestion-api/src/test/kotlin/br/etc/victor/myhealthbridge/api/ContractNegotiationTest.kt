@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 
@@ -28,6 +29,11 @@ class ContractNegotiationTest : IngestionApiTest() {
         assertEquals(
             IngestionContract.MINIMUM_VERSION,
             document["minimumVersion"]!!.jsonPrimitive.content.toInt(),
+        )
+        assertEquals(
+            IngestionContract.CURRENT_VERSION,
+            document["maximumVersion"]!!.jsonPrimitive.content.toInt(),
+            "without the upper bound a newer client cannot tell rejection from mere advice",
         )
         assertEquals(
             IngestionContract.RECOMMENDED_VERSION,
@@ -76,7 +82,7 @@ class ContractNegotiationTest : IngestionApiTest() {
             token,
         )
 
-        assertEquals(426, response.status)
+        assertEquals(422, response.status)
         assertEquals("contract_version_too_old", problemCode(response.body))
         assertRangeDeclared(response)
     }
@@ -88,7 +94,7 @@ class ContractNegotiationTest : IngestionApiTest() {
             token,
         )
 
-        assertEquals(426, response.status)
+        assertEquals(422, response.status)
         assertEquals("contract_version_too_new", problemCode(response.body))
         assertRangeDeclared(response)
     }
@@ -100,7 +106,7 @@ class ContractNegotiationTest : IngestionApiTest() {
 
         val response = api.post(body = root.toByteArray(), token = token)
 
-        assertEquals(426, response.status)
+        assertEquals(422, response.status)
         assertEquals("contract_version_too_new", problemCode(response.body))
     }
 
@@ -117,7 +123,7 @@ class ContractNegotiationTest : IngestionApiTest() {
             token,
         )
 
-        assertEquals(426, response.status)
+        assertEquals(422, response.status)
         assertEquals("contract_version_too_new", problemCode(response.body))
     }
 
@@ -138,11 +144,12 @@ class ContractNegotiationTest : IngestionApiTest() {
     }
 
     /**
-     * The digest is taken over the fields this version knows, so a property a newer client added is
-     * preserved in the stored envelope without making the same observation look like a different one.
+     * A property this version does not know is dropped, not kept: the canonical rendering is built
+     * from the known fields, so the field reaches neither the digest nor the stored envelope. That is
+     * what makes the batch still succeed, and it is also why the item is silently incomplete.
      */
     @Test
-    fun `accepts a field a newer client added to an envelope without observing a new version`() {
+    fun `accepts a field a newer client added to an envelope, and discards it`() {
         val uid = "uid-additive-envelope"
         assertEquals(200, send(item(uid)).status)
 
@@ -151,6 +158,10 @@ class ContractNegotiationTest : IngestionApiTest() {
         assertEquals(200, response.status)
         assertEquals(listOf("already_present"), statuses(response.body))
         assertEquals(1, versionsOf(uid).size, "an additive field created a second Observed Record Version")
+        assertFalse(
+            versionsOf(uid).single().envelope().containsKey("futureField"),
+            "the stored envelope kept a field this contract version cannot interpret",
+        )
     }
 
     /**
@@ -183,6 +194,10 @@ class ContractNegotiationTest : IngestionApiTest() {
         assertEquals(
             IngestionContract.MINIMUM_VERSION.toString(),
             response.header(IngestionContract.MINIMUM_HEADER),
+        )
+        assertEquals(
+            IngestionContract.CURRENT_VERSION.toString(),
+            response.header(IngestionContract.MAXIMUM_HEADER),
         )
         assertEquals(
             IngestionContract.RECOMMENDED_VERSION.toString(),

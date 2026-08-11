@@ -50,9 +50,9 @@ class IngestionContractTest {
     }
 
     @Test
-    fun `publishes the supported contract range without a current version`() {
+    fun `publishes both bounds of the supported contract range`() {
         assertEquals(
-            """{"minimumVersion":1,"recommendedVersion":1}""",
+            """{"minimumVersion":1,"maximumVersion":1,"recommendedVersion":1}""",
             IngestionContract.json.encodeToString(
                 SupportedContractRange.serializer(),
                 SupportedContractRange.PUBLISHED,

@@ -195,6 +195,7 @@ class IngestionEndpoint(
  */
 private fun ApplicationCall.declareContractRange() {
     response.headers.append(IngestionContract.MINIMUM_HEADER, IngestionContract.MINIMUM_VERSION.toString())
+    response.headers.append(IngestionContract.MAXIMUM_HEADER, IngestionContract.CURRENT_VERSION.toString())
     response.headers.append(IngestionContract.RECOMMENDED_HEADER, IngestionContract.RECOMMENDED_VERSION.toString())
 }
 

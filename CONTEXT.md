@@ -57,7 +57,7 @@ The version of the transport surface shared by the application and the ingestion
 _Avoid_: API version, protocol version, schema version
 
 **Supported Contract Range**:
-The set of Ingestion Contract Versions the API accepts, bounded below by the minimum supported version and above by the version the API itself speaks. It also names a recommended version, which is advice on what to send rather than a bound. The range is currently a single version, and being a range is what allows the two sides to be updated at different moments.
+The set of Ingestion Contract Versions the API accepts, bounded below by the minimum supported version and above by the maximum, which is the newest version the API itself speaks. Both bounds are published, along with a recommended version that is advice on what to send rather than a bound. The range is currently a single version, and being a range is what allows the two sides to be updated at different moments.
 _Avoid_: Supported version, version list
 
 **Contract Incompatibility**:

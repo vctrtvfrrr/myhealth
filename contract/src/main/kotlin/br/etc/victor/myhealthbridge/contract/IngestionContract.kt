@@ -35,6 +35,8 @@ object IngestionContract {
 
     const val MINIMUM_HEADER: String = "Ingestion-Contract-Minimum"
 
+    const val MAXIMUM_HEADER: String = "Ingestion-Contract-Maximum"
+
     const val RECOMMENDED_HEADER: String = "Ingestion-Contract-Recommended"
 
     /**
