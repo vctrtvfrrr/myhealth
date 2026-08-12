@@ -170,7 +170,7 @@ O desenvolvimento da integração requer um aparelho Android físico com Samsung
 
 ### Integração contínua
 
-O workflow `.gitea/workflows/ci.yml` executa `./gradlew check` a cada push e a cada pull request, e falha quando qualquer módulo quebra. Ele tem dois jobs: `build` valida, constrói a imagem e produz o APK de release assinado; `deploy` entrega a API, só em push na `master` e só depois de o `build` passar inteiro. A imagem recebe o nome do commit ainda no job `build`, para que uma execução concorrente de outro branch não troque a tag `myhealth-api:local` entre os dois jobs.
+O workflow `.gitea/workflows/ci.yml` executa `./gradlew check` a cada push e a cada pull request, e falha quando qualquer módulo quebra. Ele tem dois jobs: `build` valida, constrói a imagem e — só em push na `master` — produz o APK de release assinado; `deploy` entrega a API, sob a mesma condição e só depois de o `build` passar inteiro. A imagem recebe o nome do commit ainda no job `build`, para que uma execução concorrente de outro branch não troque a tag `myhealth-api:local` entre os dois jobs.
 
 Dados pessoais, credenciais da VPS, tokens, chaves de assinatura e fixtures derivadas de medições reais não devem ser adicionados ao repositório.
 
@@ -202,7 +202,9 @@ Os limites de ingestão ficam nos padrões documentados em [Configuração da AP
 
 ### Distribuição do aplicativo
 
-O aplicativo não é publicado na Play Store: o Data Owner instala e atualiza o APK manualmente. Cada execução do CI gera o APK de release assinado e o publica como artefato de build, nomeado `myhealth-bridge-<sha do commit>`. Ver ADR `0011`.
+O aplicativo não é publicado na Play Store: o Data Owner instala e atualiza o APK manualmente. Cada push na `master` gera o APK de release assinado e o publica como artefato de build, nomeado `myhealth-bridge-<sha do commit>`. Ver ADR `0011`.
+
+A chave só é entregue ao build de uma revisão que já está na `master`. O build é o `build.gradle.kts` daquela revisão: um branch ou pull request que chegasse a esse passo poderia copiar a chave para onde quisesse, e ela é justamente a autoridade que decide o que o aparelho aceita como atualização. Por isso os demais eventos continuam validando o variant de depuração, sem chave alguma.
 
 A assinatura é estável, e é ela que preserva a identidade do aplicativo: o Android recusa uma atualização assinada por outra chave, e a única saída seria desinstalar, o que levaria junto a outbox e o estado operacional local. O keystore **não é versionado** e chega ao build por variáveis de ambiente:
 
@@ -222,7 +224,7 @@ keytool -genkeypair -keystore myhealth-release.jks -storetype PKCS12 -keyalg RSA
 base64 -w0 myhealth-release.jks
 ```
 
-No runner, o arquivo vem do secret `RELEASE_KEYSTORE_BASE64` — a saída do `base64` acima —, é escrito fora do workspace e removido ao fim do job; as credenciais vêm dos secrets `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` e `RELEASE_KEY_PASSWORD`. Perder o keystore custa a identidade do aplicativo: não existe recuperação, e daí em diante toda instalação exigiria desinstalar a anterior.
+No runner, o arquivo vem do secret `RELEASE_KEYSTORE_BASE64` — a saída do `base64` acima —, é escrito fora do workspace com `umask 077` e removido por `trap`, inclusive quando o build falha; as credenciais vêm dos secrets `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` e `RELEASE_KEY_PASSWORD`. Perder o keystore custa a identidade do aplicativo: não existe recuperação, e daí em diante toda instalação exigiria desinstalar a anterior.
 
 Para instalar, baixe o artefato da execução do CI correspondente ao commit desejado, na página do workflow no Gitea, e descompacte. Com o aparelho conectado por USB e a depuração USB ativa:
 

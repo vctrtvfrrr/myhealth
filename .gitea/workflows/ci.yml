@@ -40,31 +40,33 @@ jobs:
           curl -fsSL -H "Authorization: Bearer $SAMSUNG_HEALTH_SDK_TOKEN" \
             "$SAMSUNG_HEALTH_SDK_URL" -o android-app/libs/samsung-health-data-api-1.1.0.aar
 
-      # Outside the workspace, so no later step can archive the key along with the build outputs.
-      - name: Provision the release signing key
+      # The release APK is signed further down, and only on master, so every other revision verifies
+      # the debug variant.
+      - run: ./gradlew check :android-app:assembleDebug --no-daemon
+
+      # The key never meets a revision that is not already on master: the build it drives is that
+      # revision's own code, so any branch reaching this step could copy the key anywhere.
+      - name: Build the signed release APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         env:
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          MYHEALTH_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          MYHEALTH_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          MYHEALTH_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
             echo "::error::RELEASE_KEYSTORE_BASE64 is not configured for this repository"
             exit 1
           fi
-          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/myhealth-release.jks"
-
-      - name: Check and build the signed release APK
-        env:
-          MYHEALTH_RELEASE_KEYSTORE: ${{ runner.temp }}/myhealth-release.jks
-          MYHEALTH_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
-          MYHEALTH_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
-          MYHEALTH_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
-        run: ./gradlew check :android-app:assembleRelease --no-daemon
-
-      # The runner is self-hosted, so its temporary directory outlives the job.
-      - name: Discard the release signing key
-        if: always()
-        run: rm -f "$RUNNER_TEMP/myhealth-release.jks"
+          # The runner is self-hosted and shared: the key lands outside the workspace, unreadable to
+          # the other workloads on the host, and goes away even when the build fails.
+          export MYHEALTH_RELEASE_KEYSTORE="$RUNNER_TEMP/myhealth-release-$GITHUB_RUN_ID.jks"
+          trap 'rm -f "$MYHEALTH_RELEASE_KEYSTORE"' EXIT
+          (umask 077 && printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$MYHEALTH_RELEASE_KEYSTORE")
+          ./gradlew :android-app:assembleRelease --no-daemon
 
       - name: Publish the APK as a build artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
           name: myhealth-bridge-${{ github.sha }}
