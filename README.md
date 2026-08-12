@@ -67,6 +67,8 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 | `./gradlew :ingestion-api:run` | Sobe a API de ingestão em `http://localhost:8039` (porta configurável por `PORT`), exigindo um PostgreSQL alcançável. |
 | `./gradlew :android-app:assembleDebug` | Gera o APK de depuração em `android-app/build/outputs/apk/debug/`. |
 | `./gradlew :android-app:installDebug` | Instala o APK no aparelho ou emulador conectado. |
+| `./gradlew :android-app:assembleRelease` | Gera o APK de release assinado em `android-app/build/outputs/apk/release/`. Exige as variáveis de assinatura. |
+| `./gradlew :android-app:verifyReleaseSigning` | Confere se a chave de assinatura está configurada no ambiente. Roda antes de qualquer build de release. |
 | `./gradlew :android-app:installSamsungHealthSdk -Psamsung.health.sdk=<caminho>` | Copia o AAR baixado para `android-app/libs/`. |
 | `./gradlew :android-app:verifySamsungHealthSdk` | Confere presença e checksum do AAR. Roda antes de qualquer compilação do módulo Android. |
 
@@ -168,7 +170,7 @@ O desenvolvimento da integração requer um aparelho Android físico com Samsung
 
 ### Integração contínua
 
-O workflow `.gitea/workflows/ci.yml` executa `./gradlew check` a cada push e a cada pull request, e falha quando qualquer módulo quebra. Ele tem dois jobs: `build` valida e constrói a imagem; `deploy` entrega, só em push na `master` e só depois de o `build` passar inteiro. A imagem recebe o nome do commit ainda no job `build`, para que uma execução concorrente de outro branch não troque a tag `myhealth-api:local` entre os dois jobs.
+O workflow `.gitea/workflows/ci.yml` executa `./gradlew check` a cada push e a cada pull request, e falha quando qualquer módulo quebra. Ele tem dois jobs: `build` valida, constrói a imagem e produz o APK de release assinado; `deploy` entrega a API, só em push na `master` e só depois de o `build` passar inteiro. A imagem recebe o nome do commit ainda no job `build`, para que uma execução concorrente de outro branch não troque a tag `myhealth-api:local` entre os dois jobs.
 
 Dados pessoais, credenciais da VPS, tokens, chaves de assinatura e fixtures derivadas de medições reais não devem ser adicionados ao repositório.
 
@@ -197,6 +199,42 @@ A configuração de runtime chega por variáveis `APPENV_*` declaradas no `env:`
 | `APPENV_DATABASE_PASS` | `secrets.DATABASE_PASS` | `DATABASE_PASS` | Senha do papel de runtime, nascida no vault da plataforma. |
 
 Os limites de ingestão ficam nos padrões documentados em [Configuração da API](#configuração-da-api): declará-los só faz sentido quando um deles precisar mudar. O `secrets.REGISTRY_TOKEN` autentica no registro e não chega ao runtime.
+
+### Distribuição do aplicativo
+
+O aplicativo não é publicado na Play Store: o Data Owner instala e atualiza o APK manualmente. Cada execução do CI gera o APK de release assinado e o publica como artefato de build, nomeado `myhealth-bridge-<sha do commit>`. Ver ADR `0011`.
+
+A assinatura é estável, e é ela que preserva a identidade do aplicativo: o Android recusa uma atualização assinada por outra chave, e a única saída seria desinstalar, o que levaria junto a outbox e o estado operacional local. O keystore **não é versionado** e chega ao build por variáveis de ambiente:
+
+| Variável | Efeito |
+| --- | --- |
+| `MYHEALTH_RELEASE_KEYSTORE` | Caminho do keystore. |
+| `MYHEALTH_RELEASE_KEYSTORE_PASSWORD` | Senha do keystore. |
+| `MYHEALTH_RELEASE_KEY_ALIAS` | Alias da chave. |
+| `MYHEALTH_RELEASE_KEY_PASSWORD` | Senha da chave. |
+
+Faltando qualquer uma delas, ou com valor em branco, o build de release falha nomeando as ausentes, em vez de cair na chave de depuração ou produzir um APK sem assinatura: os dois instalariam hoje e recusariam a próxima atualização.
+
+O keystore é gerado uma única vez e guardado fora do Git:
+
+```sh
+keytool -genkeypair -keystore myhealth-release.jks -storetype PKCS12 -keyalg RSA -keysize 4096 -validity 10000 -alias myhealth
+base64 -w0 myhealth-release.jks
+```
+
+No runner, o arquivo vem do secret `RELEASE_KEYSTORE_BASE64` — a saída do `base64` acima —, é escrito fora do workspace e removido ao fim do job; as credenciais vêm dos secrets `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` e `RELEASE_KEY_PASSWORD`. Perder o keystore custa a identidade do aplicativo: não existe recuperação, e daí em diante toda instalação exigiria desinstalar a anterior.
+
+Para instalar, baixe o artefato da execução do CI correspondente ao commit desejado, na página do workflow no Gitea, e descompacte. Com o aparelho conectado por USB e a depuração USB ativa:
+
+```sh
+adb install -r android-app-release.apk
+```
+
+`-r` reinstala por cima da versão anterior preservando os dados. Sem cabo, copie o APK para o aparelho e abra-o pelo gerenciador de arquivos, autorizando a instalação de fontes desconhecidas.
+
+O APK de depuração é assinado por outra chave, então a primeira instalação de release por cima de uma instalação de depuração é recusada e exige desinstalar antes. Isso vale uma única vez: entre releases a chave é a mesma.
+
+A atualização preserva outbox e estado operacional local porque nem o `applicationId` nem a assinatura mudam. `versionCode` e `versionName` ficam em `android-app/build.gradle.kts` e sobem por edição deliberada; o Android aceita reinstalar o mesmo `versionCode`, mas recusa um menor.
 
 Na API, só `DATABASE_PORT` e `PORT` têm default; as demais são obrigatórias e valor em branco conta como ausente. O default de name e user vive por isso no workflow, na convenção da plataforma de nomear role e database como o próprio app: definir `vars.DATABASE_NAME` ou `vars.DATABASE_USER` substitui, deixar em branco herda `myhealth`. O único segredo de runtime é `secrets.DATABASE_PASS`, copiado do vault da plataforma, e é o único valor sem default — daí o job conferir que ele existe antes de publicar qualquer coisa.
 

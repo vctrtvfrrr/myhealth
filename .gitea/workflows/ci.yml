@@ -40,8 +40,36 @@ jobs:
           curl -fsSL -H "Authorization: Bearer $SAMSUNG_HEALTH_SDK_TOKEN" \
             "$SAMSUNG_HEALTH_SDK_URL" -o android-app/libs/samsung-health-data-api-1.1.0.aar
 
-      # The release variant is neither signed nor published, so CI verifies the debug one.
-      - run: ./gradlew check :android-app:assembleDebug --no-daemon
+      # Outside the workspace, so no later step can archive the key along with the build outputs.
+      - name: Provision the release signing key
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "::error::RELEASE_KEYSTORE_BASE64 is not configured for this repository"
+            exit 1
+          fi
+          printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/myhealth-release.jks"
+
+      - name: Check and build the signed release APK
+        env:
+          MYHEALTH_RELEASE_KEYSTORE: ${{ runner.temp }}/myhealth-release.jks
+          MYHEALTH_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          MYHEALTH_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          MYHEALTH_RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew check :android-app:assembleRelease --no-daemon
+
+      # The runner is self-hosted, so its temporary directory outlives the job.
+      - name: Discard the release signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/myhealth-release.jks"
+
+      - name: Publish the APK as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: myhealth-bridge-${{ github.sha }}
+          path: android-app/build/outputs/apk/release/android-app-release.apk
+          if-no-files-found: error
 
       - run: ./gradlew :ingestion-api:buildImage --no-daemon
 

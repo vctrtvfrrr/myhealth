@@ -56,6 +56,38 @@ tasks.register("installSamsungHealthSdk") {
     }
 }
 
+// The release APK is installed by hand over the previous one, so it has to carry the same key every
+// time: a different signature makes Android refuse the update and the only way through would be an
+// uninstall, which takes the outbox with it. The keystore and its credentials never enter Git.
+val releaseSigningEnvironment = listOf(
+    "MYHEALTH_RELEASE_KEYSTORE",
+    "MYHEALTH_RELEASE_KEYSTORE_PASSWORD",
+    "MYHEALTH_RELEASE_KEY_ALIAS",
+    "MYHEALTH_RELEASE_KEY_PASSWORD",
+).associateWith { providers.environmentVariable(it).map(String::trim).filter(String::isNotEmpty) }
+
+val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
+    group = "verification"
+    description = "Checks that the release signing key is configured in the environment."
+
+    val environment = releaseSigningEnvironment
+
+    doLast {
+        val missing = environment.filterValues { !it.isPresent }.keys
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "The release build is signed with the stable key, and ${missing.joinToString()} " +
+                    "${if (missing.size == 1) "is" else "are"} not set.\n" +
+                    "See the release APK section of the README for where the keystore lives and how to point at it.",
+            )
+        }
+        val keystore = File(environment.getValue("MYHEALTH_RELEASE_KEYSTORE").get())
+        if (!keystore.isFile) {
+            throw GradleException("No release keystore at ${keystore.path}.")
+        }
+    }
+}
+
 android {
     namespace = "br.etc.victor.myhealthbridge"
     compileSdk = 37
@@ -68,9 +100,19 @@ android {
         versionName = "0.1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = releaseSigningEnvironment.getValue("MYHEALTH_RELEASE_KEYSTORE").orNull?.let(::File)
+            storePassword = releaseSigningEnvironment.getValue("MYHEALTH_RELEASE_KEYSTORE_PASSWORD").orNull
+            keyAlias = releaseSigningEnvironment.getValue("MYHEALTH_RELEASE_KEY_ALIAS").orNull
+            keyPassword = releaseSigningEnvironment.getValue("MYHEALTH_RELEASE_KEY_PASSWORD").orNull
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -90,6 +132,11 @@ kotlin {
 
 tasks.named("preBuild") {
     dependsOn(verifySamsungHealthSdk)
+}
+
+// The release variant registers its anchor task after this script is evaluated.
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(verifyReleaseSigning)
 }
 
 dependencies {
