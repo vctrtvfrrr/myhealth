@@ -68,6 +68,29 @@ class HealthPermissionsViewModelTest {
     }
 
     @Test
+    fun `never lets the restored observation replace a newer one`() = runTest(dispatcher) {
+        store.observation = PermissionObservation.from(
+            previous = null,
+            granted = setOf(HealthCategory.STEPS),
+            requested = emptySet(),
+            observedAt = clock.instant().minusSeconds(3600),
+        )
+        val restore = CompletableDeferred<Unit>()
+        store.delayNextRead = restore
+
+        val viewModel = HealthPermissionsViewModel(service)
+        runCurrent()
+
+        viewModel.check()
+        advanceUntilIdle()
+        restore.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(clock.instant(), viewModel.state.value.observedAt)
+        assertEquals(PermissionState.REVOKED, viewModel.state.value.states[HealthCategory.STEPS])
+    }
+
+    @Test
     fun `marks the observation as outdated when the newest check fails`() = runTest(dispatcher) {
         val viewModel = HealthPermissionsViewModel(service)
         viewModel.check()

@@ -1,5 +1,7 @@
 package br.etc.victor.myhealthbridge.health
 
+import kotlinx.coroutines.CompletableDeferred
+
 class FakeSamsungHealthGateway(
     var granted: Set<HealthCategory> = emptySet(),
 ) : SamsungHealthGateway {
@@ -33,7 +35,17 @@ class InMemoryPermissionHistoryStore : PermissionHistoryStore {
     var observation: PermissionObservation? = null
     var writes: Int = 0
 
-    override suspend fun read(): PermissionObservation? = observation
+    /** Holds back the answer of the next read, which still sees the history as it was when it started. */
+    var delayNextRead: CompletableDeferred<Unit>? = null
+
+    override suspend fun read(): PermissionObservation? {
+        val answer = observation
+        delayNextRead?.let { held ->
+            delayNextRead = null
+            held.await()
+        }
+        return answer
+    }
 
     override suspend fun write(observation: PermissionObservation) {
         this.observation = observation

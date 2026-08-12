@@ -59,7 +59,7 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 
 | Comando                                | Efeito                                                                                                                |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `./gradlew build`                      | Compila e testa os três módulos, incluindo os testes de integração.                                                   |
+| `./gradlew build`                      | Compila e testa os quatro módulos, incluindo os testes de integração.                                                 |
 | `./gradlew test`                       | Executa apenas os testes que não exigem Docker.                                                                       |
 | `./gradlew integrationTest`            | Executa apenas os testes de integração, que sobem containers.                                                         |
 | `./gradlew :ingestion-api:buildImage`  | Constrói a imagem `myhealthbridge-api:local` a partir da distribuição do Gradle.                                      |

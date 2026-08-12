@@ -22,7 +22,11 @@ class HealthPermissionsViewModel(
     init {
         viewModelScope.launch {
             val last = service.lastObservation() ?: return@launch
-            _state.update { it.copy(observedAt = last.observedAt, states = last.states) }
+            _state.update { current ->
+                // A check that answered while this read was in flight already holds a newer observation.
+                if (current.observedAt != null) current
+                else current.copy(observedAt = last.observedAt, states = last.states)
+            }
         }
     }
 
