@@ -39,12 +39,12 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 
 ## Módulos
 
-| Módulo          | Descrição                                                                                                             |
-| --------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `contract`      | Contrato de transporte versionado compartilhado pelos dois lados. Não depende do módulo Android nem do módulo da API. |
-| `ingestion-api` | API de ingestão Ktor. Depende de `contract`.                                                                          |
+| Módulo | Descrição |
+| --- | --- |
+| `contract` | Contrato de transporte versionado compartilhado pelos dois lados. Não depende do módulo Android nem do módulo da API. |
+| `ingestion-api` | API de ingestão Ktor. Depende de `contract`. |
 | `health-permissions` | Catálogo de Health Categories, Permission States, histórico em Room e tela de permissões. Não depende de tipos do Samsung SDK. |
-| `android-app`   | Aplicativo Android (Jetpack Compose) e o adaptador do Samsung Health Data SDK. Depende de `contract` e `health-permissions`. |
+| `android-app` | Aplicativo Android (Jetpack Compose) e o adaptador do Samsung Health Data SDK. Depende de `contract` e `health-permissions`. |
 
 ## Desenvolvimento
 
@@ -57,18 +57,18 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 
 ### Comandos
 
-| Comando                                | Efeito                                                                                                                |
-| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `./gradlew build`                      | Compila e testa os quatro módulos, incluindo os testes de integração.                                                 |
-| `./gradlew test`                       | Executa apenas os testes que não exigem Docker.                                                                       |
-| `./gradlew integrationTest`            | Executa apenas os testes de integração, que sobem containers.                                                         |
-| `./gradlew :ingestion-api:buildImage`  | Constrói a imagem `myhealthbridge-api:local` a partir da distribuição do Gradle.                                      |
-| `./gradlew devUp`                      | Reconstrói a imagem e sobe PostgreSQL e a API em containers para desenvolvimento local.                               |
-| `./gradlew :ingestion-api:run`         | Sobe a API de ingestão em `http://localhost:8080` (porta configurável por `PORT`), exigindo um PostgreSQL alcançável. |
-| `./gradlew :android-app:assembleDebug` | Gera o APK de depuração em `android-app/build/outputs/apk/debug/`.                                                    |
-| `./gradlew :android-app:installDebug`  | Instala o APK no aparelho ou emulador conectado.                                                                      |
-| `./gradlew :android-app:installSamsungHealthSdk -Psamsung.health.sdk=<caminho>` | Copia o AAR baixado para `android-app/libs/`.                                       |
-| `./gradlew :android-app:verifySamsungHealthSdk` | Confere presença e checksum do AAR. Roda antes de qualquer compilação do módulo Android.                    |
+| Comando | Efeito |
+| --- | --- |
+| `./gradlew build` | Compila e testa os quatro módulos, incluindo os testes de integração. |
+| `./gradlew test` | Executa apenas os testes que não exigem Docker. |
+| `./gradlew integrationTest` | Executa apenas os testes de integração, que sobem containers. |
+| `./gradlew :ingestion-api:buildImage` | Constrói a imagem `myhealth-api:local` a partir da distribuição do Gradle. |
+| `./gradlew devUp` | Reconstrói a imagem e sobe PostgreSQL e a API em containers para desenvolvimento local. |
+| `./gradlew :ingestion-api:run` | Sobe a API de ingestão em `http://localhost:8039` (porta configurável por `PORT`), exigindo um PostgreSQL alcançável. |
+| `./gradlew :android-app:assembleDebug` | Gera o APK de depuração em `android-app/build/outputs/apk/debug/`. |
+| `./gradlew :android-app:installDebug` | Instala o APK no aparelho ou emulador conectado. |
+| `./gradlew :android-app:installSamsungHealthSdk -Psamsung.health.sdk=<caminho>` | Copia o AAR baixado para `android-app/libs/`. |
+| `./gradlew :android-app:verifySamsungHealthSdk` | Confere presença e checksum do AAR. Roda antes de qualquer compilação do módulo Android. |
 
 A imagem da API é construída somente pela tarefa `buildImage`, que garante a distribuição atualizada antes do `docker build`. O ambiente local sobe por `devUp`, que depende dela: `docker build` e `docker compose up` invocados diretamente produzem imagem com o jar defasado e não são caminhos suportados.
 
@@ -94,37 +94,37 @@ As 25 Health Categories catalogadas cobrem exatamente os data types legíveis do
 
 ### Configuração da API
 
-A API lê toda a configuração de banco do ambiente e encerra a inicialização, nomeando a variável ausente, quando falta alguma das obrigatórias.
+A API lê toda a configuração de banco do ambiente e encerra a inicialização, nomeando a variável ausente, quando falta alguma das obrigatórias. Valor em branco conta como ausente, porque é assim que uma variável não configurada chega pela entrega.
 
-| Variável        | Obrigatória | Efeito                                                                      |
-| --------------- | ----------- | --------------------------------------------------------------------------- |
-| `DATABASE_HOST` | Sim         | Host do PostgreSQL.                                                         |
-| `DATABASE_PORT` | Não         | Porta do PostgreSQL. O padrão é `5432`.                                     |
-| `DATABASE_NAME` | Sim         | Nome da database.                                                           |
-| `DATABASE_USER` | Sim         | Papel de runtime, que precisa das permissões DDL exigidas pelas migrations. |
-| `DATABASE_PASS` | Sim         | Senha do papel de runtime.                                                  |
-| `PORT`          | Não         | Porta HTTP da API. O padrão é `8080`.                                       |
+| Variável | Obrigatória | Efeito |
+| --- | --- | --- |
+| `DATABASE_HOST` | Sim | Host do PostgreSQL. |
+| `DATABASE_PORT` | Não | Porta do PostgreSQL. O padrão é `5432`. |
+| `DATABASE_NAME` | Sim | Nome da database. |
+| `DATABASE_USER` | Sim | Papel de runtime, que precisa das permissões DDL exigidas pelas migrations. |
+| `DATABASE_PASS` | Sim | Senha do papel de runtime. |
+| `PORT` | Não | Porta HTTP da API. O padrão é `8039`. |
 
 Os limites de ingestão também vêm do ambiente. Um valor fora da faixa aceita impede a inicialização, em vez de ser ajustado silenciosamente.
 
-| Variável                           | Padrão    | Faixa aceita     | Efeito                                              |
-| ---------------------------------- | --------- | ---------------- | --------------------------------------------------- |
-| `INGESTION_MAX_ITEMS`              | `500`     | 1 a 10000        | Itens por lote.                                     |
-| `INGESTION_MAX_BYTES`              | `2097152` | 1024 a 67108864  | Bytes do corpo da requisição.                       |
-| `INGESTION_TIMEOUT_SECONDS`        | `30`      | 1 a 600          | Tempo até a ingestão ser revertida e devolver 503.  |
-| `DATABASE_POOL_MAX_SIZE`           | `5`       | 1 a 50           | Conexões simultâneas no pool.                       |
-| `DATABASE_POOL_ACQUIRE_TIMEOUT_MS` | `5000`    | 250 a 60000      | Espera máxima por uma conexão do pool.              |
+| Variável | Padrão | Faixa aceita | Efeito |
+| --- | --- | --- | --- |
+| `INGESTION_MAX_ITEMS` | `500` | 1 a 10000 | Itens por lote. |
+| `INGESTION_MAX_BYTES` | `2097152` | 1024 a 67108864 | Bytes do corpo da requisição. |
+| `INGESTION_TIMEOUT_SECONDS` | `30` | 1 a 600 | Tempo até a ingestão ser revertida e devolver 503. |
+| `DATABASE_POOL_MAX_SIZE` | `5` | 1 a 50 | Conexões simultâneas no pool. |
+| `DATABASE_POOL_ACQUIRE_TIMEOUT_MS` | `5000` | 250 a 60000 | Espera máxima por uma conexão do pool. |
 
 As migrations Flyway rodam na inicialização. Se qualquer uma falhar, a API registra a causa em log e encerra com código diferente de zero, sem abrir a porta HTTP, para nunca atender sobre schema incompatível. O pool de conexões só é aberto depois das migrations e antes da porta HTTP.
 
 ### Endpoints
 
-| Endpoint                  | Autenticação     | Efeito                                                                                       |
-| ------------------------- | ---------------- | -------------------------------------------------------------------------------------------- |
-| `GET /health`             | Não              | Liveness. Não acessa o banco: responde `200` enquanto o processo estiver vivo.               |
-| `GET /ready`              | Não              | Readiness. Responde `200` com banco alcançável e migrations aplicadas; `503` caso contrário.  |
-| `GET /ingestion-contract` | Não              | Publica o Supported Contract Range: `minimumVersion`, `maximumVersion` e `recommendedVersion`. Não acessa o banco. |
-| `POST /ingestions`        | `Bearer <token>` | Recebe um lote homogêneo de envelopes canônicos e devolve um resultado por posição enviada.   |
+| Endpoint | Autenticação | Efeito |
+| --- | --- | --- |
+| `GET /health` | Não | Liveness. Não acessa o banco: responde `200` enquanto o processo estiver vivo. |
+| `GET /ready` | Não | Readiness. Responde `200` com banco alcançável e migrations aplicadas; `503` caso contrário. |
+| `GET /ingestion-contract` | Não | Publica o Supported Contract Range: `minimumVersion`, `maximumVersion` e `recommendedVersion`. Não acessa o banco. |
+| `POST /ingestions` | `Bearer <token>` | Recebe um lote homogêneo de envelopes canônicos e devolve um resultado por posição enviada. |
 
 Não existe endpoint de consulta, alteração ou exclusão de Health Records: a superfície HTTP é só ingestão e saúde.
 
@@ -150,11 +150,11 @@ Os logs seguem uma allowlist. Eles podem conter apenas o `ingestionId`, a versã
 
 Somente aparelhos provisionados podem ingerir. O provisionamento é feito por subcomandos do mesmo artefato da API, que não abrem a porta HTTP:
 
-| Comando                        | Efeito                                                                                          |
-| ------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `device create <label>`        | Cria o aparelho e mostra o token uma única vez, prefixado por `token=`.                          |
-| `device rotate <label>`        | Gera outro token, invalida o anterior imediatamente e reativa um aparelho revogado.              |
-| `device revoke <label>`        | Revoga o aparelho.                                                                              |
+| Comando | Efeito |
+| --- | --- |
+| `device create <label>` | Cria o aparelho e mostra o token uma única vez, prefixado por `token=`. |
+| `device rotate <label>` | Gera outro token, invalida o anterior imediatamente e reativa um aparelho revogado. |
+| `device revoke <label>` | Revoga o aparelho. |
 
 Somente o SHA-256 do token é persistido, então um vazamento do banco não revela credencial utilizável. Token ausente, inválido ou revogado recebe o mesmo `401 invalid_device_token`. Contra o stack local:
 
@@ -168,6 +168,40 @@ O desenvolvimento da integração requer um aparelho Android físico com Samsung
 
 ### Integração contínua
 
-O workflow `.gitea/workflows/build.yml` executa `./gradlew build` a cada push e a cada pull request, e falha quando qualquer módulo quebra.
+O workflow `.gitea/workflows/ci.yml` executa `./gradlew check` a cada push e a cada pull request, e falha quando qualquer módulo quebra. Ele tem dois jobs: `build` valida e constrói a imagem; `deploy` entrega, só em push na `master` e só depois de o `build` passar inteiro. A imagem recebe o nome do commit ainda no job `build`, para que uma execução concorrente de outro branch não troque a tag `myhealth-api:local` entre os dois jobs.
 
 Dados pessoais, credenciais da VPS, tokens, chaves de assinatura e fixtures derivadas de medições reais não devem ser adicionados ao repositório.
+
+### Entrega na VPS
+
+A API é entregue como o Application Stack `myhealth` na VPS CodeLab, pelo contrato existente da action `codelab/deploy-stack`. Não existe mecanismo de entrega paralelo. Ver ADR `0005`.
+
+O job `deploy` publica a imagem no registro do Gitea como `git.codelab.tec.br/vctrtvfrrr/myhealth-api`, com a tag do SHA do commit, e invoca a action. Como build e run compartilham o mesmo daemon Docker da VPS, o deploy reaproveita a imagem local; a publicação no registro vale por durabilidade e rollback. O `compose.yml` na raiz do repositório é o do stack e consome `${IMAGE_TAG}`, exportado pela action.
+
+Nenhuma tag móvel é publicada. Sem `IMAGE_TAG` o `compose.yml` cai em `latest`, que o CI nunca publica: comandos manuais na VPS — como o `docker compose down` do descomissionamento — continuam renderizando, mas um `up` sem a tag falha por imagem inexistente em vez de subir um commit qualquer.
+
+O host público do stack é versionado no `compose.yml`, em `myhealth.victor.etc.br`, atrás do Cloudflare (`cf-only@file`, `tls=true`). Ele é o endereço da aplicação, não um endpoint da VPS.
+
+O deploy é autocontido: subir o stack sobe a API, que aplica as migrations Flyway antes de abrir a porta HTTP e encerra se alguma falhar. Como a política é `restart: unless-stopped`, uma partida antes do PostgreSQL estar alcançável é apenas mais uma tentativa. A action devolve o controle assim que o Compose aceita o container, o que ainda não diz que as migrations passaram; por isso o job só termina depois que o healthcheck do container responde `healthy`.
+
+O container roda com 512 MiB e `-XX:MaxRAMPercentage=75`, o que dá cerca de 370 MiB de heap. Sem limite, a JVM dimensionaria o heap pela memória inteira da VPS, que é compartilhada com o PostgreSQL, o Traefik e os demais stacks.
+
+A configuração de runtime chega por variáveis `APPENV_*` declaradas no `env:` da etapa de deploy. A action remove o prefixo e escreve `/opt/codelab/apps/myhealth/.env`, que o container consome por `env_file`.
+
+| Variável no workflow | Origem | Nome consumido | Efeito |
+| --- | --- | --- | --- |
+| `APPENV_DATABASE_HOST` | literal `postgres` | `DATABASE_HOST` | PostgreSQL compartilhado da plataforma, alcançado pela rede `postgres`. |
+| `APPENV_DATABASE_PORT` | literal `5432` | `DATABASE_PORT` | Porta do PostgreSQL compartilhado. |
+| `APPENV_DATABASE_NAME` | `vars.DATABASE_NAME`, default `myhealth` | `DATABASE_NAME` | Database provisionada pela plataforma, que nomeia role e database como o próprio app. |
+| `APPENV_DATABASE_USER` | `vars.DATABASE_USER`, default `myhealth` | `DATABASE_USER` | Papel de runtime, com as permissões DDL das migrations. |
+| `APPENV_DATABASE_PASS` | `secrets.DATABASE_PASS` | `DATABASE_PASS` | Senha do papel de runtime, nascida no vault da plataforma. |
+
+Os limites de ingestão ficam nos padrões documentados em [Configuração da API](#configuração-da-api): declará-los só faz sentido quando um deles precisar mudar. O `secrets.REGISTRY_TOKEN` autentica no registro e não chega ao runtime.
+
+Na API, só `DATABASE_PORT` e `PORT` têm default; as demais são obrigatórias e valor em branco conta como ausente. O default de name e user vive por isso no workflow, na convenção da plataforma de nomear role e database como o próprio app: definir `vars.DATABASE_NAME` ou `vars.DATABASE_USER` substitui, deixar em branco herda `myhealth`. O único segredo de runtime é `secrets.DATABASE_PASS`, copiado do vault da plataforma, e é o único valor sem default — daí o job conferir que ele existe antes de publicar qualquer coisa.
+
+Antes do primeiro deploy, a plataforma precisa provisionar a database no PostgreSQL compartilhado e o domínio — ver o runbook de Application Stacks em `codelab/infra`.
+
+O diretório [`observability/`](observability/) publica deliberadamente uma geração vazia: dashboards e regras de alerta específicos desta aplicação estão fora do escopo da primeira versão.
+
+`DeploymentContractTest` e `RenderedComposeTest` cobrem esses artefatos: o segundo renderiza o `compose.yml` pelo próprio Compose, a partir do `.env` que a action escreveria, e é por isso que roda em `integrationTest`.

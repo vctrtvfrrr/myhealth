@@ -17,13 +17,17 @@ class DatabaseConfig(
         fun fromEnvironment(environment: (String) -> String? = System::getenv): DatabaseConfig =
             DatabaseConfig(
                 host = environment.required("DATABASE_HOST"),
-                port = environment("DATABASE_PORT")?.toInt() ?: DEFAULT_PORT,
+                port = environment("DATABASE_PORT")?.ifBlank { null }?.toInt() ?: DEFAULT_PORT,
                 name = environment.required("DATABASE_NAME"),
                 user = environment.required("DATABASE_USER"),
                 password = environment.required("DATABASE_PASS"),
             )
 
+        /**
+         * A blank value is a missing one: the deploy renders every unset CI secret as an empty
+         * variable, so accepting it would start the API against configuration nobody supplied.
+         */
         private fun ((String) -> String?).required(variable: String): String =
-            this(variable) ?: error("Missing required environment variable $variable")
+            this(variable)?.ifBlank { null } ?: error("Missing required environment variable $variable")
     }
 }

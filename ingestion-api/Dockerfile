@@ -6,5 +6,5 @@ WORKDIR /app
 COPY --chown=1000:1000 build/install/ingestion-api/ ./
 
 USER 1000
-EXPOSE 8080
+EXPOSE 8039
 ENTRYPOINT ["/app/bin/ingestion-api"]

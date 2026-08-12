@@ -1,0 +1,33 @@
+services:
+  api:
+    image: git.codelab.tec.br/vctrtvfrrr/myhealth-api:${IMAGE_TAG:-latest}
+    container_name: myhealth-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # The JVM would otherwise size its heap from the whole VPS, which this stack shares.
+      JAVA_OPTS: -XX:MaxRAMPercentage=75
+    mem_limit: 512m
+    networks:
+      - web
+      - postgres
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:8039/ready']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.myhealth.rule=Host(`myhealth.victor.etc.br`)'
+      - 'traefik.http.routers.myhealth.entrypoints=websecure'
+      - 'traefik.http.routers.myhealth.tls=true'
+      - 'traefik.http.routers.myhealth.middlewares=cf-only@file'
+      - 'traefik.http.services.myhealth.loadbalancer.server.port=8039'
+
+networks:
+  web:
+    external: true
+  postgres:
+    external: true

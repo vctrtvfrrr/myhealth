@@ -32,6 +32,7 @@ tasks.test {
     useJUnitPlatform {
         excludeTags("integration")
     }
+    systemProperty("repositoryRoot", rootDir.absolutePath)
 }
 
 val integrationTest = tasks.register<Test>("integrationTest") {
@@ -44,6 +45,7 @@ val integrationTest = tasks.register<Test>("integrationTest") {
     }
     dependsOn(tasks.installDist)
     systemProperty("distributionDir", layout.buildDirectory.dir("install/${project.name}").get().asFile.absolutePath)
+    systemProperty("repositoryRoot", rootDir.absolutePath)
     shouldRunAfter(tasks.test)
 }
 
@@ -56,5 +58,5 @@ tasks.register<Exec>("buildImage") {
     description = "Builds the ingestion API image from the distribution produced by installDist."
     dependsOn(tasks.installDist)
     workingDir = projectDir
-    commandLine("docker", "build", "--tag", "myhealthbridge-api:local", ".")
+    commandLine("docker", "build", "--tag", "myhealth-api:local", ".")
 }

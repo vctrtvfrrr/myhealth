@@ -36,7 +36,7 @@ private fun serve() {
 
     Runtime.getRuntime().addShutdownHook(Thread(startup.pool::close))
 
-    embeddedServer(Netty, port = System.getenv("PORT")?.toInt() ?: 8080) {
+    embeddedServer(Netty, port = System.getenv("PORT")?.toInt() ?: 8039) {
         module(startup.pool, startup.ingestion)
     }.start(wait = true)
 }

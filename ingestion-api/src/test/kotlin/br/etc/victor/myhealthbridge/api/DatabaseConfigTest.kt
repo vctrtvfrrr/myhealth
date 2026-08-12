@@ -39,6 +39,22 @@ class DatabaseConfigTest {
     }
 
     @Test
+    fun `treats a blank value as a missing variable`() {
+        val failure = assertThrows<IllegalStateException> {
+            DatabaseConfig.fromEnvironment((completeEnvironment + ("DATABASE_PASS" to ""))::get)
+        }
+
+        assertEquals("Missing required environment variable DATABASE_PASS", failure.message)
+    }
+
+    @Test
+    fun `defaults the port when it comes blank`() {
+        val config = DatabaseConfig.fromEnvironment((completeEnvironment + ("DATABASE_PORT" to ""))::get)
+
+        assertEquals("jdbc:postgresql://db.example:5432/myhealth", config.jdbcUrl)
+    }
+
+    @Test
     fun `keeps the password out of its own text representation`() {
         val config = DatabaseConfig.fromEnvironment(completeEnvironment::get)
 

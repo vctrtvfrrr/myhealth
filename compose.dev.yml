@@ -16,11 +16,11 @@ services:
       retries: 5
 
   api:
-    image: myhealthbridge-api:local
+    image: myhealth-api:local
     env_file:
       - .env
     ports:
-      - "8080:8080"
+      - "8039:8039"
     depends_on:
       postgres:
         condition: service_healthy
