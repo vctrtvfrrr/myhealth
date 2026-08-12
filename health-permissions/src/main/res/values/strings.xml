@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="health_group_activity">Atividade</string>
+    <string name="health_group_food_and_hydration">Alimentação e hidratação</string>
+    <string name="health_group_sleep">Sono</string>
+    <string name="health_group_health_measurements">Medições de saúde</string>
+    <string name="health_group_goals_and_indicators">Metas e indicadores</string>
+    <string name="health_group_profile">Perfil</string>
+
+    <string name="health_category_activity_summary">Resumo de atividade</string>
+    <string name="health_category_exercise">Exercício</string>
+    <string name="health_category_exercise_location">Localização de exercício</string>
+    <string name="health_category_floors_climbed">Andares subidos</string>
+    <string name="health_category_steps">Passos</string>
+    <string name="health_category_nutrition">Nutrição</string>
+    <string name="health_category_nutrition_goal">Meta de nutrição</string>
+    <string name="health_category_water_intake">Ingestão de água</string>
+    <string name="health_category_water_intake_goal">Meta de ingestão de água</string>
+    <string name="health_category_sleep">Sono</string>
+    <string name="health_category_sleep_apnea">Apneia do sono</string>
+    <string name="health_category_sleep_goal">Meta de sono</string>
+    <string name="health_category_skin_temperature">Temperatura da pele</string>
+    <string name="health_category_blood_glucose">Glicemia</string>
+    <string name="health_category_blood_oxygen">Oxigênio no sangue</string>
+    <string name="health_category_blood_pressure">Pressão arterial</string>
+    <string name="health_category_body_composition">Composição corporal</string>
+    <string name="health_category_body_temperature">Temperatura corporal</string>
+    <string name="health_category_heart_rate">Frequência cardíaca</string>
+    <string name="health_category_irregular_heart_rhythm">Notificação de ritmo cardíaco irregular</string>
+    <string name="health_category_active_calories_burned_goal">Meta de calorias ativas</string>
+    <string name="health_category_active_time_goal">Meta de tempo ativo</string>
+    <string name="health_category_energy_score">Pontuação de energia</string>
+    <string name="health_category_steps_goal">Meta de passos</string>
+    <string name="health_category_user_profile">Perfil do usuário</string>
+
+    <string name="health_permissions_title">Permissões do Samsung Health</string>
+
+    <string name="health_availability_unknown">Disponibilidade ainda não verificada.</string>
+    <string name="health_availability_ready">O Samsung Health está respondendo às consultas deste aplicativo.</string>
+    <string name="health_availability_setup">O Samsung Health precisa ser instalado, atualizado ou ativado neste aparelho.</string>
+    <string name="health_availability_not_recognized">O Samsung Health não reconhece este aplicativo. Confirme que o developer mode está ativado nas configurações do Samsung Health.</string>
+    <string name="health_availability_temporarily_unavailable">O Samsung Health não respondeu agora. Tente novamente em instantes.</string>
+    <string name="health_availability_unsupported">Este aparelho não atende aos requisitos do Samsung Health.</string>
+    <string name="health_availability_resolve">Resolver no Samsung Health</string>
+
+    <string name="health_last_check">Última verificação bem-sucedida: %1$s</string>
+    <string name="health_never_checked">Nenhuma verificação bem-sucedida até agora.</string>
+    <string name="health_outdated">A consulta mais recente falhou. As permissões abaixo são da última verificação bem-sucedida e podem estar desatualizadas.</string>
+    <string name="health_query_unknown">As permissões só aparecem depois da primeira verificação bem-sucedida.</string>
+    <string name="health_checking">Verificando…</string>
+    <string name="health_refresh">Atualizar</string>
+    <string name="health_request_all_pending">Solicitar todas as pendentes</string>
+
+    <string name="health_state_unknown">Ainda não verificada</string>
+    <string name="health_state_not_requested">Não solicitada</string>
+    <string name="health_state_granted">Concedida</string>
+    <string name="health_state_denied">Negada</string>
+    <string name="health_state_revoked">Revogada</string>
+
+    <string name="health_action_request">Solicitar</string>
+    <string name="health_action_request_again">Solicitar novamente</string>
+    <string name="health_settings_guidance">Talvez seja necessário alterar a autorização nas configurações do Samsung Health.</string>
+
+</resources>

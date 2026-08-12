@@ -1,6 +1,7 @@
 .gradle/
 build/
 local.properties
+android-app/libs/
 .env
 *.iml
 .idea/

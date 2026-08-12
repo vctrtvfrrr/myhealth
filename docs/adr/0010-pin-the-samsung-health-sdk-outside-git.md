@@ -1,0 +1,5 @@
+# Pin the Samsung Health SDK outside Git
+
+The Samsung Health Data SDK v1.1.0 artifact is not committed, because nothing confirms that its licence allows redistribution. It is installed under `android-app/libs/`, an ignored path, and every build verifies its SHA-256 before compiling, failing with the download instruction when the file is absent or unexpected. The Gitea runner provisions the same artifact from private storage. Stubs that imitate Samsung classes were rejected outright: they would let the build stay green while the dependency is missing, which is the failure this verification exists to prevent.
+
+The Health Category catalog is explicit and versioned in code rather than derived from the SDK at runtime. Upgrading the artifact therefore adds no category on its own: a capability the SDK exposes without an entry in the catalog fails the test suite, instead of appearing as authorized or synchronized. The cost is a deliberate edit and a test run for every capability a future SDK version introduces, which is exactly the review this data deserves.

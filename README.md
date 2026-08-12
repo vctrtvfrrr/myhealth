@@ -6,7 +6,9 @@ MyHealth Bridge é um sistema pessoal para copiar os dados de saúde e atividade
 
 ## Estado do projeto
 
-O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. A única vertical de contrato implementada é `heart_rate`, exercitada com envelopes sintéticos. O aplicativo Android ainda não lê o Samsung Health e não existe projeção do Current Health Record.
+O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. A única vertical de contrato implementada é `heart_rate`, exercitada com envelopes sintéticos.
+
+O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas. Ele ainda não lê Health Records nem sincroniza dados, e não existe projeção do Current Health Record.
 
 ## Arquitetura planejada
 
@@ -41,7 +43,8 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 | --------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `contract`      | Contrato de transporte versionado compartilhado pelos dois lados. Não depende do módulo Android nem do módulo da API. |
 | `ingestion-api` | API de ingestão Ktor. Depende de `contract`.                                                                          |
-| `android-app`   | Aplicativo Android (Jetpack Compose). Depende de `contract`.                                                          |
+| `health-permissions` | Catálogo de Health Categories, Permission States, histórico em Room e tela de permissões. Não depende de tipos do Samsung SDK. |
+| `android-app`   | Aplicativo Android (Jetpack Compose) e o adaptador do Samsung Health Data SDK. Depende de `contract` e `health-permissions`. |
 
 ## Desenvolvimento
 
@@ -50,6 +53,7 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 - JDK 21 ou superior para executar o Gradle. O código é compilado para Java 17 por meio de um toolchain, baixado automaticamente quando ausente.
 - Android SDK instalado, com o caminho declarado em `local.properties` (`sdk.dir=...`) ou na variável `ANDROID_HOME`. O arquivo `local.properties` não é versionado.
 - Docker, para os testes de integração da API e para o ambiente local em containers.
+- Samsung Health Data SDK v1.1.0 instalado localmente, conforme a seção abaixo. Sem ele o módulo Android não compila.
 
 ### Comandos
 
@@ -63,10 +67,30 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 | `./gradlew :ingestion-api:run`         | Sobe a API de ingestão em `http://localhost:8080` (porta configurável por `PORT`), exigindo um PostgreSQL alcançável. |
 | `./gradlew :android-app:assembleDebug` | Gera o APK de depuração em `android-app/build/outputs/apk/debug/`.                                                    |
 | `./gradlew :android-app:installDebug`  | Instala o APK no aparelho ou emulador conectado.                                                                      |
+| `./gradlew :android-app:installSamsungHealthSdk -Psamsung.health.sdk=<caminho>` | Copia o AAR baixado para `android-app/libs/`.                                       |
+| `./gradlew :android-app:verifySamsungHealthSdk` | Confere presença e checksum do AAR. Roda antes de qualquer compilação do módulo Android.                    |
 
 A imagem da API é construída somente pela tarefa `buildImage`, que garante a distribuição atualizada antes do `docker build`. O ambiente local sobe por `devUp`, que depende dela: `docker build` e `docker compose up` invocados diretamente produzem imagem com o jar defasado e não são caminhos suportados.
 
 `devUp` é o caminho documentado para exploração E2E manual, porque seu volume nomeado preserva o estado entre execuções. Por isso mesmo ele não é fixture de CI: os testes de integração usam containers descartáveis por classe.
+
+### Samsung Health Data SDK
+
+O aplicativo fixa o Samsung Health Data SDK v1.1.0. O AAR **não é versionado**, porque não há confirmação explícita de que a licença permite redistribuição. Baixe o artefato na [página oficial](https://developer.samsung.com/health/data/overview.html) e instale-o com `./gradlew :android-app:installSamsungHealthSdk -Psamsung.health.sdk=<caminho do AAR>`, que o copia para `android-app/libs/`, caminho ignorado pelo Git.
+
+Toda compilação do módulo Android confere presença e SHA-256 do artefato antes de compilar e falha com a instrução de download quando ele está ausente ou inesperado. Não existem stubs imitando classes da Samsung: sem o AAR, o build para. O runner do Gitea provisiona o mesmo artefato a partir de armazenamento privado, pelos secrets `SAMSUNG_HEALTH_SDK_URL` e `SAMSUNG_HEALTH_SDK_TOKEN`. Ver ADR `0010`.
+
+O developer mode do Samsung Health é pré-requisito externo, habilitado nas configurações do próprio Samsung Health. O aplicativo detecta a falha correspondente e explica a necessidade, mas não oferece um controle falso para ativá-lo.
+
+### Permissões do Samsung Health
+
+A tela de permissões usa o SDK exclusivamente para leitura: ela obtém o conjunto de permissões concedidas e solicita permissões READ. Nenhuma operação de escrita é exposta e nenhum Health Record é lido nesta fatia.
+
+A Samsung Health Availability é derivada do resultado de operações reais, nunca de um booleano de conexão. Responder à consulta é o que torna a plataforma disponível; falhas viram remediação necessária, indisponibilidade temporária ou incompatibilidade definitiva, e um erro desconhecido permanece temporário em vez de virar incompatibilidade.
+
+O SDK informa apenas o conjunto atualmente concedido, então `denied` e `revoked` são inferências locais. O Room guarda, por Health Category, se houve solicitação observada, se houve concessão observada, se a última observação a mostrou concedida e quando essa observação ocorreu — nenhum conteúdo de saúde. Cada verificação é atômica: só depois de uma consulta bem-sucedida todos os estados são gravados em uma única transação. Se a consulta falhar, nada muda e a observação anterior continua visível como desatualizada. Antes da primeira verificação bem-sucedida existe um estado de consulta desconhecido, que não é um quinto Permission State. Ver ADR `0009`.
+
+As 25 Health Categories catalogadas cobrem exatamente os data types legíveis do SDK fixado, verificado por teste. Atualizar o AAR não adiciona categoria alguma sozinho.
 
 ### Configuração da API
 

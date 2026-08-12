@@ -18,6 +18,15 @@ jobs:
 
       - uses: android-actions/setup-android@v3
 
+      - name: Provision the Samsung Health Data SDK
+        env:
+          SAMSUNG_HEALTH_SDK_URL: ${{ secrets.SAMSUNG_HEALTH_SDK_URL }}
+          SAMSUNG_HEALTH_SDK_TOKEN: ${{ secrets.SAMSUNG_HEALTH_SDK_TOKEN }}
+        run: |
+          mkdir -p android-app/libs
+          curl -fsSL -H "Authorization: Bearer $SAMSUNG_HEALTH_SDK_TOKEN" \
+            "$SAMSUNG_HEALTH_SDK_URL" -o android-app/libs/samsung-health-data-api-1.1.0.aar
+
       - run: ./gradlew build --no-daemon
 
       - run: ./gradlew :ingestion-api:buildImage --no-daemon

@@ -21,5 +21,6 @@ dependencyResolutionManagement {
 rootProject.name = "myhealth-bridge"
 
 include(":contract")
+include(":health-permissions")
 include(":ingestion-api")
 include(":android-app")
