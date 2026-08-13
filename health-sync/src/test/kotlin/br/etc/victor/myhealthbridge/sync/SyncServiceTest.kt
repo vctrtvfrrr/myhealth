@@ -94,6 +94,24 @@ class SyncServiceTest {
         assertEquals(1, store.staged.size)
     }
 
+    /**
+     * The outbox bounds the device, not one category, so it can be full of a record type this
+     * capability never drains. Without the guard the run would drain nothing, pause, and repeat.
+     */
+    @Test
+    fun `ends the run when the outbox is full of a record type it cannot deliver`() = runTest {
+        val service = service(source = FakeRecordSource(listOf(page(listOf(sourceRecord())))))
+        service.startInitialLoad()
+        store.acceptPage(
+            List(SyncPolicy().maxOutboxItems) { foreignItem("other-$it") },
+            store.cursor(HealthCategory.HEART_RATE)!!,
+        )
+
+        service.sync()
+
+        assertEquals(SyncOutcome.OUTBOX_FULL, cursor()!!.lastOutcome)
+    }
+
     @Test
     fun `waits for the read permission instead of reading`() = runTest {
         val source = FakeRecordSource(listOf(page(listOf(sourceRecord()))))

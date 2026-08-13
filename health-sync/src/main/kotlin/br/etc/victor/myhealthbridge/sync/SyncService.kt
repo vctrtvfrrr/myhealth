@@ -58,15 +58,23 @@ class SyncService(
         if (states == null) return SyncOutcome.SAMSUNG_UNAVAILABLE
         if (states[capability.category] != PermissionState.GRANTED) return SyncOutcome.WAITING_PERMISSION
 
+        var resumeFrom: String? = null
+
         while (true) {
             // Delivering first is what makes room: the import stops reading while the outbox is full,
             // and only a confirmed item frees a slot.
             (sender.drain(capability) as? SendResult.Halted)?.let { return it.outcome }
 
-            when (importer.import(capability)) {
+            when (val imported = importer.import(capability, resumeFrom)) {
                 is ImportResult.Failed -> return SyncOutcome.SAMSUNG_UNAVAILABLE
                 ImportResult.Completed -> break
-                ImportResult.Paused -> Unit
+                is ImportResult.Paused -> {
+                    // The outbox bounds the device as a whole, so it can be full of another record
+                    // type this drain does not touch. A pause that staged nothing is that case, and
+                    // reading again would spin instead of waiting for the next run.
+                    if (imported.staged == 0) return SyncOutcome.OUTBOX_FULL
+                    resumeFrom = imported.pageToken
+                }
             }
         }
 

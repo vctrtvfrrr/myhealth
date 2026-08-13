@@ -4,4 +4,8 @@ A sync cursor stores the local time the next read starts at, and the page token 
 
 The cursor moves only over a page already staged in the outbox, and both are written in one transaction. Resuming therefore re-reads the records that share the boundary local time with the last staged page. That is the entire cost, and the ingestion is idempotent under precisely it: the re-read produces the same canonical rendering, the API answers `already_present`, and the item leaves the outbox as if it had been accepted the first time.
 
+Within a run the token has to cross the pause the outbox limit imposes, and not only the page boundary. A cursor holding a local time cannot say where inside that time the walk stopped, so records sharing one local start time can span more pages than the outbox holds: restarting from the cursor after a drain would read the same first pages again, forever, and the rest of that group would never be reached. Carrying the token over the pause is what turns "the outbox is full" back into progress. It is the same reason the token is not a substitute for the cursor: a pause is inside one run, a process death is not.
+
+A pause that staged nothing ends the run instead of retrying. The outbox bounds the device rather than one Health Category, so it can be full of a record type this capability does not deliver — the drain would free nothing and the read would repeat with no state changing. Ending it as `OUTBOX_FULL` records the reason and lets the next Health Category and the next run proceed.
+
 The initial load fixes its end when it starts, so its progress is measured against a window that does not move while it is being walked, and the incremental phase continues from that same boundary.

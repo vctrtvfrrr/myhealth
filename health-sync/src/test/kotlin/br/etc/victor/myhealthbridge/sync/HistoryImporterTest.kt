@@ -93,7 +93,7 @@ class HistoryImporterTest {
     }
 
     @Test
-    fun `stops reading while the outbox is at its limit`() = runTest {
+    fun `stops reading while the outbox is at its limit, saying where it stopped`() = runTest {
         startInitialLoad()
 
         val result = importer(
@@ -101,8 +101,42 @@ class HistoryImporterTest {
             page(listOf(sourceRecord(uid = "d"))),
         ).import(heartRate)
 
-        assertSame(ImportResult.Paused, result)
+        assertEquals(ImportResult.Paused(pageToken = "next", staged = 3), result)
         assertEquals(3, store.staged.size)
+    }
+
+    @Test
+    fun `reports staging nothing when the outbox was already full`() = runTest {
+        startInitialLoad()
+        store.acceptPage(
+            List(3) { foreignItem("other-$it") },
+            store.cursor(heartRate.category)!!,
+        )
+
+        val result = importer(page(listOf(sourceRecord()))).import(heartRate)
+
+        assertEquals(ImportResult.Paused(pageToken = null, staged = 0), result)
+    }
+
+    @Test
+    fun `crosses a group of records sharing one local time that outgrows the outbox`() = runTest {
+        startInitialLoad()
+        val tied = Instant.parse("2026-08-10T21:59:00Z")
+        val source = FakeRecordSource(
+            listOf(
+                page(listOf(sourceRecord(uid = "a", start = tied), sourceRecord(uid = "b", start = tied)), "p2"),
+                page(listOf(sourceRecord(uid = "c", start = tied), sourceRecord(uid = "d", start = tied)), "p3"),
+                page(listOf(sourceRecord(uid = "e", start = tied))),
+            ),
+        )
+
+        val paused = importer(source = source).import(heartRate)
+        store.confirm(store.staged.map { it.id })
+        val resumed = importer(source = source).import(heartRate, (paused as ImportResult.Paused).pageToken)
+
+        assertSame(ImportResult.Completed, resumed)
+        assertEquals("p3", source.tokens.last())
+        assertEquals(listOf("e"), store.staged.map { it.item.samsungUid })
     }
 
     @Test

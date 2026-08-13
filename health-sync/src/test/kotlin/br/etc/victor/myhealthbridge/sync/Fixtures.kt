@@ -47,6 +47,15 @@ fun sourceRecord(
 
 fun number(value: String): SourceValue.Number = SourceValue.Number(BigDecimal(value))
 
+/** An outbox item of a record type no capability in this test drains. */
+fun foreignItem(uid: String): NewOutboxItem = NewOutboxItem(
+    category = HealthCategory.STEPS,
+    recordType = "steps",
+    samsungUid = uid,
+    envelopeJson = "{}",
+    enqueuedAt = Instant.parse("2026-08-11T12:00:00Z"),
+)
+
 val heartRate: HealthCapability = HealthCapabilities.of(HealthCategory.HEART_RATE)!!
 
 /** An in-memory outbox and cursor set, keeping the page and its cursor as one write. */
@@ -107,12 +116,22 @@ class FakeEndpointStore(private var endpoint: IngestionEndpoint? = IngestionEndp
     }
 }
 
-/** Answers the pages it was given, in order, and then reports the window as exhausted. */
+/**
+ * Answers the page the token asks for, the way Samsung Health does: no token means the start of the
+ * window, and a token means the page that follows the one which handed it out.
+ */
 class FakeRecordSource(private val pages: List<SamsungHealthOutcome<RecordPage>>) : HealthRecordSource {
 
     val windows = mutableListOf<ReadWindow>()
 
-    private var next = 0
+    val tokens = mutableListOf<String?>()
+
+    private val byToken: Map<String?, Int> = buildMap {
+        put(null, 0)
+        pages.forEachIndexed { index, outcome ->
+            (outcome as? SamsungHealthOutcome.Observed)?.value?.nextPageToken?.let { put(it, index + 1) }
+        }
+    }
 
     override suspend fun readPage(
         capability: HealthCapability,
@@ -120,9 +139,10 @@ class FakeRecordSource(private val pages: List<SamsungHealthOutcome<RecordPage>>
         pageToken: String?,
     ): SamsungHealthOutcome<RecordPage> {
         windows += window
-        val page = pages.getOrNull(next) ?: SamsungHealthOutcome.Observed(RecordPage(emptyList(), null))
-        next++
-        return page
+        tokens += pageToken
+        return byToken[pageToken]
+            ?.let(pages::getOrNull)
+            ?: SamsungHealthOutcome.Observed(RecordPage(emptyList(), null))
     }
 }
 

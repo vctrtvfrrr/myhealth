@@ -12,8 +12,17 @@ sealed interface ImportResult {
     /** The window holds nothing more; an initial load that reaches this becomes incremental. */
     data object Completed : ImportResult
 
-    /** The outbox reached its limit, so reading stopped instead of buffering more. */
-    data object Paused : ImportResult
+    /**
+     * The outbox reached its limit, so reading stopped instead of buffering more.
+     *
+     * [pageToken] is where the walk stopped, so that a caller which drained the outbox continues from
+     * there rather than from the cursor. Records sharing the cursor's local time can span more pages
+     * than the outbox holds, and restarting at that time would read the same first pages forever.
+     *
+     * [staged] is what this attempt actually put in the outbox. Zero means the room a drain was meant
+     * to make never appeared, and reading again would only spin.
+     */
+    data class Paused(val pageToken: String?, val staged: Int) : ImportResult
 
     data class Failed(val availability: SamsungHealthAvailability) : ImportResult
 }
@@ -31,15 +40,17 @@ class HistoryImporter(
     private val clock: Clock,
 ) {
 
-    suspend fun import(capability: HealthCapability): ImportResult {
+    /** [resumeFrom] continues a walk this importer paused, which the cursor alone cannot express. */
+    suspend fun import(capability: HealthCapability, resumeFrom: String? = null): ImportResult {
         var cursor = store.cursor(capability.category) ?: return ImportResult.Completed
         if (cursor.phase == ImportPhase.NOT_STARTED) return ImportResult.Completed
 
         val window = ReadWindow(cursor.readFrom, windowEnd(cursor))
-        var pageToken: String? = null
+        var pageToken = resumeFrom
+        var staged = 0
 
         while (true) {
-            if (store.pendingCount() >= policy.maxOutboxItems) return ImportResult.Paused
+            if (store.pendingCount() >= policy.maxOutboxItems) return ImportResult.Paused(pageToken, staged)
 
             val page = when (val outcome = source.readPage(capability, window, pageToken)) {
                 is SamsungHealthOutcome.Failed -> return ImportResult.Failed(outcome.availability)
@@ -49,6 +60,7 @@ class HistoryImporter(
             if (page.records.isNotEmpty()) {
                 cursor = cursor.advancedTo(lastLocalStart(page.records), page.records.size)
                 store.acceptPage(page.records.map { stage(capability, it) }, cursor)
+                staged += page.records.size
             }
 
             pageToken = page.nextPageToken ?: break
