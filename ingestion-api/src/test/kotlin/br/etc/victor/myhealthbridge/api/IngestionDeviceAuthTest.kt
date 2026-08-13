@@ -33,7 +33,7 @@ class IngestionDeviceAuthTest : IngestionApiTest() {
         val revoked = api.provision(label)
         assertEquals(200, api.postBatch(batchFor("uid-revocation-1"), revoked).status)
 
-        api.device("device", "revoke", label)
+        api.administer("device", "revoke", label)
         assertEquals(401, api.postBatch(batchFor("uid-revocation-2"), revoked).status)
 
         val rotated = api.rotate(label)
@@ -54,7 +54,7 @@ class IngestionDeviceAuthTest : IngestionApiTest() {
 
     @Test
     fun `reveals a created token once and keeps only its digest`() {
-        val output = api.device("device", "create", "tablet")
+        val output = api.administer("device", "create", "tablet")
         val revealed = api.tokenIn(output)
 
         assertEquals(1, output.split(revealed).size - 1, "the token was printed more than once")
@@ -75,17 +75,17 @@ class IngestionDeviceAuthTest : IngestionApiTest() {
 
     @Test
     fun `refuses to provision the same label twice`() {
-        api.device("device", "create", "duplicated")
+        api.administer("device", "create", "duplicated")
 
-        val failure = runCatching { api.device("device", "create", "duplicated") }
+        val failure = runCatching { api.administer("device", "create", "duplicated") }
 
         assertTrue(failure.isFailure, "a repeated label must not silently replace a token")
     }
 
     @Test
     fun `refuses to rotate or revoke a label nobody provisioned`() {
-        assertTrue(runCatching { api.device("device", "rotate", "ghost") }.isFailure)
-        assertTrue(runCatching { api.device("device", "revoke", "ghost") }.isFailure)
+        assertTrue(runCatching { api.administer("device", "rotate", "ghost") }.isFailure)
+        assertTrue(runCatching { api.administer("device", "revoke", "ghost") }.isFailure)
     }
 
     private fun batchFor(samsungUid: String) =

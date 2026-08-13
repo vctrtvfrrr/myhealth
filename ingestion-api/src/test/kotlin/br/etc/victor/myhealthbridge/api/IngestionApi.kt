@@ -49,7 +49,7 @@ class IngestionApi(
     fun logs(): String = logFile.takeIf { it.exists() }?.readText().orEmpty()
 
     /** Runs a device subcommand in its own process and returns everything it printed. */
-    fun device(vararg arguments: String): String {
+    fun administer(vararg arguments: String): String {
         val output = workingDirectory.resolve("$name-device-${arguments.joinToString("-")}.log").toFile()
         val command = launch(arguments.toList(), output)
         check(command.waitFor(2, TimeUnit.MINUTES)) { "the device subcommand never exited" }
@@ -57,9 +57,9 @@ class IngestionApi(
         return output.readText()
     }
 
-    fun provision(label: String): String = tokenIn(device("device", "create", label))
+    fun provision(label: String): String = tokenIn(administer("device", "create", label))
 
-    fun rotate(label: String): String = tokenIn(device("device", "rotate", label))
+    fun rotate(label: String): String = tokenIn(administer("device", "rotate", label))
 
     fun tokenIn(output: String): String = output.lineSequence()
         .first { it.startsWith(DeviceAdmin.TOKEN_PREFIX) }

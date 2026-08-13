@@ -46,13 +46,19 @@ private fun administer(arguments: List<String>) {
         val database = DatabaseConfig.fromEnvironment()
         migrate(database)
         DriverManager.getConnection(database.jdbcUrl, database.user, database.password).use { connection ->
-            DeviceAdmin.run(arguments, connection, ::println)
+            when (arguments.first()) {
+                "device" -> DeviceAdmin.run(arguments, connection, ::println)
+                "projection" -> ProjectionAdmin.run(arguments, connection, ::println)
+                else -> error(USAGE)
+            }
         }
     } catch (failure: Exception) {
-        System.err.println(failure.message ?: DeviceAdmin.USAGE)
+        System.err.println(failure.message ?: USAGE)
         exitProcess(1)
     }
 }
+
+private val USAGE = "${DeviceAdmin.USAGE}\n${ProjectionAdmin.USAGE}"
 
 private class Startup(val ingestion: IngestionConfig, val pool: HikariDataSource)
 

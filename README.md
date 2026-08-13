@@ -8,7 +8,9 @@ MyHealth Bridge é um sistema pessoal para copiar os dados de saúde e atividade
 
 O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. A única vertical de contrato implementada é `heart_rate`, exercitada com envelopes sintéticos.
 
-O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas. Ele ainda não lê Health Records nem sincroniza dados, e não existe projeção do Current Health Record.
+Cada ingestão também projeta o Current Health Record, e o schema de leitura `read_model` oferece a view `current_heart_rate` para consulta por uma conta somente leitura.
+
+O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas. Ele ainda não lê Health Records nem sincroniza dados.
 
 ## Arquitetura planejada
 
@@ -167,6 +169,28 @@ docker compose -f compose.dev.yml run --rm api device create phone
 Para o ambiente local, copie `.env.example` para `.env` e ajuste os valores. O arquivo `.env` não é versionado.
 
 O desenvolvimento da integração requer um aparelho Android físico com Samsung Health e o Samsung Health Data SDK em modo de desenvolvedor; emuladores não suportam a integração real.
+
+### Modelo de leitura
+
+O Current Health Record é a linha que diz qual Observed Record Version é o estado corrente de uma Health Record. Ele guarda só esse ponteiro: todo campo que um leitor quer já existe na versão imutável apontada, e copiá-lo aqui criaria uma segunda representação capaz de divergir.
+
+Cada ingestão projeta, dentro da própria transação, as identidades que observou. A projeção é recalculada a partir das versões preservadas, não comparada com o que acabou de chegar: uma observação que chega atrasada não vira corrente só por ter chegado por último. A versão corrente é a de maior `observed_at`, com `first_received_at` e o id como desempate determinístico. Ver ADR `0012`.
+
+A reconstrução é o mesmo enunciado SQL sobre todas as identidades, exposto como subcomando do mesmo artefato:
+
+| Comando | Efeito |
+| --- | --- |
+| `projection rebuild` | Descarta a projeção e a regenera a partir dos envelopes preservados. Mostra a contagem, prefixada por `projected=`. |
+
+O schema `read_model` é a superfície de consulta. Hoje ele tem uma view:
+
+| View | Conteúdo |
+| --- | --- |
+| `read_model.current_heart_rate` | Health Records de frequência cardíaca correntes: `record_type` e `samsung_uid` da identidade, `beats_per_minute` e `unit` normalizados, período e observação em UTC com o zone offset original, `source_app`, `source_device` e `mapper_version`. |
+
+Uma Health Record removida na origem sai da view: a remoção é estado corrente, não medição corrente, e continua projetada e preservada. `source_app` ou `source_device` nulo é o unknown explícito da Source Provenance, que é o que a fonte reportou.
+
+A conta somente leitura é criada por quem administra o PostgreSQL, porque o papel de runtime da API não tem esse privilégio. Depois disso, as permissões vêm de [`docs/sql/read-access.sql`](docs/sql/read-access.sql), executado como o papel de runtime — uma vez, e novamente a cada deploy que acrescente uma view ao `read_model`. Nada é concedido sobre as tabelas de ingestão: a view roda com os privilégios de quem a possui, então a conta alcança os envelopes preservados apenas pelo formato que a view expõe. Ver ADR `0013`.
 
 ### Integração contínua
 

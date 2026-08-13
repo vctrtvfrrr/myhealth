@@ -72,6 +72,7 @@ class IngestionStore(
                 val statements = Statements(connection, deadline)
                 statements.insertIngestion(ingestionId, deviceId, contractVersion, items.size, receivedAt)
 
+                val observed = LinkedHashSet<Long>()
                 val results = items.mapIndexed { index, item ->
                     when (item) {
                         is ItemValidation.Invalid -> {
@@ -82,10 +83,15 @@ class IngestionStore(
                         is ItemValidation.Valid -> {
                             val stored = statements.store(item.envelope, receivedAt)
                             statements.insertOutcome(ingestionId, index, stored.status, stored.versionId)
+                            observed += stored.identityId
                             ItemResult(index, stored.status)
                         }
                     }
                 }
+
+                // Projecting inside the same transaction is what keeps the Current Health Record from
+                // ever describing less than the versions this response reports as durable.
+                statements.project(observed)
 
                 // Nothing is committed once the budget is gone: a 503 must never describe stored data.
                 deadline.checkNotExpired()
@@ -98,7 +104,7 @@ class IngestionStore(
         }
     }
 
-    private class StoredVersion(val versionId: Long, val status: ItemStatus)
+    private class StoredVersion(val versionId: Long, val identityId: Long, val status: ItemStatus)
 
     /**
      * The statements of a single transaction. They are not closed one by one: closing the connection
@@ -138,6 +144,8 @@ class IngestionStore(
             "select id from observed_record_version where health_record_identity_id = ? and content_digest = ?",
         )
 
+        private val projection = prepare("select project_current_health_record(?)")
+
         private val item = prepare(
             """
             insert into ingestion_item (ingestion_id, position, status, observed_record_version_id, rejection_codes)
@@ -175,14 +183,23 @@ class IngestionStore(
             version.setString(12, envelope.canonicalJson)
             version.setUtc(13, receivedAt)
             version.queryWithinBudget().use { inserted ->
-                if (inserted.next()) return StoredVersion(inserted.getLong(1), ItemStatus.ACCEPTED)
+                if (inserted.next()) return StoredVersion(inserted.getLong(1), identityId, ItemStatus.ACCEPTED)
             }
 
             existingVersion.setLong(1, identityId)
             existingVersion.setBytes(2, envelope.digest)
             existingVersion.queryWithinBudget().use { existing ->
                 check(existing.next()) { "the conflicting observed record version disappeared" }
-                return StoredVersion(existing.getLong(1), ItemStatus.ALREADY_PRESENT)
+                return StoredVersion(existing.getLong(1), identityId, ItemStatus.ALREADY_PRESENT)
+            }
+        }
+
+        /** Recomputes the Current Health Record of every identity this ingestion observed. */
+        fun project(identityIds: Set<Long>) {
+            if (identityIds.isEmpty()) return
+            projection.setArray(1, connection.createArrayOf("bigint", identityIds.toTypedArray()))
+            projection.queryWithinBudget().use { row ->
+                check(row.next()) { "the projection returned no row" }
             }
         }
 
