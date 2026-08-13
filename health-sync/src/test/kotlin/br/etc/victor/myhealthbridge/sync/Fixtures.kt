@@ -136,7 +136,7 @@ class FakeRecordSource(
 
     val tokens = mutableListOf<String?>()
 
-    val changesSince = mutableListOf<Instant>()
+    val changeWindows = mutableListOf<ChangeWindow>()
 
     val changeTokens = mutableListOf<String?>()
 
@@ -158,10 +158,10 @@ class FakeRecordSource(
 
     override suspend fun readChanges(
         capability: HealthCapability,
-        since: Instant,
+        window: ChangeWindow,
         pageToken: String?,
     ): SamsungHealthOutcome<ChangePage> {
-        changesSince += since
+        changeWindows += window
         changeTokens += pageToken
         return byChangeToken[pageToken]
             ?.let(changePages::getOrNull)

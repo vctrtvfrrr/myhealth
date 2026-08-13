@@ -66,6 +66,7 @@ class SyncCursorRowTest {
         initialLoadStart = initialLoadStart,
         initialLoadEnd = "2026-08-11T12:00",
         changesFrom = 1_700_000_000_000,
+        changesUntil = null,
         lastOverlapAt = 1_700_000_100_000,
         importedRecords = 7,
         lastAttemptAt = null,

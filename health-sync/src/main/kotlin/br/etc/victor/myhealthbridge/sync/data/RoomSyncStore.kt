@@ -40,19 +40,21 @@ abstract class SyncDatabase : RoomDatabase() {
                 .build()
 
         /**
-         * The two positions the changes read and the overlap re-read need.
+         * The positions the changes read and the overlap re-read need.
          *
          * They are added rather than rebuilt: the outbox holds observations already read and not yet
          * confirmed by the API, and a destructive migration would drop them before anything stored them.
          *
          * A cursor that already exists starts reading changes from this moment, because that is the
-         * truth: no build before this one asked Samsung Health what had changed. The overlap re-read is
-         * left unrecorded on purpose, so the first run after the update takes one at once and covers the
-         * week behind it; anything older is what a Full Reconciliation is for.
+         * truth: no build before this one asked Samsung Health what had changed. A change made before
+         * it is not recoverable by any later read — see ADR 0017 on what re-reading cannot do. The
+         * overlap re-read is left unrecorded on purpose, so the first run after the update takes one at
+         * once and covers the week behind it.
          */
         private val CHANGES_AND_OVERLAP = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE sync_cursor ADD COLUMN changes_from INTEGER")
+                db.execSQL("ALTER TABLE sync_cursor ADD COLUMN changes_until INTEGER")
                 db.execSQL("ALTER TABLE sync_cursor ADD COLUMN last_overlap_at INTEGER")
                 db.execSQL("UPDATE sync_cursor SET changes_from = ?", arrayOf(System.currentTimeMillis()))
             }
@@ -141,6 +143,7 @@ private fun SyncCursorEntity.readPosition(category: HealthCategory) = SyncCursor
     readFrom = LocalDateTime.parse(readFrom),
     initialLoad = window(),
     changesFrom = changesFrom?.let(Instant::ofEpochMilli),
+    changesUntil = changesUntil?.let(Instant::ofEpochMilli),
     lastOverlapAt = lastOverlapAt?.let(Instant::ofEpochMilli),
     importedRecords = importedRecords,
     lastAttemptAt = lastAttemptAt?.let(Instant::ofEpochMilli),
@@ -163,6 +166,7 @@ private fun SyncCursor.toEntity() = SyncCursorEntity(
     initialLoadStart = initialLoad?.start?.toString(),
     initialLoadEnd = initialLoad?.end?.toString(),
     changesFrom = changesFrom?.toEpochMilli(),
+    changesUntil = changesUntil?.toEpochMilli(),
     lastOverlapAt = lastOverlapAt?.toEpochMilli(),
     importedRecords = importedRecords,
     lastAttemptAt = lastAttemptAt?.toEpochMilli(),

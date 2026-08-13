@@ -32,10 +32,16 @@ sealed interface SourceChange {
     data class Removed(override val changedAt: Instant, val uid: String) : SourceChange
 }
 
+/** The stretch of change time one changes read covers, both ends included. */
+data class ChangeWindow(val from: Instant, val to: Instant)
+
 /**
- * One page of changes, in ascending change time.
+ * One page of changes, in no promised order.
  *
- * [nextPageToken] is null when the feed holds nothing more, which is what ends a changes read.
+ * The feed exposes no ordering to ask for, so nothing about a page bounds what a later one holds. That
+ * is why a changes read is resumed by its window and not by the times inside it.
+ *
+ * [nextPageToken] is null when the window holds nothing more, which is what ends a changes read.
  */
 data class ChangePage(
     val changes: List<SourceChange>,
@@ -55,7 +61,7 @@ interface HealthRecordSource {
     ): SamsungHealthOutcome<RecordPage>
 
     /**
-     * The changes the source reports from [since] on, inclusive.
+     * The changes the source reports inside [window].
      *
      * This is the only read that reports a Source Removal, and the only one that reaches a record the
      * history walk already passed: a time range read is filtered by the record's own time, so an edit
@@ -63,7 +69,7 @@ interface HealthRecordSource {
      */
     suspend fun readChanges(
         capability: HealthCapability,
-        since: Instant,
+        window: ChangeWindow,
         pageToken: String?,
     ): SamsungHealthOutcome<ChangePage>
 }

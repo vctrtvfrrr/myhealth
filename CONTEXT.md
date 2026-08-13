@@ -85,7 +85,7 @@ How far the import of one Health Category has read, expressed as the local time 
 _Avoid_: Sync state, checkpoint, offset
 
 **Source Change Feed**:
-What Samsung Health reports as changed about the Health Records of a Health Category since a given instant, as edits and Source Removals. It is the only read that reaches a record the import already walked past, and the only one that can report an absence.
+What Samsung Health reports as changed about the Health Records of a Health Category over an interval of change time, as edits and Source Removals. It is the only read that reaches a record the import already walked past, and the only one that can report an absence. It promises no order, so it is read and resumed by whole intervals rather than by the change times inside them.
 _Avoid_: Delta sync, change log, subscription
 
 **Overlap Re-read**:
@@ -93,7 +93,7 @@ A daily re-reading of the last seven days of a Health Category, taken by pulling
 _Avoid_: Backfill, retry window
 
 **Full Reconciliation**:
-A re-reading of the whole accessible history of every granted Health Category, asked for by the Data Owner, trusting no Sync Cursor. It recovers from lost local state or a suspected divergence, and duplicates nothing because a re-read produces the same Observed Record Versions.
+A re-reading of the whole accessible history of every granted Health Category, asked for by the Data Owner, trusting no Sync Cursor. It recovers from lost local state or a suspected divergence, and duplicates nothing because a re-read produces the same Observed Record Versions. It cannot recover a Source Removal that was never observed, which no re-reading can.
 _Avoid_: Resync, full sync, repair
 
 **Unrecoverable Sync Cursor**:

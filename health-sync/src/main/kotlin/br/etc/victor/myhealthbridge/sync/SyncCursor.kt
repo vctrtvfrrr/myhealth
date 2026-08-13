@@ -70,6 +70,15 @@ data class SyncCursor(
      * by when the record itself happened.
      */
     val changesFrom: Instant? = null,
+    /**
+     * The top of the interval a changes read is in the middle of, or null when none is open.
+     *
+     * The changes feed promises no ordering, so the largest change time of a page says nothing about
+     * what a later page still holds, and a position advanced page by page would step over an older
+     * change for good. The interval is therefore fixed before anything inside it is read and only
+     * closed once all of it is staged; an interrupted walk repeats it whole, which is idempotent.
+     */
+    val changesUntil: Instant? = null,
     /** When the overlap re-read last pulled [readFrom] back, or null while it never has. */
     val lastOverlapAt: Instant? = null,
     /**
@@ -81,6 +90,11 @@ data class SyncCursor(
      * re-reads the whole accessible history instead.
      */
     val unrecoverable: String? = null,
+    /**
+     * How many observations this category has staged, which is not a count of distinct Health Records:
+     * a boundary re-read, an overlap re-read and a change all stage a record that may already be
+     * stored. Counting distinct ones would mean keeping an index of everything ever sent.
+     */
     val importedRecords: Long = 0,
     val lastAttemptAt: Instant? = null,
     val lastSuccessAt: Instant? = null,
@@ -96,6 +110,7 @@ data class SyncCursor(
         readFrom = HISTORY_FLOOR,
         initialLoad = InitialLoadWindow(HISTORY_FLOOR, now),
         changesFrom = at,
+        changesUntil = null,
         lastOverlapAt = null,
         unrecoverable = null,
         importedRecords = 0,
@@ -115,8 +130,18 @@ data class SyncCursor(
             lastOverlapAt = at,
         )
 
-    /** Where the next changes read starts; the change on the boundary is read again. */
-    fun changesReadTo(at: Instant): SyncCursor = copy(changesFrom = at)
+    /** Fixes the interval a changes read covers, before any of it is read. */
+    fun openingChangesWalk(until: Instant): SyncCursor = copy(changesUntil = until)
+
+    /**
+     * Closes it: everything inside was staged, so the next read starts where this one ended.
+     *
+     * The change on the boundary is read again, which the ingestion is idempotent under.
+     */
+    fun withChangesWalkComplete(): SyncCursor = copy(
+        changesFrom = changesUntil ?: changesFrom,
+        changesUntil = null,
+    )
 
     /**
      * Pulls the next read back over the overlap window, so that a change made inside it is read again

@@ -8,6 +8,7 @@ import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertSame
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -87,13 +88,19 @@ class ChangeImporterTest {
         assertEquals(SourceIdentity.Unknown, envelope.sourceProvenance.sourceDevice)
     }
 
+    /**
+     * The feed exposes no ordering to ask for, so a page that happens to hold the latest change proves
+     * nothing about what a later page still holds. Advancing over it would drop the older change for
+     * good, and this is the case that would do it.
+     */
     @Test
-    fun `moves the changes position only over changes it already staged`() = runTest {
+    fun `keeps the whole interval to read again when a run is cut short mid walk`() = runTest {
         incremental()
+        val older = Instant.parse("2026-08-11T10:00:00Z")
         val source = FakeRecordSource(
             pages = emptyList(),
             changePages = listOf(
-                changePage(listOf(SourceChange.Removed(changedAt, "uid-1")), nextPageToken = "next"),
+                changePage(listOf(SourceChange.Removed(changedAt, "uid-late")), nextPageToken = "next"),
                 SamsungHealthOutcome.Failed(SamsungHealthAvailability.TemporarilyUnavailable("timeout")),
             ),
         )
@@ -101,12 +108,27 @@ class ChangeImporterTest {
         val result = importer(source = source).import(heartRate)
 
         assertEquals(ImportResult.Failed(SamsungHealthAvailability.TemporarilyUnavailable("timeout")), result)
+        // The page it did read is kept, and the position it read from did not move over it.
         assertEquals(1, store.acceptedPages)
-        assertEquals(changedAt, store.cursor(heartRate.category)!!.changesFrom)
+        val cursor = store.cursor(heartRate.category)!!
+        assertEquals(Instant.parse("2026-08-11T00:00:00Z"), cursor.changesFrom)
+
+        // The next run repeats the same interval, which is what lets it reach the older change that the
+        // unread page held.
+        store.confirm(store.staged.map { it.id })
+        val resumed = FakeRecordSource(
+            pages = emptyList(),
+            changePages = listOf(changePage(listOf(SourceChange.Removed(older, "uid-early")))),
+        )
+        importer(source = resumed).import(heartRate)
+
+        assertEquals(cursor.changesUntil, resumed.changeWindows.first().to)
+        assertEquals(Instant.parse("2026-08-11T00:00:00Z"), resumed.changeWindows.first().from)
+        assertEquals(listOf("uid-early"), store.staged.map { it.item.samsungUid })
     }
 
     @Test
-    fun `reads the next run from the last change it staged`() = runTest {
+    fun `reads the next run from where the walk it completed ended`() = runTest {
         incremental()
         importer(changePage(listOf(SourceChange.Removed(changedAt, "uid-1")))).import(heartRate)
         store.confirm(store.staged.map { it.id })
@@ -114,7 +136,32 @@ class ChangeImporterTest {
         val source = FakeRecordSource(pages = emptyList())
         importer(source = source).import(heartRate)
 
-        assertEquals(changedAt, source.changesSince.last())
+        // The top of the interval that completed, not the largest change time inside it.
+        assertEquals(clock.instant(), source.changeWindows.last().from)
+        assertNull(store.cursor(heartRate.category)!!.changesUntil)
+    }
+
+    @Test
+    fun `continues inside the same interval after the outbox drains`() = runTest {
+        incremental()
+        val changes = (1..3).map { SourceChange.Removed(changedAt, "uid-$it") }
+        val source = FakeRecordSource(
+            pages = emptyList(),
+            changePages = listOf(
+                changePage(changes, nextPageToken = "next"),
+                changePage(listOf(SourceChange.Removed(changedAt, "uid-4"))),
+            ),
+        )
+        val paused = importer(source = source).import(heartRate)
+        store.confirm(store.staged.map { it.id })
+
+        val resumed = importer(source = source).import(heartRate, (paused as ImportResult.Paused).pageToken)
+
+        assertSame(ImportResult.Completed, resumed)
+        assertEquals(listOf("uid-4"), store.staged.map { it.item.samsungUid })
+        // One interval throughout, closed only once all of it was staged.
+        assertEquals(1, source.changeWindows.map { it.to }.distinct().size)
+        assertEquals(clock.instant(), store.cursor(heartRate.category)!!.changesFrom)
     }
 
     @Test

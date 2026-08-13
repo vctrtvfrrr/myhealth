@@ -25,7 +25,7 @@
     <string name="sync_phase_not_started">Carga inicial não iniciada</string>
     <string name="sync_phase_initial_load">Carga inicial em andamento</string>
     <string name="sync_phase_incremental">Carga inicial concluída</string>
-    <string name="sync_imported_records">Registros importados: %1$d</string>
+    <string name="sync_imported_records">Observações lidas: %1$d</string>
     <string name="sync_last_attempt">Última tentativa: %1$s</string>
     <string name="sync_last_attempt_never">Nenhuma tentativa até agora.</string>
     <string name="sync_last_success">Último sucesso: %1$s</string>

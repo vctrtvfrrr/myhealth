@@ -5,6 +5,7 @@ import br.etc.victor.myhealthbridge.health.HealthCategory
 import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
 import br.etc.victor.myhealthbridge.sync.ChangePage
+import br.etc.victor.myhealthbridge.sync.ChangeWindow
 import br.etc.victor.myhealthbridge.sync.HealthCapability
 import br.etc.victor.myhealthbridge.sync.HealthRecordSource
 import br.etc.victor.myhealthbridge.sync.ReadWindow
@@ -27,7 +28,6 @@ import com.samsung.android.sdk.health.data.request.LocalTimeFilter
 import com.samsung.android.sdk.health.data.request.Ordering
 import com.samsung.android.sdk.health.data.request.ReadDataRequest
 import java.math.BigDecimal
-import java.time.Instant
 
 /** The fields of a heart rate record this build reads, which a test pins to what the SDK exposes. */
 internal val heartRateFields: List<Field<*>> = listOf(
@@ -74,10 +74,10 @@ class SamsungRecordSource(
 
     override suspend fun readChanges(
         capability: HealthCapability,
-        since: Instant,
+        window: ChangeWindow,
         pageToken: String?,
     ): SamsungHealthOutcome<ChangePage> {
-        val request = changesRequestOf(capability, since, pageToken)
+        val request = changesRequestOf(capability, window, pageToken)
             ?: return SamsungHealthOutcome.Failed(
                 SamsungHealthAvailability.Unsupported("uncatalogued_changes_${capability.recordType}"),
             )
@@ -110,11 +110,11 @@ class SamsungRecordSource(
     /** Null for a capability that declares the changes feed without this build reading it. */
     private fun changesRequestOf(
         capability: HealthCapability,
-        since: Instant,
+        window: ChangeWindow,
         pageToken: String?,
     ): ChangedDataRequest<HealthDataPoint>? = when (capability.category) {
         HealthCategory.HEART_RATE -> DataTypes.HEART_RATE.changedDataRequestBuilder
-            .setChangeTimeFilter(InstantTimeFilter.since(since))
+            .setChangeTimeFilter(InstantTimeFilter.of(window.from, window.to, true, true))
             .setPageSize(capability.pageSize)
             .also { builder -> pageToken?.let(builder::setPageToken) }
             .build()

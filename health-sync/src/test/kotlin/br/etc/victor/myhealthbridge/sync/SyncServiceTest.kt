@@ -157,7 +157,7 @@ class SyncServiceTest {
         ).sync()
 
         assertEquals(listOf("uid-1"), client.batches.single().items.map { it.samsungUid })
-        assertEquals(removal.changedAt, cursor()!!.changesFrom)
+        assertEquals(now, cursor()!!.changesFrom, "the interval that completed, not a time inside it")
         assertEquals(SyncOutcome.SUCCEEDED, cursor()!!.lastOutcome)
     }
 
