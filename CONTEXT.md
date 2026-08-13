@@ -81,8 +81,24 @@ A cataloged declaration of how a Health Category is synchronized: the record typ
 _Avoid_: Data type support, sync config
 
 **Sync Cursor**:
-How far the import of one Health Category has read, expressed as the local time the next read starts at, together with how its last run ended. It is independent per Health Category, so a category that cannot be read holds none of the others back.
+How far the import of one Health Category has read, expressed as the local time the next read starts at and the instant its Source Change Feed continues from, together with how its last run ended. It is independent per Health Category, so a category that cannot be read holds none of the others back.
 _Avoid_: Sync state, checkpoint, offset
+
+**Source Change Feed**:
+What Samsung Health reports as changed about the Health Records of a Health Category since a given instant, as edits and Source Removals. It is the only read that reaches a record the import already walked past, and the only one that can report an absence.
+_Avoid_: Delta sync, change log, subscription
+
+**Overlap Re-read**:
+A daily re-reading of the last seven days of a Health Category, taken by pulling its Sync Cursor back before the ordinary read. It bounds how far the history can diverge from the source when neither the cursor nor the Source Change Feed reported a change.
+_Avoid_: Backfill, retry window
+
+**Full Reconciliation**:
+A re-reading of the whole accessible history of every granted Health Category, asked for by the Data Owner, trusting no Sync Cursor. It recovers from lost local state or a suspected divergence, and duplicates nothing because a re-read produces the same Observed Record Versions.
+_Avoid_: Resync, full sync, repair
+
+**Unrecoverable Sync Cursor**:
+A stored Sync Cursor whose position this build cannot interpret. It is never given a default position: the Health Category it belongs to is answered with a Full Reconciliation of itself and the condition is reported, because a guessed position is a gap nothing would ever report.
+_Avoid_: Corrupt cursor, invalid state
 
 **Outbox**:
 The durable local queue of mapped envelopes on the device, holding each one only until the ingestion API confirms it is stored. It bounds how far ahead of the API the import may read.

@@ -18,6 +18,8 @@ data class CategorySyncState(
     val importedRecords: Long,
     val lastAttemptAt: Instant?,
     val lastSuccessAt: Instant?,
+    /** When the last overlap re-read pulled this category's read back, or null while none has. */
+    val lastOverlapAt: Instant?,
     val outcome: SyncOutcome?,
 )
 
@@ -62,6 +64,7 @@ data class SyncUiState(
                 importedRecords = cursor?.importedRecords ?: 0,
                 lastAttemptAt = cursor?.lastAttemptAt,
                 lastSuccessAt = cursor?.lastSuccessAt,
+                lastOverlapAt = cursor?.lastOverlapAt,
                 outcome = cursor?.lastOutcome,
             )
     }

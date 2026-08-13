@@ -4,9 +4,10 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import br.etc.victor.myhealthbridge.contract.RejectionCode
 import br.etc.victor.myhealthbridge.health.HealthCategory
-import br.etc.victor.myhealthbridge.sync.HISTORY_FLOOR
 import br.etc.victor.myhealthbridge.sync.ImportPhase
 import br.etc.victor.myhealthbridge.sync.IngestionEndpoint
 import br.etc.victor.myhealthbridge.sync.IngestionEndpointStore
@@ -25,7 +26,7 @@ import java.time.LocalDateTime
 
 @Database(
     entities = [OutboxItemEntity::class, SyncCursorEntity::class, IngestionEndpointEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class SyncDatabase : RoomDatabase() {
@@ -34,7 +35,28 @@ abstract class SyncDatabase : RoomDatabase() {
 
     companion object {
         fun open(context: Context): SyncDatabase =
-            Room.databaseBuilder(context.applicationContext, SyncDatabase::class.java, "health-sync.db").build()
+            Room.databaseBuilder(context.applicationContext, SyncDatabase::class.java, "health-sync.db")
+                .addMigrations(CHANGES_AND_OVERLAP)
+                .build()
+
+        /**
+         * The two positions the changes read and the overlap re-read need.
+         *
+         * They are added rather than rebuilt: the outbox holds observations already read and not yet
+         * confirmed by the API, and a destructive migration would drop them before anything stored them.
+         *
+         * A cursor that already exists starts reading changes from this moment, because that is the
+         * truth: no build before this one asked Samsung Health what had changed. The overlap re-read is
+         * left unrecorded on purpose, so the first run after the update takes one at once and covers the
+         * week behind it; anything older is what a Full Reconciliation is for.
+         */
+        private val CHANGES_AND_OVERLAP = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sync_cursor ADD COLUMN changes_from INTEGER")
+                db.execSQL("ALTER TABLE sync_cursor ADD COLUMN last_overlap_at INTEGER")
+                db.execSQL("UPDATE sync_cursor SET changes_from = ?", arrayOf(System.currentTimeMillis()))
+            }
+        }
     }
 }
 
@@ -100,20 +122,33 @@ private fun NewOutboxItem.toEntity() = OutboxItemEntity(
     enqueuedAt = enqueuedAt.toEpochMilli(),
 )
 
-/** A row naming a category this build no longer catalogs is skipped rather than guessed at. */
-private fun SyncCursorEntity.toCursor(): SyncCursor? {
+/**
+ * A row naming a category this build no longer catalogs is skipped rather than guessed at.
+ *
+ * A row whose position cannot be read becomes an unrecoverable cursor instead of a default one: a
+ * default would either skip history nothing would ever read again or claim progress that was never
+ * made, and the run that meets this one re-reads everything rather than either.
+ */
+internal fun SyncCursorEntity.toCursor(): SyncCursor? {
     val category = HealthCategory.byId(categoryId) ?: return null
-    return SyncCursor(
-        category = category,
-        phase = enumValueOrNull<ImportPhase>(phase) ?: ImportPhase.NOT_STARTED,
-        readFrom = runCatching { LocalDateTime.parse(readFrom) }.getOrDefault(HISTORY_FLOOR),
-        initialLoad = window(),
-        importedRecords = importedRecords,
-        lastAttemptAt = lastAttemptAt?.let(Instant::ofEpochMilli),
-        lastSuccessAt = lastSuccessAt?.let(Instant::ofEpochMilli),
-        lastOutcome = lastOutcome?.let { enumValueOrNull<SyncOutcome>(it) },
-    )
+    return runCatching { readPosition(category) }
+        .getOrElse { SyncCursor(category, unrecoverable = "unreadable_sync_cursor_row") }
 }
+
+private fun SyncCursorEntity.readPosition(category: HealthCategory) = SyncCursor(
+    category = category,
+    phase = enumValueOf<ImportPhase>(phase),
+    readFrom = LocalDateTime.parse(readFrom),
+    initialLoad = window(),
+    changesFrom = changesFrom?.let(Instant::ofEpochMilli),
+    lastOverlapAt = lastOverlapAt?.let(Instant::ofEpochMilli),
+    importedRecords = importedRecords,
+    lastAttemptAt = lastAttemptAt?.let(Instant::ofEpochMilli),
+    lastSuccessAt = lastSuccessAt?.let(Instant::ofEpochMilli),
+    // How a past run ended says nothing about where the import stands, so an outcome this build does
+    // not know is dropped instead of making the whole cursor unrecoverable.
+    lastOutcome = lastOutcome?.let { name -> SyncOutcome.entries.firstOrNull { it.name == name } },
+)
 
 private fun SyncCursorEntity.window(): InitialLoadWindow? {
     val start = initialLoadStart?.let { LocalDateTime.parse(it) } ?: return null
@@ -127,11 +162,10 @@ private fun SyncCursor.toEntity() = SyncCursorEntity(
     readFrom = readFrom.toString(),
     initialLoadStart = initialLoad?.start?.toString(),
     initialLoadEnd = initialLoad?.end?.toString(),
+    changesFrom = changesFrom?.toEpochMilli(),
+    lastOverlapAt = lastOverlapAt?.toEpochMilli(),
     importedRecords = importedRecords,
     lastAttemptAt = lastAttemptAt?.toEpochMilli(),
     lastSuccessAt = lastSuccessAt?.toEpochMilli(),
     lastOutcome = lastOutcome?.name,
 )
-
-private inline fun <reified T : Enum<T>> enumValueOrNull(name: String): T? =
-    enumValues<T>().firstOrNull { it.name == name }

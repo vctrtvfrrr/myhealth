@@ -1,0 +1,11 @@
+# Read edits and removals from the changes feed
+
+A synchronization run reads each Health Category twice: forward from its Sync Cursor over local time, and then over what Samsung Health reports as changed since a second position the same cursor keeps. The second read is not redundant with the first. A time range read is filtered by the record's own time, so it never returns to a record the walk already passed, and an edit to something recorded last year would never appear in one again. No time range read can report an absence at all, so a Source Removal is only observable through the changes feed.
+
+An upsert reported by the feed goes through the same mapper as a walked record, so the same record renders into the same Observed Record Version either way and the API answers `already_present` for the one that arrives second. This is what makes reading twice cost storage nowhere: a new record is normally delivered twice per run, once by each read, and the second delivery ends as an acknowledgement rather than as a version. Suppressing it would mean the device keeping a second index of what it has already sent, which is exactly the copy the Outbox exists not to be.
+
+A removal is dated by the change time the source reports, never by the import clock, for the reason ADR 0014 gives about `observedAt`: an observation whose content changes on every import would store a new version of the same absence every hour. Being dated by the change time is also what makes it win the projection, since currency is decided by the largest `observed_at` over the preserved versions. Its Source Provenance is unknown, because a removal says only that the record is gone and never which application removed it.
+
+The changes read begins at the instant the initial load was started, not at the instant it finished. A record edited while the walk was passing over it would otherwise be missed by the walk, which had already read it, and by the changes read, which would start after the edit.
+
+The cursor advances over changes already staged in the Outbox, in the same transaction, for the same reason the history walk does. Re-reading the change on the boundary is the whole cost, and the ingestion is idempotent under exactly it.

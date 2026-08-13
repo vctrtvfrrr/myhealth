@@ -28,7 +28,7 @@ class OutboxSenderTest {
             policy = policy,
             clock = Clock.fixed(Instant.parse("2026-08-11T12:00:00Z"), ZoneOffset.UTC),
         )
-        store.writeCursor(SyncCursor(heartRate.category).startingInitialLoad(LocalDateTime.of(2026, 8, 11, 9, 0)))
+        store.writeCursor(SyncCursor(heartRate.category).startingInitialLoad(LocalDateTime.of(2026, 8, 11, 9, 0), Instant.parse("2026-08-11T00:00:00Z")))
         importer.import(heartRate)
     }
 

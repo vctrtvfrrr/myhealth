@@ -43,6 +43,7 @@ fun SyncScreen(viewModel: SyncViewModel, modifier: Modifier = Modifier) {
         onSaveEndpoint = viewModel::saveEndpoint,
         onStartInitialLoad = viewModel::startInitialLoad,
         onSyncNow = viewModel::syncNow,
+        onReconcile = viewModel::reconcileNow,
         modifier = modifier,
     )
 }
@@ -53,6 +54,7 @@ fun SyncScreen(
     onSaveEndpoint: (String, String) -> Unit,
     onStartInitialLoad: () -> Unit,
     onSyncNow: () -> Unit,
+    onReconcile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -77,6 +79,14 @@ fun SyncScreen(
                     Text(stringResource(R.string.sync_now))
                 }
                 Text(stringResource(R.string.sync_schedule), style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(
+                    onClick = onReconcile,
+                    enabled = state.configured,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.sync_reconcile))
+                }
+                Text(stringResource(R.string.sync_reconcile_explanation), style = MaterialTheme.typography.bodySmall)
             }
         }
         item {
@@ -187,6 +197,12 @@ private fun CategoryCard(state: CategorySyncState) {
                     ?: stringResource(R.string.sync_last_success_never),
                 style = MaterialTheme.typography.bodySmall,
             )
+            Text(
+                text = state.lastOverlapAt
+                    ?.let { stringResource(R.string.sync_last_overlap, formatInstant(it)) }
+                    ?: stringResource(R.string.sync_last_overlap_never),
+                style = MaterialTheme.typography.bodySmall,
+            )
             state.outcome?.let {
                 Text(stringResource(outcomeLabel(it)), style = MaterialTheme.typography.bodySmall)
             }
@@ -208,6 +224,7 @@ private fun outcomeLabel(outcome: SyncOutcome): Int = when (outcome) {
     SyncOutcome.INGESTION_UNAVAILABLE -> R.string.sync_outcome_ingestion_unavailable
     SyncOutcome.CONTRACT_INCOMPATIBLE -> R.string.sync_outcome_contract_incompatible
     SyncOutcome.OUTBOX_FULL -> R.string.sync_outcome_outbox_full
+    SyncOutcome.CURSOR_UNRECOVERABLE -> R.string.sync_outcome_cursor_unrecoverable
 }
 
 private val instantFormat: DateTimeFormatter =

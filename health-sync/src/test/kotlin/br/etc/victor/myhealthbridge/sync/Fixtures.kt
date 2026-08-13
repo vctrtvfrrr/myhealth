@@ -102,6 +102,13 @@ class FakeSyncStore : SyncStore {
     override suspend fun reject(id: Long, codes: List<RejectionCode>) {
         items.first { it.id == id }.codes = codes
     }
+
+    /** Drops every local trace of the synchronization, the way reinstalling the application does. */
+    fun forgetLocalState() {
+        cursors.clear()
+        items.clear()
+        acceptedPages = 0
+    }
 }
 
 class FakeEndpointStore(private var endpoint: IngestionEndpoint? = IngestionEndpoint("https://api.invalid", "token")) :
@@ -120,18 +127,22 @@ class FakeEndpointStore(private var endpoint: IngestionEndpoint? = IngestionEndp
  * Answers the page the token asks for, the way Samsung Health does: no token means the start of the
  * window, and a token means the page that follows the one which handed it out.
  */
-class FakeRecordSource(private val pages: List<SamsungHealthOutcome<RecordPage>>) : HealthRecordSource {
+class FakeRecordSource(
+    private val pages: List<SamsungHealthOutcome<RecordPage>>,
+    private val changePages: List<SamsungHealthOutcome<ChangePage>> = emptyList(),
+) : HealthRecordSource {
 
     val windows = mutableListOf<ReadWindow>()
 
     val tokens = mutableListOf<String?>()
 
-    private val byToken: Map<String?, Int> = buildMap {
-        put(null, 0)
-        pages.forEachIndexed { index, outcome ->
-            (outcome as? SamsungHealthOutcome.Observed)?.value?.nextPageToken?.let { put(it, index + 1) }
-        }
-    }
+    val changesSince = mutableListOf<Instant>()
+
+    val changeTokens = mutableListOf<String?>()
+
+    private val byToken: Map<String?, Int> = tokenIndex(pages) { it.nextPageToken }
+
+    private val byChangeToken: Map<String?, Int> = tokenIndex(changePages) { it.nextPageToken }
 
     override suspend fun readPage(
         capability: HealthCapability,
@@ -144,10 +155,35 @@ class FakeRecordSource(private val pages: List<SamsungHealthOutcome<RecordPage>>
             ?.let(pages::getOrNull)
             ?: SamsungHealthOutcome.Observed(RecordPage(emptyList(), null))
     }
+
+    override suspend fun readChanges(
+        capability: HealthCapability,
+        since: Instant,
+        pageToken: String?,
+    ): SamsungHealthOutcome<ChangePage> {
+        changesSince += since
+        changeTokens += pageToken
+        return byChangeToken[pageToken]
+            ?.let(changePages::getOrNull)
+            ?: SamsungHealthOutcome.Observed(ChangePage(emptyList(), null))
+    }
+
+    private fun <T> tokenIndex(
+        pages: List<SamsungHealthOutcome<T>>,
+        tokenOf: (T) -> String?,
+    ): Map<String?, Int> = buildMap {
+        put(null, 0)
+        pages.forEachIndexed { index, outcome ->
+            (outcome as? SamsungHealthOutcome.Observed)?.value?.let(tokenOf)?.let { put(it, index + 1) }
+        }
+    }
 }
 
 fun page(records: List<SourceRecord>, nextPageToken: String? = null): SamsungHealthOutcome<RecordPage> =
     SamsungHealthOutcome.Observed(RecordPage(records, nextPageToken))
+
+fun changePage(changes: List<SourceChange>, nextPageToken: String? = null): SamsungHealthOutcome<ChangePage> =
+    SamsungHealthOutcome.Observed(ChangePage(changes, nextPageToken))
 
 class FakeIngestionClient(private val answer: (IngestionBatch) -> SendOutcome) : IngestionClient {
 

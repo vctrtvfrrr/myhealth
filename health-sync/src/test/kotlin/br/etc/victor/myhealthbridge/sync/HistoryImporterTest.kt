@@ -26,7 +26,7 @@ class HistoryImporterTest {
         )
 
     private suspend fun startInitialLoad() = store.writeCursor(
-        SyncCursor(heartRate.category).startingInitialLoad(LocalDateTime.of(2026, 8, 11, 9, 0)),
+        SyncCursor(heartRate.category).startingInitialLoad(LocalDateTime.of(2026, 8, 11, 9, 0), Instant.parse("2026-08-11T00:00:00Z")),
     )
 
     @Test

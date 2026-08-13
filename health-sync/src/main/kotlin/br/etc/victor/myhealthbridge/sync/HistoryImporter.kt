@@ -1,15 +1,14 @@
 package br.etc.victor.myhealthbridge.sync
 
-import br.etc.victor.myhealthbridge.contract.IngestionContract
-import br.etc.victor.myhealthbridge.contract.HealthRecordEnvelope
 import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
 import java.time.Clock
 import java.time.LocalDateTime
 
+/** How a read into the outbox ended, whether it walked the history or the changes feed. */
 sealed interface ImportResult {
 
-    /** The window holds nothing more; an initial load that reaches this becomes incremental. */
+    /** The read has nothing more; an initial load that reaches this becomes incremental. */
     data object Completed : ImportResult
 
     /**
@@ -67,7 +66,7 @@ class HistoryImporter(
         }
 
         if (cursor.phase == ImportPhase.INITIAL_LOAD) {
-            cursor = cursor.withInitialLoadComplete()
+            cursor = cursor.withInitialLoadComplete(clock.instant())
             store.writeCursor(cursor)
         }
         return ImportResult.Completed
@@ -82,15 +81,10 @@ class HistoryImporter(
         else -> LocalDateTime.now(clock)
     }
 
-    private fun stage(capability: HealthCapability, record: SourceRecord): NewOutboxItem = NewOutboxItem(
-        category = capability.category,
-        recordType = capability.recordType,
-        samsungUid = record.uid,
-        envelopeJson = IngestionContract.json.encodeToString(
-            HealthRecordEnvelope.serializer(),
-            capability.mapper.map(record),
-        ),
-        enqueuedAt = clock.instant(),
+    private fun stage(capability: HealthCapability, record: SourceRecord): NewOutboxItem = capability.staged(
+        uid = record.uid,
+        envelope = capability.mapper.map(record),
+        at = clock.instant(),
     )
 
     private fun lastLocalStart(records: List<SourceRecord>): LocalDateTime =

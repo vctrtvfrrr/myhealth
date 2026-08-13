@@ -26,6 +26,25 @@ interface RecordMapper {
     val version: String
 
     fun map(record: SourceRecord): HealthRecordEnvelope
+
+    /**
+     * The observation of a Source Removal, which every mapper renders the same way.
+     *
+     * A removal carries no content, so there is nothing type specific left to map: it is dated by the
+     * change time the source reports, and its Source Provenance is unknown because a removal says only
+     * that the record is gone, never which application removed it. The offset is UTC for the reason
+     * [map] uses it when the source reported no local context — a change time carries none of its own.
+     */
+    fun removalOf(uid: String, changedAt: Instant): HealthRecordEnvelope = HealthRecordEnvelope(
+        samsungUid = uid,
+        observedAt = zoned(changedAt, ZoneOffset.UTC),
+        mapperVersion = version,
+        sourceProvenance = SourceProvenance(
+            sourceApp = SourceIdentity.Unknown,
+            sourceDevice = SourceIdentity.Unknown,
+        ),
+        state = RecordState.Removed(),
+    )
 }
 
 /**

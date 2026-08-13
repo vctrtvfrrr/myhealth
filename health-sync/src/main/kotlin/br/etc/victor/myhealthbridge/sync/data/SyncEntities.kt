@@ -32,6 +32,8 @@ data class SyncCursorEntity(
     @ColumnInfo(name = "read_from") val readFrom: String,
     @ColumnInfo(name = "initial_load_start") val initialLoadStart: String?,
     @ColumnInfo(name = "initial_load_end") val initialLoadEnd: String?,
+    @ColumnInfo(name = "changes_from") val changesFrom: Long?,
+    @ColumnInfo(name = "last_overlap_at") val lastOverlapAt: Long?,
     @ColumnInfo(name = "imported_records") val importedRecords: Long,
     @ColumnInfo(name = "last_attempt_at") val lastAttemptAt: Long?,
     @ColumnInfo(name = "last_success_at") val lastSuccessAt: Long?,

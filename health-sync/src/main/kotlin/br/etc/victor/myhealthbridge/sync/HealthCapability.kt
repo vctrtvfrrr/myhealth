@@ -49,8 +49,6 @@ object HealthCapabilities {
         HealthCapability(
             category = HealthCategory.HEART_RATE,
             recordType = "heart_rate",
-            // The changes feed is declared because Samsung Health offers it for this type; reflecting
-            // edits and removals through it is its own vertical and is not read here yet.
             readOperations = setOf(ReadOperation.TIME_RANGE, ReadOperation.CHANGES),
             pageSize = 500,
             mapper = HeartRateMapper,

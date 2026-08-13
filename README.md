@@ -14,6 +14,8 @@ O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura
 
 A primeira fatia vertical está fechada para frequência cardíaca: o aplicativo importa o histórico acessível de forma paginada e retomável, guarda cada página numa outbox Room antes de avançar o cursor, entrega lotes idempotentes à API e remove o payload só depois da confirmação. A sincronização é solicitada de hora em hora pelo WorkManager e também pode ser iniciada manualmente.
 
+Alterações feitas depois no Samsung Health se refletem no Current Health Record, e um Source Removal muda o estado corrente sem apagar Observed Record Version alguma. Além do cursor, cada execução lê o Source Change Feed da categoria, uma vez por dia relê os sete dias anteriores, e o Data Owner pode acionar uma reconciliação integral que relê todo o histórico acessível.
+
 ## Arquitetura planejada
 
 - **Aplicativo Android:** lê todas as categorias disponíveis no Samsung Health Data SDK, realiza a carga histórica e mantém sincronizações periódicas e manuais.
@@ -101,7 +103,7 @@ As 25 Health Categories catalogadas cobrem exatamente os data types legíveis do
 
 ### Sincronização
 
-A tela de sincronização é a segunda aba do aplicativo. Nela o Data Owner informa o endereço da API e o token deste Ingestion Device, inicia a carga inicial e pede uma sincronização manual; ela também mostra o tamanho da outbox, o progresso da carga inicial, o horário da última tentativa, o horário do último sucesso e o estado de cada Health Category sincronizada.
+A tela de sincronização é a segunda aba do aplicativo. Nela o Data Owner informa o endereço da API e o token deste Ingestion Device, inicia a carga inicial, pede uma sincronização manual e aciona a reconciliação integral; ela também mostra o tamanho da outbox, o progresso da carga inicial, o horário da última tentativa, o horário do último sucesso, o horário da última releitura sobreposta e o estado de cada Health Category sincronizada.
 
 O endereço e o token ficam no Room do aparelho e não são embutidos no APK, porque o token é criado por `device create <label>` e mostrado uma única vez. O campo do token começa vazio a cada abertura e salvar substitui o que estiver guardado; ele nunca é lido de volta para a tela.
 
@@ -114,6 +116,10 @@ A outbox é a fila durável entre o Samsung Health e a API, e o seu limite vale 
 A sincronização incremental é solicitada de hora em hora pelo WorkManager, em qualquer tipo de rede e sem promessa de horário exato. A execução manual usa exatamente o mesmo pipeline idempotente. Cada categoria registra por conta própria como a sua execução terminou, então uma falha de categoria não segura as outras.
 
 O `observedAt` do envelope é o horário em que a origem alterou o registro pela última vez, nunca o relógio da importação: fosse o relógio, cada execução horária gravaria outra Observed Record Version de um registro que ninguém mudou. Ver ADR `0014`.
+
+Depois de percorrer o histórico acessível, cada execução também lê o Source Change Feed da categoria. É por ele que uma alteração posterior chega ao Current Health Record — a leitura por intervalo é filtrada pelo horário do próprio registro e nunca volta a um registro já percorrido — e é a única leitura capaz de relatar um Source Removal. Um upsert passa pelo mesmo mapper da leitura comum, então o registro novo costuma ser entregue duas vezes por execução e a segunda termina em `already_present`. O removal não carrega conteúdo biométrico, é datado pelo horário da alteração na origem e tem Source Provenance desconhecida, porque a origem só diz que o registro se foi. Ver ADR `0016`.
+
+Nada disso depende do cursor estar certo. Uma vez por dia a execução puxa o cursor da categoria de volta sobre os sete dias anteriores e relê a janela por conta própria; o horário da última releitura fica no cursor e aparece na tela. O Data Owner também pode acionar uma reconciliação integral, que reinicia a leitura de todo o histórico acessível de cada categoria com permissão e não confia em cursor algum — é a recuperação depois de perda de estado local ou suspeita de inconsistência, e é exatamente a situação de uma reinstalação, que não duplica o Personal Health History porque a releitura produz as mesmas Observed Record Versions. Um cursor guardado que este build não consegue interpretar recebe o mesmo tratamento e nunca uma posição padrão: a execução grava a releitura completa daquela categoria e termina como `CURSOR_UNRECOVERABLE`, para que a perda de posição seja relatada em vez de virar lacuna silenciosa. Ver ADR `0017`.
 
 ### Configuração da API
 

@@ -18,6 +18,8 @@
     <string name="sync_start_initial_load">Iniciar carga inicial</string>
     <string name="sync_now">Sincronizar agora</string>
     <string name="sync_schedule">A sincronização também é solicitada de hora em hora, sem horário exato.</string>
+    <string name="sync_reconcile">Reconciliar todo o histórico</string>
+    <string name="sync_reconcile_explanation">Lê novamente todo o histórico acessível de cada categoria. Nada é duplicado: a API reconhece o que já guardou.</string>
 
     <string name="sync_categories_section">Categorias</string>
     <string name="sync_phase_not_started">Carga inicial não iniciada</string>
@@ -28,6 +30,8 @@
     <string name="sync_last_attempt_never">Nenhuma tentativa até agora.</string>
     <string name="sync_last_success">Último sucesso: %1$s</string>
     <string name="sync_last_success_never">Nenhuma sincronização bem-sucedida até agora.</string>
+    <string name="sync_last_overlap">Última releitura dos sete dias anteriores: %1$s</string>
+    <string name="sync_last_overlap_never">Nenhuma releitura dos sete dias anteriores até agora.</string>
 
     <string name="sync_outcome_succeeded">Última sincronização concluída.</string>
     <string name="sync_outcome_waiting_permission">Aguardando a permissão de leitura desta categoria.</string>
@@ -36,5 +40,6 @@
     <string name="sync_outcome_ingestion_unavailable">A API de ingestão não respondeu na última tentativa.</string>
     <string name="sync_outcome_contract_incompatible">O aplicativo e a API falam versões diferentes do contrato de ingestão.</string>
     <string name="sync_outcome_outbox_full">A outbox atingiu o limite e a leitura pausou até a entrega avançar.</string>
+    <string name="sync_outcome_cursor_unrecoverable">A posição de leitura desta categoria foi perdida. Todo o histórico acessível será lido novamente.</string>
 
 </resources>

@@ -1,8 +1,11 @@
 package br.etc.victor.myhealthbridge.sync
 
+import br.etc.victor.myhealthbridge.contract.HealthRecordEnvelope
+import br.etc.victor.myhealthbridge.contract.IngestionContract
 import br.etc.victor.myhealthbridge.contract.RejectionCode
 import br.etc.victor.myhealthbridge.health.HealthCategory
 import kotlinx.coroutines.flow.Flow
+import java.time.Duration
 import java.time.Instant
 
 /** An envelope waiting to be delivered, as it is about to be staged. */
@@ -12,6 +15,19 @@ data class NewOutboxItem(
     val samsungUid: String,
     val envelopeJson: String,
     val enqueuedAt: Instant,
+)
+
+/** One observation of this capability, rendered as the outbox keeps it. */
+internal fun HealthCapability.staged(
+    uid: String,
+    envelope: HealthRecordEnvelope,
+    at: Instant,
+): NewOutboxItem = NewOutboxItem(
+    category = category,
+    recordType = recordType,
+    samsungUid = uid,
+    envelopeJson = IngestionContract.json.encodeToString(HealthRecordEnvelope.serializer(), envelope),
+    enqueuedAt = at,
 )
 
 /** A staged envelope the sender is about to deliver. */
@@ -87,4 +103,8 @@ interface IngestionEndpointStore {
 data class SyncPolicy(
     val maxOutboxItems: Int = 5_000,
     val batchItems: Int = 200,
+    /** How far back the overlap re-read pulls the next read of a category. */
+    val overlapWindow: Duration = Duration.ofDays(7),
+    /** How much time has to pass between two overlap re-reads of the same category. */
+    val overlapEvery: Duration = Duration.ofDays(1),
 )

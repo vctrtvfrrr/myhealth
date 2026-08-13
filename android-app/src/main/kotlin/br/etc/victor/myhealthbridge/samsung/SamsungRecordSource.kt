@@ -4,23 +4,30 @@ import android.content.Context
 import br.etc.victor.myhealthbridge.health.HealthCategory
 import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
+import br.etc.victor.myhealthbridge.sync.ChangePage
 import br.etc.victor.myhealthbridge.sync.HealthCapability
 import br.etc.victor.myhealthbridge.sync.HealthRecordSource
 import br.etc.victor.myhealthbridge.sync.ReadWindow
 import br.etc.victor.myhealthbridge.sync.RecordPage
+import br.etc.victor.myhealthbridge.sync.SourceChange
 import br.etc.victor.myhealthbridge.sync.SourceRecord
 import br.etc.victor.myhealthbridge.sync.SourceValue
 import com.samsung.android.sdk.health.data.HealthDataService
 import com.samsung.android.sdk.health.data.HealthDataStore
+import com.samsung.android.sdk.health.data.data.Change
+import com.samsung.android.sdk.health.data.data.ChangeType
 import com.samsung.android.sdk.health.data.data.Field
 import com.samsung.android.sdk.health.data.data.HealthDataPoint
 import com.samsung.android.sdk.health.data.data.entries.HeartRate
+import com.samsung.android.sdk.health.data.request.ChangedDataRequest
 import com.samsung.android.sdk.health.data.request.DataType
 import com.samsung.android.sdk.health.data.request.DataTypes
+import com.samsung.android.sdk.health.data.request.InstantTimeFilter
 import com.samsung.android.sdk.health.data.request.LocalTimeFilter
 import com.samsung.android.sdk.health.data.request.Ordering
 import com.samsung.android.sdk.health.data.request.ReadDataRequest
 import java.math.BigDecimal
+import java.time.Instant
 
 /** The fields of a heart rate record this build reads, which a test pins to what the SDK exposes. */
 internal val heartRateFields: List<Field<*>> = listOf(
@@ -65,6 +72,25 @@ class SamsungRecordSource(
         }
     }
 
+    override suspend fun readChanges(
+        capability: HealthCapability,
+        since: Instant,
+        pageToken: String?,
+    ): SamsungHealthOutcome<ChangePage> {
+        val request = changesRequestOf(capability, since, pageToken)
+            ?: return SamsungHealthOutcome.Failed(
+                SamsungHealthAvailability.Unsupported("uncatalogued_changes_${capability.recordType}"),
+            )
+
+        return outcomes.observing {
+            val response = store.readChanges(request)
+            ChangePage(
+                changes = response.dataList.mapNotNull(Change<HealthDataPoint>::toSourceChange),
+                nextPageToken = response.pageToken,
+            )
+        }
+    }
+
     /** Null for a capability this build declares but cannot yet build a read for. */
     private fun requestOf(
         capability: HealthCapability,
@@ -80,6 +106,30 @@ class SamsungRecordSource(
 
         else -> null
     }
+
+    /** Null for a capability that declares the changes feed without this build reading it. */
+    private fun changesRequestOf(
+        capability: HealthCapability,
+        since: Instant,
+        pageToken: String?,
+    ): ChangedDataRequest<HealthDataPoint>? = when (capability.category) {
+        HealthCategory.HEART_RATE -> DataTypes.HEART_RATE.changedDataRequestBuilder
+            .setChangeTimeFilter(InstantTimeFilter.since(since))
+            .setPageSize(capability.pageSize)
+            .also { builder -> pageToken?.let(builder::setPageToken) }
+            .build()
+
+        else -> null
+    }
+}
+
+/**
+ * A removal that does not name what was removed is dropped rather than guessed at, the way an unknown
+ * value type is: it cannot happen without an SDK change.
+ */
+private fun Change<HealthDataPoint>.toSourceChange(): SourceChange? = when (changeType) {
+    ChangeType.UPSERT -> SourceChange.Upserted(changeTime, upsertDataPoint.toSourceRecord())
+    ChangeType.DELETE -> deleteDataUid?.let { SourceChange.Removed(changeTime, it) }
 }
 
 private fun HealthDataPoint.toSourceRecord(): SourceRecord = SourceRecord(

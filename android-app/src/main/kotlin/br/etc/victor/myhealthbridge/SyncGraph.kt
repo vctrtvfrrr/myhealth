@@ -5,10 +5,12 @@ import br.etc.victor.myhealthbridge.health.HealthPermissionsService
 import br.etc.victor.myhealthbridge.health.data.permissionHistoryStore
 import br.etc.victor.myhealthbridge.samsung.SamsungHealthDataGateway
 import br.etc.victor.myhealthbridge.samsung.SamsungRecordSource
+import br.etc.victor.myhealthbridge.sync.ChangeImporter
 import br.etc.victor.myhealthbridge.sync.HistoryImporter
 import br.etc.victor.myhealthbridge.sync.HttpIngestionClient
 import br.etc.victor.myhealthbridge.sync.OutboxSender
 import br.etc.victor.myhealthbridge.sync.SyncPolicy
+import br.etc.victor.myhealthbridge.sync.SyncRun
 import br.etc.victor.myhealthbridge.sync.SyncService
 import br.etc.victor.myhealthbridge.sync.data.SyncStores
 import kotlinx.coroutines.sync.Mutex
@@ -39,14 +41,22 @@ class SyncGraph(context: Context) {
 
     val endpoints = stores.endpoints
 
+    private val source = SamsungRecordSource(context)
+
     private val service = SyncService(
         permissions = permissions,
         importer = HistoryImporter(
-            source = SamsungRecordSource(context),
+            source = source,
             store = syncStore,
             policy = policy,
             // Local time, because the import walks the history in the terms Samsung Health filters on.
             clock = Clock.systemDefaultZone(),
+        ),
+        changes = ChangeImporter(
+            source = source,
+            store = syncStore,
+            policy = policy,
+            clock = Clock.systemUTC(),
         ),
         sender = OutboxSender(
             store = syncStore,
@@ -55,6 +65,7 @@ class SyncGraph(context: Context) {
             policy = policy,
         ),
         store = syncStore,
+        policy = policy,
         clock = Clock.systemUTC(),
     )
 
@@ -62,8 +73,12 @@ class SyncGraph(context: Context) {
      * One run at a time: the hourly schedule and a manual request are separate WorkManager requests,
      * and two of them reading the same cursor would each import what the other already staged.
      */
-    suspend fun sync(startInitialLoad: Boolean) = runs.withLock {
-        if (startInitialLoad) service.startInitialLoad()
+    suspend fun sync(run: SyncRun) = runs.withLock {
+        when (run) {
+            SyncRun.INCREMENTAL -> Unit
+            SyncRun.INITIAL_LOAD -> service.startInitialLoad()
+            SyncRun.FULL_RECONCILIATION -> service.reconcile()
+        }
         service.sync()
     }
 }

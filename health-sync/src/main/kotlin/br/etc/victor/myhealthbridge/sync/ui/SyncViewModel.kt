@@ -22,6 +22,8 @@ interface SyncRequests {
     fun requestInitialLoad()
 
     fun requestSync()
+
+    fun requestReconciliation()
 }
 
 class SyncViewModel(
@@ -43,4 +45,6 @@ class SyncViewModel(
     fun startInitialLoad() = requests.requestInitialLoad()
 
     fun syncNow() = requests.requestSync()
+
+    fun reconcileNow() = requests.requestReconciliation()
 }

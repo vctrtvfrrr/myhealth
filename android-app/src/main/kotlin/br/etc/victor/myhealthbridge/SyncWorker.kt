@@ -11,6 +11,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import br.etc.victor.myhealthbridge.sync.SyncRun
 import br.etc.victor.myhealthbridge.sync.ui.SyncRequests
 import java.util.concurrent.TimeUnit
 
@@ -24,12 +25,16 @@ class SyncWorker(context: Context, parameters: WorkerParameters) : CoroutineWork
 
     override suspend fun doWork(): Result {
         val application = applicationContext as MyHealthBridgeApplication
-        application.graph.sync(startInitialLoad = inputData.getBoolean(START_INITIAL_LOAD, false))
+        application.graph.sync(runOf(inputData.getString(RUN)))
         return Result.success()
     }
 
+    /** An input this build cannot read is the ordinary run, which never restarts an import. */
+    private fun runOf(name: String?): SyncRun =
+        SyncRun.entries.firstOrNull { it.name == name } ?: SyncRun.INCREMENTAL
+
     companion object {
-        const val START_INITIAL_LOAD: String = "start_initial_load"
+        const val RUN: String = "run"
     }
 }
 
@@ -52,16 +57,22 @@ class SyncScheduler(private val context: Context) : SyncRequests {
         )
     }
 
-    override fun requestInitialLoad() = request(startInitialLoad = true)
+    override fun requestInitialLoad() = request(SyncRun.INITIAL_LOAD, MANUAL)
 
-    override fun requestSync() = request(startInitialLoad = false)
+    override fun requestSync() = request(SyncRun.INCREMENTAL, MANUAL)
 
-    private fun request(startInitialLoad: Boolean) {
+    /**
+     * Under its own name, so that a queued ordinary run cannot swallow it: the unique work policy keeps
+     * what is already queued, and a reconciliation the Data Owner asked for has to happen.
+     */
+    override fun requestReconciliation() = request(SyncRun.FULL_RECONCILIATION, RECONCILIATION)
+
+    private fun request(run: SyncRun, uniqueName: String) {
         WorkManager.getInstance(context).enqueueUniqueWork(
-            MANUAL,
+            uniqueName,
             ExistingWorkPolicy.KEEP,
             OneTimeWorkRequestBuilder<SyncWorker>()
-                .setInputData(Data.Builder().putBoolean(SyncWorker.START_INITIAL_LOAD, startInitialLoad).build())
+                .setInputData(Data.Builder().putString(SyncWorker.RUN, run.name).build())
                 .build(),
         )
     }
@@ -69,5 +80,6 @@ class SyncScheduler(private val context: Context) : SyncRequests {
     private companion object {
         const val HOURLY = "hourly-sync"
         const val MANUAL = "manual-sync"
+        const val RECONCILIATION = "reconciliation"
     }
 }
