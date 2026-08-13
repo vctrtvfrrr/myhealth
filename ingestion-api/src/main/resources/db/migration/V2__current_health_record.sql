@@ -15,8 +15,11 @@ create function project_current_health_record(identity_ids bigint[]) returns int
 declare
     projected integer;
 begin
-    -- Ordered, so two concurrent ingestions of the same Health Record serialize here instead of
-    -- deadlocking; whoever waits then recomputes over a snapshot that already includes the other.
+    -- What a caller that wrote nothing needs: the rebuild would otherwise recompute while an
+    -- ingestion commits a newer version underneath it, and project the one it happened to read. An
+    -- ingestion already holds these rows from its own identity upsert, so here it costs nothing.
+    -- The order is stable, not deadlock proof: the ingestion takes its identity locks in the order
+    -- of the batch, long before this function is reached, and no lock taken here can undo that.
     perform id from health_record_identity where id = any (identity_ids) order by id for update;
 
     insert into current_health_record (health_record_identity_id, observed_record_version_id)
