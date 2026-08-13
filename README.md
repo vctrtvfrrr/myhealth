@@ -10,7 +10,9 @@ O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos
 
 Cada ingestão também projeta o Current Health Record, e o schema de leitura `read_model` oferece a view `current_heart_rate` para consulta por uma conta somente leitura.
 
-O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas. Ele ainda não lê Health Records nem sincroniza dados.
+O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas.
+
+A primeira fatia vertical está fechada para frequência cardíaca: o aplicativo importa o histórico acessível de forma paginada e retomável, guarda cada página numa outbox Room antes de avançar o cursor, entrega lotes idempotentes à API e remove o payload só depois da confirmação. A sincronização é solicitada de hora em hora pelo WorkManager e também pode ser iniciada manualmente.
 
 ## Arquitetura planejada
 
@@ -46,7 +48,8 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 | `contract` | Contrato de transporte versionado compartilhado pelos dois lados. Não depende do módulo Android nem do módulo da API. |
 | `ingestion-api` | API de ingestão Ktor. Depende de `contract`. |
 | `health-permissions` | Catálogo de Health Categories, Permission States, histórico em Room e tela de permissões. Não depende de tipos do Samsung SDK. |
-| `android-app` | Aplicativo Android (Jetpack Compose) e o adaptador do Samsung Health Data SDK. Depende de `contract` e `health-permissions`. |
+| `health-sync` | Catálogo de capacidades, mappers, outbox, cursores por categoria, cliente de ingestão e tela de sincronização. Não depende de tipos do Samsung SDK. |
+| `android-app` | Aplicativo Android (Jetpack Compose), o adaptador do Samsung Health Data SDK e o agendamento por WorkManager. Depende dos três anteriores. |
 
 ## Desenvolvimento
 
@@ -61,7 +64,7 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 
 | Comando | Efeito |
 | --- | --- |
-| `./gradlew build` | Compila e testa os quatro módulos, incluindo os testes de integração. |
+| `./gradlew build` | Compila e testa os cinco módulos, incluindo os testes de integração. |
 | `./gradlew test` | Executa apenas os testes que não exigem Docker. |
 | `./gradlew integrationTest` | Executa apenas os testes de integração, que sobem containers. |
 | `./gradlew :ingestion-api:buildImage` | Constrói a imagem `myhealth-api:local` a partir da distribuição do Gradle. |
@@ -95,6 +98,22 @@ A Samsung Health Availability é derivada do resultado de operações reais, nun
 O SDK informa apenas o conjunto atualmente concedido, então `denied` e `revoked` são inferências locais. O Room guarda, por Health Category, se houve solicitação observada, se houve concessão observada, se a última observação a mostrou concedida e quando essa observação ocorreu — nenhum conteúdo de saúde. Cada verificação é atômica: só depois de uma consulta bem-sucedida todos os estados são gravados em uma única transação. Se a consulta falhar, nada muda e a observação anterior continua visível como desatualizada. Antes da primeira verificação bem-sucedida existe um estado de consulta desconhecido, que não é um quinto Permission State. Ver ADR `0009`.
 
 As 25 Health Categories catalogadas cobrem exatamente os data types legíveis do SDK fixado, verificado por teste. Atualizar o AAR não adiciona categoria alguma sozinho.
+
+### Sincronização
+
+A tela de sincronização é a segunda aba do aplicativo. Nela o Data Owner informa o endereço da API e o token deste Ingestion Device, inicia a carga inicial e pede uma sincronização manual; ela também mostra o tamanho da outbox, o progresso da carga inicial, o horário da última tentativa, o horário do último sucesso e o estado de cada Health Category sincronizada.
+
+O endereço e o token ficam no Room do aparelho e não são embutidos no APK, porque o token é criado por `device create <label>` e mostrado uma única vez. O campo do token começa vazio a cada abertura e salvar substitui o que estiver guardado; ele nunca é lido de volta para a tela.
+
+O catálogo de capacidades declara, por Health Category, o record type, as operações de leitura, o tamanho de página, o mapper e se a API projeta aquele record type. Hoje ele tem uma entrada, `heart_rate`. Uma Health Category sem entrada continua catalogada para permissões e simplesmente não é sincronizada — cobertura cresce por vertical, nunca por atualização do SDK.
+
+A carga inicial é explícita: ela começa pelo botão da tela, para as categorias com permissão concedida, e fixa a sua janela ao começar. O cursor de cada categoria guarda o horário local em que a próxima leitura começa, e só avança sobre uma página já gravada na outbox — as duas escritas são uma transação só. Uma interrupção, um encerramento do aplicativo ou um reinício do aparelho retomam dali, relendo no máximo os registros do horário de fronteira, que a API responde como `already_present`. O page token do SDK serve apenas para percorrer as páginas seguintes da mesma execução. Ver ADRs `0014` e `0015`.
+
+A outbox é a fila durável entre o Samsung Health e a API. A leitura pausa quando ela atinge o limite configurado, e um item só sai depois de `accepted` ou `already_present`. Um item `rejected` permanece como pendência de mapeamento: ele fica guardado, sai de todos os lotes seguintes e não bloqueia o progresso dos demais registros.
+
+A sincronização incremental é solicitada de hora em hora pelo WorkManager, em qualquer tipo de rede e sem promessa de horário exato. A execução manual usa exatamente o mesmo pipeline idempotente. Cada categoria registra por conta própria como a sua execução terminou, então uma falha de categoria não segura as outras.
+
+O `observedAt` do envelope é o horário em que a origem alterou o registro pela última vez, nunca o relógio da importação: fosse o relógio, cada execução horária gravaria outra Observed Record Version de um registro que ninguém mudou. Ver ADR `0014`.
 
 ### Configuração da API
 

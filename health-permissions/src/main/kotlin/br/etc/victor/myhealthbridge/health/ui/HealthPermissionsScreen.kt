@@ -2,6 +2,7 @@ package br.etc.victor.myhealthbridge.health.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,14 +11,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -56,7 +54,6 @@ fun HealthPermissionsScreen(viewModel: HealthPermissionsViewModel, modifier: Mod
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HealthPermissionsScreen(
     state: HealthPermissionsUiState,
@@ -66,46 +63,41 @@ fun HealthPermissionsScreen(
     onRequest: (HealthCategory) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
+    LazyColumn(
         modifier = modifier.fillMaxSize(),
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.health_permissions_title)) }) },
-    ) { insets ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(insets),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item { AvailabilityCard(state, onResolve) }
-            item { CheckStatus(state, onRefresh) }
-            item {
-                Button(
-                    onClick = onRequestAllPending,
-                    enabled = !state.busy && state.pending.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.health_request_all_pending))
-                }
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        item { AvailabilityCard(state, onResolve) }
+        item { CheckStatus(state, onRefresh) }
+        item {
+            Button(
+                onClick = onRequestAllPending,
+                enabled = !state.busy && state.pending.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.health_request_all_pending))
             }
+        }
 
-            HealthCategoryGroup.entries.forEach { group ->
-                item(key = group.name) {
-                    Text(
-                        text = stringResource(group.label),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(top = 8.dp),
-                    )
-                }
-                items(
-                    items = HealthCategory.entries.filter { it.group == group },
-                    key = HealthCategory::id,
-                ) { category ->
-                    CategoryRow(
-                        category = category,
-                        state = state.states[category],
-                        busy = state.busy,
-                        onRequest = { onRequest(category) },
-                    )
-                }
+        HealthCategoryGroup.entries.forEach { group ->
+            item(key = group.name) {
+                Text(
+                    text = stringResource(group.label),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            items(
+                items = HealthCategory.entries.filter { it.group == group },
+                key = HealthCategory::id,
+            ) { category ->
+                CategoryRow(
+                    category = category,
+                    state = state.states[category],
+                    busy = state.busy,
+                    onRequest = { onRequest(category) },
+                )
             }
         }
     }

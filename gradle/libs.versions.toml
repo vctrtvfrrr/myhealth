@@ -13,6 +13,7 @@ androidxLifecycle = "2.11.0"
 androidxActivityCompose = "1.13.0"
 composeBom = "2026.06.01"
 room = "2.8.4"
+work = "2.11.2"
 ksp = "2.3.11"
 coroutines = "1.11.0"
 junit = "5.14.1"
@@ -43,6 +44,7 @@ androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-ru
 androidx-lifecycle-viewmodel-compose ={ module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidxLifecycle" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 

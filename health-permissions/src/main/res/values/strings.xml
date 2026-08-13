@@ -34,8 +34,6 @@
     <string name="health_category_steps_goal">Meta de passos</string>
     <string name="health_category_user_profile">Perfil do usuário</string>
 
-    <string name="health_permissions_title">Permissões do Samsung Health</string>
-
     <string name="health_availability_unknown">Disponibilidade ainda não verificada.</string>
     <string name="health_availability_ready">O Samsung Health está respondendo às consultas deste aplicativo.</string>
     <string name="health_availability_setup">O Samsung Health precisa ser instalado, atualizado ou ativado neste aparelho.</string>

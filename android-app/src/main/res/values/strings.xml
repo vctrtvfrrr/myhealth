@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MyHealth Bridge</string>
+    <string name="tab_permissions">Permissões</string>
+    <string name="tab_sync">Sincronização</string>
 </resources>

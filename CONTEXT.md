@@ -76,6 +76,22 @@ _Avoid_: Samsung Health connection, connected state
 The application's current understanding of read access for a Health Category: not requested, granted, denied, or revoked. Denied records an unsuccessful request, while revoked means access was previously observed as granted and later became absent.
 _Avoid_: SDK permission status, consent status
 
+**Health Capability**:
+A cataloged declaration of how a Health Category is synchronized: the record type it becomes on the wire, the read operations it supports, the size of a read page, the mapper that renders it and whether the API projects it. A Health Category without one is cataloged for permissions and not synchronized.
+_Avoid_: Data type support, sync config
+
+**Sync Cursor**:
+How far the import of one Health Category has read, expressed as the local time the next read starts at, together with how its last run ended. It is independent per Health Category, so a category that cannot be read holds none of the others back.
+_Avoid_: Sync state, checkpoint, offset
+
+**Outbox**:
+The durable local queue of mapped envelopes on the device, holding each one only until the ingestion API confirms it is stored. It bounds how far ahead of the API the import may read.
+_Avoid_: Local cache, upload queue, local database
+
+**Mapping Pendency**:
+An Outbox item the API rejected, kept on the device and taken out of every later batch. It records a mapper defect for its owner to resolve, and never blocks the progress of the records around it.
+_Avoid_: Failed upload, error queue, dead letter
+
 ## Boundaries
 
 **Personal Wellness Tracking**:

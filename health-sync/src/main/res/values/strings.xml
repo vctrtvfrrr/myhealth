@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="sync_title">Sincronização</string>
+
+    <string name="sync_endpoint_section">API de ingestão</string>
+    <string name="sync_endpoint_base_url">Endereço da API</string>
+    <string name="sync_endpoint_device_token">Token do aparelho</string>
+    <string name="sync_endpoint_save">Salvar</string>
+    <string name="sync_endpoint_missing">Informe o endereço da API e o token deste aparelho para que a sincronização possa entregar os registros.</string>
+    <string name="sync_endpoint_configured">Entregando em %1$s.</string>
+
+    <string name="sync_outbox_section">Outbox</string>
+    <string name="sync_outbox_pending">Aguardando confirmação: %1$d</string>
+    <string name="sync_outbox_mapping_pendencies">Pendências de mapeamento: %1$d</string>
+    <string name="sync_outbox_mapping_pendencies_explanation">Registros recusados pela API. Eles continuam guardados e não bloqueiam os demais.</string>
+
+    <string name="sync_start_initial_load">Iniciar carga inicial</string>
+    <string name="sync_now">Sincronizar agora</string>
+    <string name="sync_schedule">A sincronização também é solicitada de hora em hora, sem horário exato.</string>
+
+    <string name="sync_categories_section">Categorias</string>
+    <string name="sync_phase_not_started">Carga inicial não iniciada</string>
+    <string name="sync_phase_initial_load">Carga inicial em andamento</string>
+    <string name="sync_phase_incremental">Carga inicial concluída</string>
+    <string name="sync_imported_records">Registros importados: %1$d</string>
+    <string name="sync_last_attempt">Última tentativa: %1$s</string>
+    <string name="sync_last_attempt_never">Nenhuma tentativa até agora.</string>
+    <string name="sync_last_success">Último sucesso: %1$s</string>
+    <string name="sync_last_success_never">Nenhuma sincronização bem-sucedida até agora.</string>
+
+    <string name="sync_outcome_succeeded">Última sincronização concluída.</string>
+    <string name="sync_outcome_waiting_permission">Aguardando a permissão de leitura desta categoria.</string>
+    <string name="sync_outcome_samsung_unavailable">O Samsung Health não respondeu na última tentativa.</string>
+    <string name="sync_outcome_not_configured">A API de ingestão não está configurada ou não aceitou o token deste aparelho.</string>
+    <string name="sync_outcome_ingestion_unavailable">A API de ingestão não respondeu na última tentativa.</string>
+    <string name="sync_outcome_contract_incompatible">O aplicativo e a API falam versões diferentes do contrato de ingestão.</string>
+    <string name="sync_outcome_outbox_full">A outbox atingiu o limite e a leitura pausou até a entrega avançar.</string>
+
+</resources>
