@@ -1,5 +1,6 @@
 package br.etc.victor.myhealthbridge.api
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
@@ -61,6 +62,79 @@ object Envelopes {
                     put("unit", unit)
                 }
             }
+        }
+    }
+
+    const val EXERCISE_RECORD_TYPE = "exercise"
+    const val EXERCISE_MAPPER_VERSION = "samsung-health-exercise/1"
+
+    /** A synthetic exercise, with invented coordinates when it carries a route at all. */
+    fun exercise(
+        samsungUid: String = "uid-exercise-1",
+        type: String? = "RUNNING",
+        duration: String? = "1800.0",
+        durationUnit: String = "s",
+        distance: String? = "5000.0",
+        distanceUnit: String = "m",
+        calories: String? = "320.0",
+        caloriesUnit: String = "kcal",
+        route: List<JsonObject>? = null,
+        mapperVersion: String = EXERCISE_MAPPER_VERSION,
+    ): JsonObject = buildJsonObject {
+        put("samsungUid", samsungUid)
+        putJsonObject("observedAt") {
+            put("instant", "2026-08-10T10:00:00Z")
+            put("offset", "-03:00")
+        }
+        put("mapperVersion", mapperVersion)
+        putJsonObject("sourceProvenance") {
+            putJsonObject("sourceApp") { identity("com.example.shealth") }
+            putJsonObject("sourceDevice") { identity("device-1") }
+        }
+        putJsonObject("state") {
+            put("kind", "present")
+            putJsonObject("period") {
+                putJsonObject("start") {
+                    put("instant", "2026-08-10T09:00:00Z")
+                    put("offset", "-03:00")
+                }
+                putJsonObject("end") {
+                    put("instant", "2026-08-10T09:30:00Z")
+                    put("offset", "-03:00")
+                }
+            }
+            putJsonObject("sourcePayload") {
+                putJsonObject("fields") { type?.let { put("exercise_type", it) } }
+            }
+            putJsonObject("normalizedPayload") {
+                putJsonObject("exercise") {
+                    type?.let { put("type", it) }
+                    quantity("duration", duration, durationUnit)
+                    quantity("distance", distance, distanceUnit)
+                    quantity("calories", calories, caloriesUnit)
+                    route?.let { put("route", JsonArray(it)) }
+                }
+            }
+        }
+    }
+
+    fun routePoint(
+        at: String = "2026-08-10T09:00:00Z",
+        latitude: String? = "-23.5",
+        longitude: String? = "-46.6",
+        altitude: String? = "760.0",
+    ): JsonObject = buildJsonObject {
+        put("at", at)
+        latitude?.let { put("latitudeDegrees", it.toBigDecimal()) }
+        longitude?.let { put("longitudeDegrees", it.toBigDecimal()) }
+        altitude?.let { put("altitudeMeters", it.toBigDecimal()) }
+    }
+
+    private fun JsonObjectBuilder.quantity(name: String, value: String?, unit: String) {
+        if (value == null) return
+        putJsonObject(name) {
+            put("value", value.toBigDecimal())
+            put("unit", unit)
         }
     }
 

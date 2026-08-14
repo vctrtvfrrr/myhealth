@@ -42,6 +42,11 @@ sealed interface SourceValue {
 
     data class Text(val value: String) : SourceValue
 
+    data class Flag(val value: Boolean) : SourceValue
+
+    /** A single nested entry, such as the swimming log inside an exercise session. */
+    data class Nested(val fields: Map<String, SourceValue>) : SourceValue
+
     /** An ordered list of nested entries, such as the binned samples inside a heart rate record. */
     data class Series(val entries: List<Map<String, SourceValue>>) : SourceValue
 }

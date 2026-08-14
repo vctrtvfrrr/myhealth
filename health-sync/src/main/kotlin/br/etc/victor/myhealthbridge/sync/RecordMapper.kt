@@ -59,6 +59,49 @@ interface RecordMapper {
 }
 
 /**
+ * The observation of a record the source still reports, which every mapper renders the same way apart
+ * from its normalized payload.
+ *
+ * Only the normalization is type specific: identity, provenance, temporal context and the preserved
+ * source payload are the same promises whatever the record is, and two mappers stating them apart
+ * would be two chances to state them differently.
+ */
+internal fun RecordMapper.presentEnvelope(
+    record: SourceRecord,
+    normalizedPayload: JsonObject,
+): HealthRecordEnvelope {
+    // The contract has no unknown offset, and the device's current one is not what the record was
+    // produced under. A source that reported no local context leaves the instant standing alone.
+    val offset = record.zoneOffset ?: ZoneOffset.UTC
+
+    return HealthRecordEnvelope(
+        samsungUid = record.uid,
+        // The source's own update time, never the import clock: an unchanged record has to render
+        // identically on every import, or each one would store another Observed Record Version of
+        // something nobody changed. It is also what makes a later edit at the source win the
+        // projection, since currency is decided by the largest observed time. A record the source
+        // never reported a modification time for falls back to its start, which is stable for the
+        // same reason.
+        observedAt = zoned(record.updateTime ?: record.startTime, offset),
+        mapperVersion = version,
+        sourceProvenance = SourceProvenance(
+            sourceApp = identity(record.sourceAppId),
+            sourceDevice = identity(record.sourceDeviceId),
+        ),
+        state = RecordState.Present(
+            // A point measurement is a period whose start equals its end, which is what the contract
+            // says an end-less reading is.
+            period = SourcePeriod(
+                start = zoned(record.startTime, offset),
+                end = zoned(record.endTime ?: record.startTime, offset),
+            ),
+            sourcePayload = sourcePayload(record),
+            normalizedPayload = normalizedPayload,
+        ),
+    )
+}
+
+/**
  * The shape a value has to have for a diagnostic to quote it: what an SDK enum constant looks like.
  *
  * Declaring a field as an enum says which field is read, never what the source may put in it — and
@@ -82,7 +125,8 @@ internal fun RecordMapper.unknownEnums(record: SourceRecord): List<String> =
 private fun RecordMapper.unknownEnumsIn(fields: Map<String, SourceValue>): List<String> =
     fields.flatMap { (name, value) ->
         when (value) {
-            is SourceValue.Number -> emptyList()
+            is SourceValue.Number, is SourceValue.Flag -> emptyList()
+            is SourceValue.Nested -> unknownEnumsIn(value.fields)
             is SourceValue.Series -> value.entries.flatMap { unknownEnumsIn(it) }
             is SourceValue.Text -> {
                 val known = knownEnums[name]
@@ -110,37 +154,8 @@ object HeartRateMapper : RecordMapper {
 
     private const val HEART_RATE_FIELD = "heart_rate"
 
-    override fun map(record: SourceRecord): HealthRecordEnvelope {
-        // The contract has no unknown offset, and the device's current one is not what the record was
-        // produced under. A source that reported no local context leaves the instant standing alone.
-        val offset = record.zoneOffset ?: ZoneOffset.UTC
-
-        return HealthRecordEnvelope(
-            samsungUid = record.uid,
-            // The source's own update time, never the import clock: an unchanged record has to render
-            // identically on every import, or each one would store another Observed Record Version of
-            // something nobody changed. It is also what makes a later edit at the source win the
-            // projection, since currency is decided by the largest observed time. A record the source
-            // never reported a modification time for falls back to its start, which is stable for the
-            // same reason.
-            observedAt = zoned(record.updateTime ?: record.startTime, offset),
-            mapperVersion = version,
-            sourceProvenance = SourceProvenance(
-                sourceApp = identity(record.sourceAppId),
-                sourceDevice = identity(record.sourceDeviceId),
-            ),
-            state = RecordState.Present(
-                // A point measurement is a period whose start equals its end, which is what the
-                // contract says an end-less reading is.
-                period = SourcePeriod(
-                    start = zoned(record.startTime, offset),
-                    end = zoned(record.endTime ?: record.startTime, offset),
-                ),
-                sourcePayload = sourcePayload(record),
-                normalizedPayload = normalizedPayload(record),
-            ),
-        )
-    }
+    override fun map(record: SourceRecord): HealthRecordEnvelope =
+        presentEnvelope(record, normalizedPayload(record))
 
     /**
      * An absent measurement is emitted as absent rather than substituted, so the API rejects the item
@@ -182,6 +197,8 @@ private fun jsonOf(fields: Map<String, SourceValue>): JsonObject = buildJsonObje
         when (value) {
             is SourceValue.Number -> put(name, JsonPrimitive(value.value))
             is SourceValue.Text -> put(name, value.value)
+            is SourceValue.Flag -> put(name, value.value)
+            is SourceValue.Nested -> put(name, jsonOf(value.fields))
             is SourceValue.Series -> put(name, JsonArray(value.entries.map(::jsonOf)))
         }
     }

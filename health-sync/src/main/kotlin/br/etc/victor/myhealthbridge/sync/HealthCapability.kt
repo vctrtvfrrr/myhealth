@@ -54,6 +54,18 @@ object HealthCapabilities {
             mapper = HeartRateMapper,
             projected = true,
         ),
+        HealthCapability(
+            category = HealthCategory.EXERCISE,
+            recordType = "exercise",
+            // The route is read as part of the exercise: Samsung Health exposes no read of its own for
+            // it, only the separate permission that decides whether the parent record discloses it.
+            readOperations = setOf(ReadOperation.TIME_RANGE, ReadOperation.CHANGES, ReadOperation.ASSOCIATED),
+            // An exercise carries its whole route, so a page of them is far heavier than a page of
+            // measurements and the outbox is what a page has to fit in.
+            pageSize = 50,
+            mapper = ExerciseMapper,
+            projected = true,
+        ),
     )
 
     fun of(category: HealthCategory): HealthCapability? = entries.firstOrNull { it.category == category }

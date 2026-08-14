@@ -77,8 +77,13 @@ class SyncService(
         val check = permissions.check()
         var anySucceeded = false
 
-        // Samsung Health answering at all is what disproves a platform this build cannot serve.
-        if (check is CheckResult.Observed) maintenance.resolve(MaintenanceCode.UNSUPPORTED_PLATFORM)
+        // Samsung Health answering at all is what disproves a platform this build cannot serve. The
+        // check is taken once for the whole run, so what it says is reported once too: reporting it
+        // again for every capability would count one observation as many occurrences of the condition.
+        when (check) {
+            is CheckResult.Observed -> maintenance.resolve(MaintenanceCode.UNSUPPORTED_PLATFORM)
+            is CheckResult.Unavailable -> maintenance.reportUnavailable(check.availability)
+        }
 
         HealthCapabilities.entries.forEach { capability ->
             val outcome = run(capability, check)
@@ -101,11 +106,9 @@ class SyncService(
         if (restartAfterUnrecoverableCursor(capability)) return SyncOutcome.CURSOR_UNRECOVERABLE
 
         val states = when (check) {
-            is CheckResult.Unavailable -> {
-                maintenance.reportUnavailable(check.availability)
-                return SyncOutcome.SAMSUNG_UNAVAILABLE
-            }
-
+            // Already reported for the run as a whole, which is where a check nobody took per category
+            // belongs.
+            is CheckResult.Unavailable -> return SyncOutcome.SAMSUNG_UNAVAILABLE
             is CheckResult.Observed -> check.observation.states
         }
 

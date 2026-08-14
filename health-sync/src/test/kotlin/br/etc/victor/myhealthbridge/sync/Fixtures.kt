@@ -56,6 +56,60 @@ fun sourceRecord(
 
 fun number(value: String): SourceValue.Number = SourceValue.Number(BigDecimal(value))
 
+/**
+ * A synthetic exercise, as the adapter hands one over.
+ *
+ * Every value is invented, including the coordinates: no route in this repository may come from a
+ * place the Data Owner has been.
+ */
+fun exerciseRecord(
+    uid: String = "uid-exercise-1",
+    start: Instant = Instant.parse("2026-08-10T09:00:00Z"),
+    end: Instant? = Instant.parse("2026-08-10T09:30:00Z"),
+    updateTime: Instant? = Instant.parse("2026-08-10T10:00:00Z"),
+    exerciseType: String? = "RUNNING",
+    customTitle: String? = null,
+    sessions: List<Map<String, SourceValue>>? = listOf(session()),
+): SourceRecord = sourceRecord(
+    uid = uid,
+    start = start,
+    end = end,
+    updateTime = updateTime,
+    fields = buildMap {
+        exerciseType?.let { put("exercise_type", SourceValue.Text(it)) }
+        customTitle?.let { put("custom_title", SourceValue.Text(it)) }
+        sessions?.let { put("sessions", SourceValue.Series(it)) }
+    },
+)
+
+fun session(
+    duration: String? = "1800.000",
+    distance: String? = "5000.0",
+    calories: String? = "320.0",
+    route: List<Map<String, SourceValue>> = emptyList(),
+    fields: Map<String, SourceValue> = emptyMap(),
+): Map<String, SourceValue> = buildMap {
+    duration?.let { put("duration", number(it)) }
+    distance?.let { put("distance", number(it)) }
+    calories?.let { put("calories", number(it)) }
+    if (route.isNotEmpty()) put("route", SourceValue.Series(route))
+    putAll(fields)
+}
+
+fun location(
+    at: String = "2026-08-10T09:00:00Z",
+    latitude: String = "-23.5",
+    longitude: String = "-46.6",
+    altitude: String? = "760.0",
+    accuracy: String? = "4.0",
+): Map<String, SourceValue> = buildMap {
+    put("timestamp", SourceValue.Text(at))
+    put("latitude", number(latitude))
+    put("longitude", number(longitude))
+    altitude?.let { put("altitude", number(it)) }
+    accuracy?.let { put("accuracy", number(it)) }
+}
+
 /** An outbox item of a record type no capability in this test drains. */
 fun foreignItem(uid: String): NewOutboxItem = NewOutboxItem(
     category = HealthCategory.STEPS,
