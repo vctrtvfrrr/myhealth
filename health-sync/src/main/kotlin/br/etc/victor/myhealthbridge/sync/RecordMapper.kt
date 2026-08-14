@@ -59,11 +59,22 @@ interface RecordMapper {
 }
 
 /**
+ * The shape a value has to have for a diagnostic to quote it: what an SDK enum constant looks like.
+ *
+ * Declaring a field as an enum says which field is read, never what the source may put in it — and
+ * the whole reason this reports at all is that the value was not one the mapper expected. So the
+ * value is checked rather than trusted, and it is bounded: an unbounded one would also become a Room
+ * primary key and an Android tag.
+ */
+private val ENUM_CONSTANT = Regex("[A-Za-z][A-Za-z0-9_]{0,39}")
+
+/**
  * The constants of [record] this mapper declared as enums but does not know, as `field=CONSTANT`.
  *
- * The constant is named because the field alone does not say what the mapper has to learn, and only a
- * field the mapper itself declared is ever read: a value the source is free to fill with anything
- * never reaches a diagnostic this way.
+ * The constant is named because the field alone does not say what the mapper has to learn. A value
+ * that does not look like a constant is reported as the bare field name instead: the maintainer still
+ * learns where to look, and free text, a coordinate, a token or a separator this identity is built
+ * out of is never persisted, shown, or allowed to collide with another identity.
  */
 internal fun RecordMapper.unknownEnums(record: SourceRecord): List<String> =
     unknownEnumsIn(record.fields).distinct()
@@ -75,7 +86,11 @@ private fun RecordMapper.unknownEnumsIn(fields: Map<String, SourceValue>): List<
             is SourceValue.Series -> value.entries.flatMap { unknownEnumsIn(it) }
             is SourceValue.Text -> {
                 val known = knownEnums[name]
-                if (known == null || value.value in known) emptyList() else listOf("$name=${value.value}")
+                when {
+                    known == null || value.value in known -> emptyList()
+                    ENUM_CONSTANT.matches(value.value) -> listOf("$name=${value.value}")
+                    else -> listOf(name)
+                }
             }
         }
     }

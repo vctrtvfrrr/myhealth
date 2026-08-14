@@ -8,6 +8,8 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
@@ -75,6 +77,26 @@ class UnknownEnumTest {
         val unknown = SleepStageMapper.unknownEnums(record(mapOf("comment" to SourceValue.Text("a note"))))
 
         assertTrue(unknown.isEmpty())
+    }
+
+    /**
+     * Declaring the field says which one is read, never what arrives in it — and what arrives is
+     * unexpected by definition, or this would not be reporting at all.
+     */
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "-23.5505, -46.6333",
+            "Bearer eyJhbGciOiJIUzI1NiJ9.body.signature",
+            "an entirely free form remark about the night",
+            "DEEP|stage=LIGHT",
+            "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        ],
+    )
+    fun `names the field alone when the value does not look like a constant`(value: String) {
+        val unknown = SleepStageMapper.unknownEnums(record(mapOf("stage" to SourceValue.Text(value))))
+
+        assertEquals(listOf("stage"), unknown, "the value would have been persisted and shown")
     }
 
     @Test

@@ -60,6 +60,22 @@ class MaintenanceService(
     }
 
     /**
+     * Ends one incident, because a run observed the condition it names to be gone.
+     *
+     * An incident that stayed open after its condition was resolved would be worse than no channel at
+     * all: the screen would keep asking for a change to code that no longer needs one, and the Data
+     * Owner would learn to disbelieve it. Nothing is kept as resolved — what is open is what is wrong,
+     * and the condition returning is a new incident dated by its own first occurrence.
+     */
+    suspend fun resolve(code: MaintenanceCode, category: HealthCategory? = null, detail: String? = null) {
+        val identity = IncidentIdentity(code, category, detail)
+        if (store.read(identity) == null) return
+
+        notifier.withdraw(identity)
+        store.forget(listOf(identity))
+    }
+
+    /**
      * Ends every transient incident, which is what a successful synchronization means.
      *
      * Forgetting them rather than marking them resolved is deliberate: the grace period is measured

@@ -176,6 +176,56 @@ class SyncMaintenanceTest {
         )
     }
 
+    @Test
+    fun `ends the revocation once the read permission is granted again`() = runTest {
+        service().sync()
+        gateway.granted = emptySet()
+        service().sync()
+
+        gateway.granted = setOf(HealthCategory.HEART_RATE)
+        service().sync()
+
+        assertTrue(maintenance.reported.isEmpty(), "the permission is back, so nothing needs the code")
+        assertTrue(maintenance.withdrawn.contains(IncidentIdentity(MaintenanceCode.PERMISSION_REVOKED, HealthCategory.HEART_RATE)))
+    }
+
+    /** The re-read is the recovery; once it got through, the position is no longer lost. */
+    @Test
+    fun `ends the lost position once a run got through`() = runTest {
+        store.writeCursor(SyncCursor(HealthCategory.HEART_RATE, unrecoverable = "unreadable_sync_cursor_row"))
+        service().sync()
+
+        service().sync()
+
+        assertEquals(SyncOutcome.SUCCEEDED, store.cursor(HealthCategory.HEART_RATE)!!.lastOutcome)
+        assertTrue(maintenance.reported.isEmpty())
+    }
+
+    @Test
+    fun `ends the contract incident once a batch got through`() = runTest {
+        val refused = service(client = FakeIngestionClient { SendOutcome.Refused(BatchErrorCode.CONTRACT_VERSION_TOO_OLD) })
+        refused.startInitialLoad()
+        refused.sync()
+
+        service().sync()
+
+        assertTrue(maintenance.reported.isEmpty())
+        assertTrue(maintenance.withdrawn.contains(IncidentIdentity(MaintenanceCode.CONTRACT_INCOMPATIBLE)))
+    }
+
+    @Test
+    fun `ends the unsupported platform incident once Samsung Health answers`() = runTest {
+        gateway.available = false
+        gateway.availability = SamsungHealthAvailability.Unsupported("fake")
+        service().sync()
+
+        gateway.available = true
+        service().sync()
+
+        assertTrue(maintenance.reported.isEmpty())
+        assertTrue(maintenance.withdrawn.contains(IncidentIdentity(MaintenanceCode.UNSUPPORTED_PLATFORM)))
+    }
+
     /**
      * The whole point of an incident naming only what the code defines: a diagnostic that quoted the
      * reading, the device it came from or the token that delivered it would be another copy of the

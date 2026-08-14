@@ -88,10 +88,15 @@ class OutboxSender(
      * Keeps the item as a mapping pendency and reports it, which is the same thing said twice on
      * purpose: the outbox is where the observation waits, and the incident is where its owner is told
      * that nothing will move it until the mapper changes.
+     *
+     * Reported first, because a rejection happens once: marking the item takes it out of every later
+     * batch, so a process death between the two writes would leave a pendency nothing ever reports.
+     * The other order costs a re-report of an item the API refuses again, which is one occurrence on
+     * an incident that already exists.
      */
     private suspend fun reject(capability: HealthCapability, id: Long, codes: List<RejectionCode>) {
-        store.reject(id, codes)
         maintenance.reportUnmappableRecord(capability, codes)
+        store.reject(id, codes)
     }
 
     private fun decode(item: OutboxItem): HealthRecordEnvelope? = runCatching {

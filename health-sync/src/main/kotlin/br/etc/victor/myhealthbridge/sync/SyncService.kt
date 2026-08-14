@@ -77,9 +77,15 @@ class SyncService(
         val check = permissions.check()
         var anySucceeded = false
 
+        // Samsung Health answering at all is what disproves a platform this build cannot serve.
+        if (check is CheckResult.Observed) maintenance.resolve(MaintenanceCode.UNSUPPORTED_PLATFORM)
+
         HealthCapabilities.entries.forEach { capability ->
             val outcome = run(capability, check)
-            if (outcome == SyncOutcome.SUCCEEDED) anySucceeded = true
+            if (outcome == SyncOutcome.SUCCEEDED) {
+                anySucceeded = true
+                resolveWhatSuccessDisproves(capability)
+            }
             // Read again: the import moved the cursor, and this write only records how the run ended.
             store.writeCursor(cursorOf(capability.category).attempted(attemptedAt, outcome))
         }
@@ -92,10 +98,7 @@ class SyncService(
     private suspend fun run(capability: HealthCapability, check: CheckResult): SyncOutcome {
         // Ahead of everything else, and of the permission this category may not even have: an
         // unrecoverable cursor is local, and leaving one in place would let a later write bury it.
-        if (restartAfterUnrecoverableCursor(capability)) {
-            maintenance.report(MaintenanceCode.UNRECOVERABLE_CURSOR, capability.category)
-            return SyncOutcome.CURSOR_UNRECOVERABLE
-        }
+        if (restartAfterUnrecoverableCursor(capability)) return SyncOutcome.CURSOR_UNRECOVERABLE
 
         val states = when (check) {
             is CheckResult.Unavailable -> {
@@ -114,6 +117,7 @@ class SyncService(
             }
             return SyncOutcome.WAITING_PERMISSION
         }
+        maintenance.resolve(MaintenanceCode.PERMISSION_REVOKED, capability.category)
 
         takeOverlapReread(capability)
 
@@ -176,8 +180,25 @@ class SyncService(
     private suspend fun restartAfterUnrecoverableCursor(capability: HealthCapability): Boolean {
         val cursor = cursorOf(capability.category)
         if (cursor.unrecoverable == null) return false
+
+        // Reported before the position is replaced, because writing the re-read is what makes the
+        // condition disappear: a process death between the two would bury a lost position under a
+        // cursor that says nothing was ever lost, and nothing would report it again.
+        maintenance.report(MaintenanceCode.UNRECOVERABLE_CURSOR, capability.category)
         store.writeCursor(cursor.startingInitialLoad(LocalDateTime.now(clock), clock.instant()))
         return true
+    }
+
+    /**
+     * Ends the incidents a run that got through has just disproved.
+     *
+     * A category that read and delivered says the position it lost was recovered and that the two
+     * sides of the contract agree after all. Leaving either open would keep asking for a change to
+     * code that no longer needs one.
+     */
+    private suspend fun resolveWhatSuccessDisproves(capability: HealthCapability) {
+        maintenance.resolve(MaintenanceCode.UNRECOVERABLE_CURSOR, capability.category)
+        maintenance.resolve(MaintenanceCode.CONTRACT_INCOMPATIBLE)
     }
 
     /**
