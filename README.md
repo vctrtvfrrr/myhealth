@@ -6,13 +6,15 @@ MyHealth Bridge é um sistema pessoal para copiar os dados de saúde e atividade
 
 ## Estado do projeto
 
-O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. A única vertical de contrato implementada é `heart_rate`, exercitada com envelopes sintéticos.
+O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. As verticais de contrato implementadas são `heart_rate` e `exercise`, exercitadas com envelopes sintéticos.
 
-Cada ingestão também projeta o Current Health Record, e o schema de leitura `read_model` oferece a view `current_heart_rate` para consulta por uma conta somente leitura.
+Cada ingestão também projeta o Current Health Record, e o schema de leitura `read_model` oferece as views `current_heart_rate`, `current_exercise` e `current_exercise_location` para consulta por uma conta somente leitura.
 
 O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas.
 
 A primeira fatia vertical está fechada para frequência cardíaca: o aplicativo importa o histórico acessível de forma paginada e retomável, guarda cada página numa outbox Room antes de avançar o cursor, entrega lotes idempotentes à API e remove o payload só depois da confirmação. A sincronização é solicitada de hora em hora pelo WorkManager e também pode ser iniciada manualmente.
+
+Os exercícios seguem o mesmo critério, e trazem o que só existe dentro do registro que os carrega: a rota, que o Samsung Health não expõe como leitura própria e cuja Health Category existe apenas para que a permissão dela seja pedida. Ela é preservada no envelope do exercício e projetada como linhas próprias. Ver ADR `0019`.
 
 Alterações feitas depois no Samsung Health se refletem no Current Health Record, e um Source Removal muda o estado corrente sem apagar Observed Record Version alguma. Além do cursor, cada execução lê o Source Change Feed da categoria, uma vez por dia relê os sete dias anteriores, e o Data Owner pode acionar uma reconciliação integral que relê todo o histórico acessível.
 
@@ -108,7 +110,7 @@ A tela de sincronização é a segunda aba do aplicativo. Nela o Data Owner info
 
 O endereço e o token ficam no Room do aparelho e não são embutidos no APK, porque o token é criado por `device create <label>` e mostrado uma única vez. O campo do token começa vazio a cada abertura e salvar substitui o que estiver guardado; ele nunca é lido de volta para a tela.
 
-O catálogo de capacidades declara, por Health Category, o record type, as operações de leitura, o tamanho de página, o mapper e se a API projeta aquele record type. Hoje ele tem uma entrada, `heart_rate`. Uma Health Category sem entrada continua catalogada para permissões e simplesmente não é sincronizada — cobertura cresce por vertical, nunca por atualização do SDK.
+O catálogo de capacidades declara, por Health Category, o record type, as operações de leitura, o tamanho de página, o mapper e se a API projeta aquele record type. Hoje ele tem duas entradas, `heart_rate` e `exercise`, e a de exercício declara também que a categoria traz dados associados. Uma Health Category sem entrada continua catalogada para permissões e simplesmente não é sincronizada — cobertura cresce por vertical, nunca por atualização do SDK.
 
 A carga inicial é explícita: ela começa pelo botão da tela, para as categorias com permissão concedida, e fixa a sua janela ao começar. O cursor de cada categoria guarda o horário local em que a próxima leitura começa, e só avança sobre uma página já gravada na outbox — as duas escritas são uma transação só. Uma interrupção, um encerramento do aplicativo ou um reinício do aparelho retomam dali, relendo no máximo os registros do horário de fronteira, que a API responde como `already_present`. O page token do SDK serve apenas para percorrer as páginas seguintes da mesma execução. Ver ADRs `0014` e `0015`.
 
@@ -226,13 +228,15 @@ A reconstrução é o mesmo enunciado SQL sobre todas as identidades, exposto co
 | --- | --- |
 | `projection rebuild` | Descarta a projeção e a regenera a partir dos envelopes preservados. Mostra a contagem, prefixada por `projected=`. |
 
-O schema `read_model` é a superfície de consulta. Hoje ele tem uma view:
+O schema `read_model` é a superfície de consulta. Hoje ele tem três views:
 
 | View | Conteúdo |
 | --- | --- |
 | `read_model.current_heart_rate` | Health Records de frequência cardíaca correntes: `record_type` e `samsung_uid` da identidade, `beats_per_minute` e `unit` normalizados, período e observação em UTC com o zone offset original, `source_app`, `source_device` e `mapper_version`. |
+| `read_model.current_exercise` | Exercícios correntes: identidade, `exercise_type`, `duration_seconds`, `distance_meters` e `calories_kilocalories`, período e observação em UTC com o zone offset original, proveniência e `mapper_version`. Um total só aparece quando toda sessão do registro o reportou, porque a soma de parte de um exercício seria indistinguível do total dele. |
+| `read_model.current_exercise_location` | A rota dos exercícios correntes, uma linha por ponto: `samsung_uid` do exercício a que pertence, `position` na ordem em que a fonte reportou, `at`, `latitude_degrees`, `longitude_degrees`, `altitude_meters` e `accuracy_meters`. Um exercício cuja rota o Samsung Health não revelou não contribui linha alguma. |
 
-Uma Health Record removida na origem sai da view: a remoção é estado corrente, não medição corrente, e continua projetada e preservada. `source_app` ou `source_device` nulo é o unknown explícito da Source Provenance, que é o que a fonte reportou.
+Uma Health Record removida na origem sai da view: a remoção é estado corrente, não medição corrente, e continua projetada e preservada. Um exercício removido leva a rota dele junto, pela mesma razão. `source_app` ou `source_device` nulo é o unknown explícito da Source Provenance, que é o que a fonte reportou.
 
 A conta somente leitura é criada por quem administra o PostgreSQL, porque o papel de runtime da API não tem esse privilégio. Depois disso, as permissões vêm de [`docs/sql/read-access.sql`](docs/sql/read-access.sql), executado como o papel de runtime — uma vez, e novamente a cada deploy que acrescente uma view ao `read_model`. Nada é concedido sobre as tabelas de ingestão: a view roda com os privilégios de quem a possui, então a conta alcança os envelopes preservados apenas pelo formato que a view expõe. Ver ADR `0013`.
 
