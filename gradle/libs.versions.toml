@@ -16,6 +16,7 @@ room = "2.8.4"
 work = "2.11.2"
 ksp = "2.3.11"
 coroutines = "1.11.0"
+gson = "2.14.0"
 junit = "5.14.1"
 
 [libraries]
@@ -47,6 +48,11 @@ androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref =
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+
+# The Samsung Health Data SDK ships as a bare AAR, which carries no dependency metadata: what it needs
+# at runtime has to be declared here or it is simply absent from the APK.
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+kotlin-parcelize-runtime = { module = "org.jetbrains.kotlin:kotlin-parcelize-runtime", version.ref = "kotlin" }
 
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

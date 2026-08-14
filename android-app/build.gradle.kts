@@ -145,6 +145,13 @@ dependencies {
     implementation(project(":maintenance"))
     implementation(project(":health-sync"))
     implementation(files(samsungHealthSdk))
+    // What the Samsung Health SDK needs at runtime. A bare AAR carries no dependency metadata, so
+    // nothing but this list puts these in the APK, and nothing but a device notices they are missing:
+    // the SDK parcels its requests through `kotlinx.parcelize` and builds them through Gson, and a
+    // class whose interface is absent cannot be defined at all — the read fails on the phone while
+    // every test here still compiles and passes.
+    implementation(libs.kotlin.parcelize.runtime)
+    implementation(libs.gson)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.core.ktx)
