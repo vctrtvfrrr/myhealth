@@ -32,6 +32,7 @@ class ChangeImporterTest {
         ChangeImporter(
             source = source ?: FakeRecordSource(pages = emptyList(), changePages = pages.toList()),
             store = store,
+            maintenance = maintenanceService(FakeMaintenance(), clock),
             policy = SyncPolicy(maxOutboxItems = 3),
             clock = clock,
         )

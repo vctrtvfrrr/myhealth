@@ -20,6 +20,7 @@ class SyncServiceTest {
     private val clock = Clock.fixed(now, ZoneOffset.UTC)
     private val store = FakeSyncStore()
     private val endpoints = FakeEndpointStore()
+    private val maintenance = FakeMaintenance()
 
     private fun service(
         granted: Set<HealthCategory> = setOf(HealthCategory.HEART_RATE),
@@ -29,16 +30,18 @@ class SyncServiceTest {
         clock: Clock = this.clock,
     ): SyncService {
         val policy = SyncPolicy()
+        val channel = maintenanceService(maintenance, clock)
         return SyncService(
             permissions = HealthPermissionsService(
                 gateway = FakeGateway(granted, available),
                 store = InMemoryPermissionHistory(),
                 clock = clock,
             ),
-            importer = HistoryImporter(source, store, policy, clock),
-            changes = ChangeImporter(source, store, policy, clock),
-            sender = OutboxSender(store, endpoints, client, policy),
+            importer = HistoryImporter(source, store, channel, policy, clock),
+            changes = ChangeImporter(source, store, channel, policy, clock),
+            sender = OutboxSender(store, endpoints, client, channel, policy),
             store = store,
+            maintenance = channel,
             policy = policy,
             clock = clock,
         )

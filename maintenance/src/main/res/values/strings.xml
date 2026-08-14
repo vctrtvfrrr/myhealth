@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="maintenance_channel_name">Manutenção necessária</string>
+    <string name="maintenance_channel_description">Avisa quando o sistema encontra algo que só uma alteração no código resolve.</string>
+    <string name="maintenance_notification_summary">Ocorrências: %1$d. Última: %2$s.</string>
+
+    <string name="maintenance_unmappable_record">Registro não mapeável</string>
+    <string name="maintenance_unmappable_record_action">A API recusou o registro. Corrija o mapper desta categoria e sincronize novamente: o registro continua guardado no aparelho até lá.</string>
+
+    <string name="maintenance_unknown_enum">Valor de enumeração desconhecido</string>
+    <string name="maintenance_unknown_enum_action">O Samsung Health informou um valor que o mapper desta categoria não interpreta. Acrescente o valor ao mapper e publique uma nova versão dele.</string>
+
+    <string name="maintenance_contract_incompatible">Contrato de ingestão incompatível</string>
+    <string name="maintenance_contract_incompatible_action">O aplicativo e a API falam versões diferentes do contrato. Atualize o lado que ficou fora do intervalo suportado.</string>
+
+    <string name="maintenance_permission_revoked">Permissão de leitura revogada</string>
+    <string name="maintenance_permission_revoked_action">O acesso a esta categoria era concedido e deixou de ser. Conceda a permissão novamente na tela de permissões.</string>
+
+    <string name="maintenance_unrecoverable_cursor">Posição de leitura irrecuperável</string>
+    <string name="maintenance_unrecoverable_cursor_action">A posição guardada desta categoria não pôde ser interpretada. Todo o histórico acessível está sendo lido novamente, e nada é duplicado.</string>
+
+    <string name="maintenance_unsupported_platform">Samsung Health não suportado</string>
+    <string name="maintenance_unsupported_platform_action">Esta versão do Samsung Health não atende ao aplicativo. Verifique a versão exigida pelo SDK fixado.</string>
+
+    <string name="maintenance_samsung_health_unreachable">Samsung Health sem resposta há 24 horas</string>
+    <string name="maintenance_samsung_health_unreachable_action">Nenhuma sincronização foi concluída no último dia porque o Samsung Health não respondeu. Verifique se o aplicativo continua instalado e autorizado.</string>
+
+    <string name="maintenance_ingestion_unreachable">API de ingestão sem resposta há 24 horas</string>
+    <string name="maintenance_ingestion_unreachable_action">Nenhuma sincronização foi concluída no último dia porque a API não respondeu. Verifique o endereço configurado e a disponibilidade do servidor.</string>
+
+    <string name="diagnostics_title">Diagnóstico</string>
+    <string name="diagnostics_explanation">Condições que exigem atenção ao código. Nenhum valor medido, localização ou token aparece aqui.</string>
+    <string name="diagnostics_empty">Nada exige atenção no momento.</string>
+    <string name="diagnostics_category">Categoria: %1$s</string>
+    <string name="diagnostics_category_all">Categoria: todas</string>
+    <string name="diagnostics_code">Código: %1$s</string>
+    <string name="diagnostics_detail">Detalhe: %1$s</string>
+    <string name="diagnostics_first_seen">Primeira ocorrência: %1$s</string>
+    <string name="diagnostics_last_seen">Última ocorrência: %1$s</string>
+    <string name="diagnostics_occurrences">Ocorrências: %1$d</string>
+
+</resources>

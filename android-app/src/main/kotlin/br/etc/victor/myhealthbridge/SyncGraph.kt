@@ -3,6 +3,9 @@ package br.etc.victor.myhealthbridge
 import android.content.Context
 import br.etc.victor.myhealthbridge.health.HealthPermissionsService
 import br.etc.victor.myhealthbridge.health.data.permissionHistoryStore
+import br.etc.victor.myhealthbridge.maintenance.MaintenancePolicy
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
+import br.etc.victor.myhealthbridge.maintenance.data.maintenanceStore
 import br.etc.victor.myhealthbridge.samsung.SamsungHealthDataGateway
 import br.etc.victor.myhealthbridge.samsung.SamsungRecordSource
 import br.etc.victor.myhealthbridge.sync.ChangeImporter
@@ -41,6 +44,13 @@ class SyncGraph(context: Context) {
 
     val endpoints = stores.endpoints
 
+    val maintenance = MaintenanceService(
+        store = maintenanceStore(context),
+        notifier = AndroidMaintenanceNotifier(context),
+        policy = MaintenancePolicy(),
+        clock = Clock.systemUTC(),
+    )
+
     private val source = SamsungRecordSource(context)
 
     private val service = SyncService(
@@ -48,6 +58,7 @@ class SyncGraph(context: Context) {
         importer = HistoryImporter(
             source = source,
             store = syncStore,
+            maintenance = maintenance,
             policy = policy,
             // Local time, because the import walks the history in the terms Samsung Health filters on.
             clock = Clock.systemDefaultZone(),
@@ -55,6 +66,7 @@ class SyncGraph(context: Context) {
         changes = ChangeImporter(
             source = source,
             store = syncStore,
+            maintenance = maintenance,
             policy = policy,
             clock = Clock.systemUTC(),
         ),
@@ -62,9 +74,11 @@ class SyncGraph(context: Context) {
             store = syncStore,
             endpoints = endpoints,
             client = HttpIngestionClient(),
+            maintenance = maintenance,
             policy = policy,
         ),
         store = syncStore,
+        maintenance = maintenance,
         policy = policy,
         clock = Clock.systemUTC(),
     )

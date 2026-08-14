@@ -108,6 +108,10 @@ _Avoid_: Local cache, upload queue, local database
 An Outbox item the API rejected, kept on the device and taken out of every later batch. It records a mapper defect for its owner to resolve, and never blocks the progress of the records around it.
 _Avoid_: Failed upload, error queue, dead letter
 
+**Maintenance Incident**:
+A condition the running system cannot resolve on its own, identified by what has to change in the code rather than by the moment it was met; equivalent occurrences are one incident, carrying how many times it was met and when it was first and last seen. It holds nothing that was observed from Consolidated Health Data.
+_Avoid_: Error, alert, crash report
+
 ## Boundaries
 
 **Personal Wellness Tracking**:

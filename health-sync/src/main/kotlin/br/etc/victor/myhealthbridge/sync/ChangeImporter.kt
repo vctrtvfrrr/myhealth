@@ -1,6 +1,7 @@
 package br.etc.victor.myhealthbridge.sync
 
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
 import java.time.Clock
 
 /**
@@ -19,6 +20,7 @@ import java.time.Clock
 class ChangeImporter(
     private val source: HealthRecordSource,
     private val store: SyncStore,
+    private val maintenance: MaintenanceService,
     private val policy: SyncPolicy,
     private val clock: Clock,
 ) {
@@ -62,12 +64,15 @@ class ChangeImporter(
         return ImportResult.Completed
     }
 
-    private fun stage(capability: HealthCapability, change: SourceChange): NewOutboxItem = when (change) {
-        is SourceChange.Upserted -> capability.staged(
-            uid = change.record.uid,
-            envelope = capability.mapper.map(change.record),
-            at = clock.instant(),
-        )
+    private suspend fun stage(capability: HealthCapability, change: SourceChange): NewOutboxItem = when (change) {
+        is SourceChange.Upserted -> {
+            maintenance.reportUnknownEnums(capability, change.record)
+            capability.staged(
+                uid = change.record.uid,
+                envelope = capability.mapper.map(change.record),
+                at = clock.instant(),
+            )
+        }
 
         is SourceChange.Removed -> capability.staged(
             uid = change.uid,

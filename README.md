@@ -50,8 +50,9 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 | `contract` | Contrato de transporte versionado compartilhado pelos dois lados. Não depende do módulo Android nem do módulo da API. |
 | `ingestion-api` | API de ingestão Ktor. Depende de `contract`. |
 | `health-permissions` | Catálogo de Health Categories, Permission States, histórico em Room e tela de permissões. Não depende de tipos do Samsung SDK. |
+| `maintenance` | Maintenance Incidents, deduplicação por identidade, política de espera das falhas transitórias e tela de diagnóstico. Depende de `health-permissions`. |
 | `health-sync` | Catálogo de capacidades, mappers, outbox, cursores por categoria, cliente de ingestão e tela de sincronização. Não depende de tipos do Samsung SDK. |
-| `android-app` | Aplicativo Android (Jetpack Compose), o adaptador do Samsung Health Data SDK e o agendamento por WorkManager. Depende dos três anteriores. |
+| `android-app` | Aplicativo Android (Jetpack Compose), o adaptador do Samsung Health Data SDK, o canal de notificação e o agendamento por WorkManager. Depende dos quatro anteriores. |
 
 ## Desenvolvimento
 
@@ -126,6 +127,16 @@ Nada disso depende do cursor estar certo. Uma vez por dia a execução puxa o cu
 **Limitação conhecida:** releitura não recupera remoção que ninguém observou. Um registro removido no Samsung Health enquanto o aplicativo não estava olhando — entre uma reinstalação e a caminhada seguinte, antes da atualização que passou a ler o feed, ou além do que o feed retém — continua projetado como presente indefinidamente, porque um registro removido não aparece em leitura por intervalo alguma. Fechar isso exige o aplicativo informar à API quais identidades ele viu, o que é uma mudança de contrato e de projeção, não outra leitura no aparelho. Ver ADR `0017`.
 
 Como cada releitura reentrega observações que a API já guarda, o contador da tela conta observações lidas e não Health Records distintos.
+
+### Manutenção necessária
+
+O canal de notificação Android "Manutenção necessária" avisa o Data Owner quando o sistema encontra algo que só uma alteração no código resolve: registro recusado pela API, valor de enumeração que nenhum mapper interpreta, contrato de ingestão incompatível, permissão de leitura revogada, cursor irrecuperável e Samsung Health não suportado. A notificação abre a terceira aba do aplicativo, a tela de diagnóstico, que mostra categoria, código, primeira ocorrência, última ocorrência, número de ocorrências e ação sugerida de cada incidente aberto.
+
+Um incidente é identificado pelo que precisa ser corrigido, nunca pelo momento em que foi encontrado. Encontrar a mesma condição na execução seguinte atualiza a mesma notificação, com contagem e última ocorrência novas, em vez de acrescentar outra ao lado — a notificação é publicada sob a identidade do incidente como tag. A Health Category só entra na identidade quando corrigir uma categoria deixa as outras em paz; contrato incompatível e plataforma não suportada são relatados sem categoria, para que uma única correção continue sendo uma única notificação.
+
+Falha transitória — Samsung Health ou API de ingestão sem resposta — é registrada desde a primeira ocorrência, porque é isso que data o início da indisponibilidade, mas só vira notificação depois de 24 horas sem nenhuma sincronização bem-sucedida. Uma execução em que qualquer categoria concluiu encerra e esquece os incidentes transitórios, então a contagem recomeça a partir do último sucesso. Endpoint não configurado, outbox no limite e permissão nunca concedida não são incidentes: são o sistema funcionando como projetado, esperando pelo Data Owner ou por si mesmo.
+
+Nenhum incidente carrega o que foi observado. O detalhe vem de vocabulários que o próprio código define — códigos de recusa, campo e constante de enumeração — e a auditoria de enumerações só lê campos que o mapper declarou como tal, então um campo de texto livre nunca é citado. Diagnóstico, notificação e log não exibem valor medido, coordenada nem token. Ver ADR `0018`.
 
 ### Configuração da API
 

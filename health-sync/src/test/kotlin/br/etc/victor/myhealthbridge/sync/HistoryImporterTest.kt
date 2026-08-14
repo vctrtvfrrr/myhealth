@@ -16,11 +16,13 @@ class HistoryImporterTest {
 
     private val clock = Clock.fixed(Instant.parse("2026-08-11T12:00:00Z"), ZoneOffset.UTC)
     private val store = FakeSyncStore()
+    private val maintenance = FakeMaintenance()
 
     private fun importer(vararg pages: SamsungHealthOutcome<RecordPage>, source: FakeRecordSource? = null) =
         HistoryImporter(
             source = source ?: FakeRecordSource(pages.toList()),
             store = store,
+            maintenance = maintenanceService(maintenance, clock),
             policy = SyncPolicy(maxOutboxItems = 3),
             clock = clock,
         )

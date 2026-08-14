@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "br.etc.victor.myhealthbridge.sync"
+    namespace = "br.etc.victor.myhealthbridge.maintenance"
     compileSdk = 37
 
     defaultConfig {
@@ -27,9 +27,7 @@ kotlin {
 }
 
 dependencies {
-    api(project(":contract"))
     api(project(":health-permissions"))
-    api(project(":maintenance"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

@@ -4,6 +4,8 @@ import br.etc.victor.myhealthbridge.health.CheckResult
 import br.etc.victor.myhealthbridge.health.HealthCategory
 import br.etc.victor.myhealthbridge.health.HealthPermissionsService
 import br.etc.victor.myhealthbridge.health.PermissionState
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceCode
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
 import java.time.Clock
 import java.time.LocalDateTime
 
@@ -35,6 +37,7 @@ class SyncService(
     private val changes: ChangeImporter,
     private val sender: OutboxSender,
     private val store: SyncStore,
+    private val maintenance: MaintenanceService,
     private val policy: SyncPolicy,
     private val clock: Clock,
 ) {
@@ -71,32 +74,67 @@ class SyncService(
 
     suspend fun sync() {
         val attemptedAt = clock.instant()
-        val states = grantedStates()
+        val check = permissions.check()
+        var anySucceeded = false
 
         HealthCapabilities.entries.forEach { capability ->
-            val outcome = run(capability, states)
+            val outcome = run(capability, check)
+            if (outcome == SyncOutcome.SUCCEEDED) anySucceeded = true
             // Read again: the import moved the cursor, and this write only records how the run ended.
             store.writeCursor(cursorOf(capability.category).attempted(attemptedAt, outcome))
         }
+
+        // What ends an outage is a synchronization that got through, not a category that had nothing
+        // to do: a transient condition is only worth reporting after a day of none of them succeeding.
+        if (anySucceeded) maintenance.clearTransient()
     }
 
-    private suspend fun run(
-        capability: HealthCapability,
-        states: Map<HealthCategory, PermissionState>?,
-    ): SyncOutcome {
+    private suspend fun run(capability: HealthCapability, check: CheckResult): SyncOutcome {
         // Ahead of everything else, and of the permission this category may not even have: an
         // unrecoverable cursor is local, and leaving one in place would let a later write bury it.
-        if (restartAfterUnrecoverableCursor(capability)) return SyncOutcome.CURSOR_UNRECOVERABLE
-        if (states == null) return SyncOutcome.SAMSUNG_UNAVAILABLE
-        if (states[capability.category] != PermissionState.GRANTED) return SyncOutcome.WAITING_PERMISSION
+        if (restartAfterUnrecoverableCursor(capability)) {
+            maintenance.report(MaintenanceCode.UNRECOVERABLE_CURSOR, capability.category)
+            return SyncOutcome.CURSOR_UNRECOVERABLE
+        }
+
+        val states = when (check) {
+            is CheckResult.Unavailable -> {
+                maintenance.reportUnavailable(check.availability)
+                return SyncOutcome.SAMSUNG_UNAVAILABLE
+            }
+
+            is CheckResult.Observed -> check.observation.states
+        }
+
+        if (states[capability.category] != PermissionState.GRANTED) {
+            // Only a revocation is the code's business: a category never granted is waiting for the
+            // Data Owner, and telling them to fix the code would be telling them the wrong thing.
+            if (states[capability.category] == PermissionState.REVOKED) {
+                maintenance.report(MaintenanceCode.PERMISSION_REVOKED, capability.category)
+            }
+            return SyncOutcome.WAITING_PERMISSION
+        }
 
         takeOverlapReread(capability)
 
         deliverWhileReading(capability) { importer.import(capability, it) }?.let { return it }
         deliverWhileReading(capability) { changes.import(capability, it) }?.let { return it }
 
-        (sender.drain(capability) as? SendResult.Halted)?.let { return it.outcome }
-        return SyncOutcome.SUCCEEDED
+        return deliver(capability) ?: SyncOutcome.SUCCEEDED
+    }
+
+    /** Null once nothing is left to deliver; an outcome names why the delivery stopped before that. */
+    private suspend fun deliver(capability: HealthCapability): SyncOutcome? {
+        val halted = sender.drain(capability) as? SendResult.Halted ?: return null
+
+        when (halted.outcome) {
+            SyncOutcome.CONTRACT_INCOMPATIBLE -> maintenance.report(MaintenanceCode.CONTRACT_INCOMPATIBLE)
+            SyncOutcome.INGESTION_UNAVAILABLE -> maintenance.report(MaintenanceCode.INGESTION_UNREACHABLE)
+            // An endpoint that was never configured and an outbox at its limit are both the system
+            // working as designed, waiting on the Data Owner or on itself rather than on the code.
+            else -> Unit
+        }
+        return halted.outcome
     }
 
     /** Null once the read has nothing left; an outcome names why it stopped before that. */
@@ -109,10 +147,13 @@ class SyncService(
         while (true) {
             // Delivering first is what makes room: a read stops while the outbox is full, and only a
             // confirmed item frees a slot.
-            (sender.drain(capability) as? SendResult.Halted)?.let { return it.outcome }
+            deliver(capability)?.let { return it }
 
             when (val imported = read(resumeFrom)) {
-                is ImportResult.Failed -> return SyncOutcome.SAMSUNG_UNAVAILABLE
+                is ImportResult.Failed -> {
+                    maintenance.reportUnavailable(imported.availability)
+                    return SyncOutcome.SAMSUNG_UNAVAILABLE
+                }
                 ImportResult.Completed -> return null
                 is ImportResult.Paused -> {
                     // The outbox bounds the device as a whole, so it can be full of another record

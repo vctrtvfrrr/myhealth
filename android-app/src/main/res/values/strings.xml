@@ -3,4 +3,5 @@
     <string name="app_name">MyHealth Bridge</string>
     <string name="tab_permissions">Permissões</string>
     <string name="tab_sync">Sincronização</string>
+    <string name="tab_diagnostics">Diagnóstico</string>
 </resources>

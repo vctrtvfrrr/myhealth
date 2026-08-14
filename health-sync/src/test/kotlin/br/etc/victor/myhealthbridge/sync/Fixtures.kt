@@ -9,10 +9,19 @@ import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthGateway
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
 import br.etc.victor.myhealthbridge.contract.IngestionBatch
+import br.etc.victor.myhealthbridge.maintenance.IncidentIdentity
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceCode
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceIncident
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceNotifier
+import br.etc.victor.myhealthbridge.maintenance.MaintenancePolicy
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import java.math.BigDecimal
+import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -110,6 +119,51 @@ class FakeSyncStore : SyncStore {
         acceptedPages = 0
     }
 }
+
+/**
+ * The maintenance channel as the synchronization sees it, keeping what was reported to it.
+ *
+ * Store and notifier are the same object because a test of the synchronization asks one question of
+ * both: which incidents this run raised.
+ */
+class FakeMaintenance : MaintenanceStore, MaintenanceNotifier {
+
+    private val incidents = mutableMapOf<String, MaintenanceIncident>()
+
+    val posted = mutableListOf<MaintenanceIncident>()
+
+    val withdrawn = mutableListOf<IncidentIdentity>()
+
+    val reported: List<IncidentIdentity> get() = incidents.values.map { it.identity }
+
+    val reportedCodes: List<MaintenanceCode> get() = reported.map { it.code }
+
+    override suspend fun read(identity: IncidentIdentity): MaintenanceIncident? = incidents[identity.key]
+
+    override suspend fun write(incident: MaintenanceIncident) {
+        incidents[incident.identity.key] = incident
+    }
+
+    override suspend fun transient(): List<MaintenanceIncident> =
+        incidents.values.filter { it.identity.code.transient }
+
+    override suspend fun forget(identities: List<IncidentIdentity>) {
+        identities.forEach { incidents.remove(it.key) }
+    }
+
+    override fun observe(): Flow<List<MaintenanceIncident>> = flowOf(incidents.values.toList())
+
+    override fun post(incident: MaintenanceIncident) {
+        posted += incident
+    }
+
+    override fun withdraw(identity: IncidentIdentity) {
+        withdrawn += identity
+    }
+}
+
+fun maintenanceService(channel: FakeMaintenance, clock: Clock): MaintenanceService =
+    MaintenanceService(channel, channel, MaintenancePolicy(), clock)
 
 class FakeEndpointStore(private var endpoint: IngestionEndpoint? = IngestionEndpoint("https://api.invalid", "token")) :
     IngestionEndpointStore {

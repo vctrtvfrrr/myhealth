@@ -22,6 +22,7 @@ rootProject.name = "myhealth-bridge"
 
 include(":contract")
 include(":health-permissions")
+include(":maintenance")
 include(":health-sync")
 include(":ingestion-api")
 include(":android-app")

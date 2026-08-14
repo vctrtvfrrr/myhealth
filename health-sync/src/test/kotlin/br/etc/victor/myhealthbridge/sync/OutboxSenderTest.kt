@@ -20,19 +20,23 @@ class OutboxSenderTest {
     private val store = FakeSyncStore()
     private val endpoints = FakeEndpointStore()
     private val policy = SyncPolicy(batchItems = 2)
+    private val maintenance = FakeMaintenance()
+    private val clock = Clock.fixed(Instant.parse("2026-08-11T12:00:00Z"), ZoneOffset.UTC)
 
     private suspend fun stage(vararg uids: String) {
         val importer = HistoryImporter(
             source = FakeRecordSource(listOf(page(uids.map { sourceRecord(uid = it) }))),
             store = store,
+            maintenance = maintenanceService(maintenance, clock),
             policy = policy,
-            clock = Clock.fixed(Instant.parse("2026-08-11T12:00:00Z"), ZoneOffset.UTC),
+            clock = clock,
         )
         store.writeCursor(SyncCursor(heartRate.category).startingInitialLoad(LocalDateTime.of(2026, 8, 11, 9, 0), Instant.parse("2026-08-11T00:00:00Z")))
         importer.import(heartRate)
     }
 
-    private fun sender(client: FakeIngestionClient) = OutboxSender(store, endpoints, client, policy)
+    private fun sender(client: FakeIngestionClient) =
+        OutboxSender(store, endpoints, client, maintenanceService(maintenance, clock), policy)
 
     private fun allAccepted(status: ItemStatus = ItemStatus.ACCEPTED) = FakeIngestionClient { batch ->
         SendOutcome.Delivered(batch.items.indices.map { ItemResult(it, status) })
@@ -142,7 +146,7 @@ class OutboxSenderTest {
         stage("a")
         val client = allAccepted()
 
-        val result = OutboxSender(store, FakeEndpointStore(endpoint = null), client, policy).drain(heartRate)
+        val result = OutboxSender(store, FakeEndpointStore(endpoint = null), client, maintenanceService(maintenance, clock), policy).drain(heartRate)
 
         assertEquals(SendResult.Halted(SyncOutcome.NOT_CONFIGURED), result)
         assertTrue(client.batches.isEmpty())

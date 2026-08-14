@@ -25,6 +25,17 @@ interface RecordMapper {
 
     val version: String
 
+    /**
+     * The enum valued fields this mapper interprets, each with the constants it knows.
+     *
+     * A constant outside a declared set is a gap in this mapper rather than a defect of the record:
+     * the observation is still preserved exactly as the source reported it, and the gap is reported so
+     * that whoever owns the mapper can teach it the value. A field absent from here is not an enum as
+     * far as this mapper is concerned and is never audited, which is what keeps free text out of a
+     * diagnostic.
+     */
+    val knownEnums: Map<String, Set<String>> get() = emptyMap()
+
     fun map(record: SourceRecord): HealthRecordEnvelope
 
     /**
@@ -46,6 +57,28 @@ interface RecordMapper {
         state = RecordState.Removed(),
     )
 }
+
+/**
+ * The constants of [record] this mapper declared as enums but does not know, as `field=CONSTANT`.
+ *
+ * The constant is named because the field alone does not say what the mapper has to learn, and only a
+ * field the mapper itself declared is ever read: a value the source is free to fill with anything
+ * never reaches a diagnostic this way.
+ */
+internal fun RecordMapper.unknownEnums(record: SourceRecord): List<String> =
+    unknownEnumsIn(record.fields).distinct()
+
+private fun RecordMapper.unknownEnumsIn(fields: Map<String, SourceValue>): List<String> =
+    fields.flatMap { (name, value) ->
+        when (value) {
+            is SourceValue.Number -> emptyList()
+            is SourceValue.Series -> value.entries.flatMap { unknownEnumsIn(it) }
+            is SourceValue.Text -> {
+                val known = knownEnums[name]
+                if (known == null || value.value in known) emptyList() else listOf("$name=${value.value}")
+            }
+        }
+    }
 
 /**
  * The one mapper of Samsung Health heart rate records.

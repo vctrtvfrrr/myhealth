@@ -142,6 +142,7 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach {
 dependencies {
     implementation(project(":contract"))
     implementation(project(":health-permissions"))
+    implementation(project(":maintenance"))
     implementation(project(":health-sync"))
     implementation(files(samsungHealthSdk))
     implementation(libs.androidx.work.runtime.ktx)

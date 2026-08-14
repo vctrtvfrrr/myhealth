@@ -2,6 +2,7 @@ package br.etc.victor.myhealthbridge.sync
 
 import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
 import java.time.Clock
 import java.time.LocalDateTime
 
@@ -35,6 +36,7 @@ sealed interface ImportResult {
 class HistoryImporter(
     private val source: HealthRecordSource,
     private val store: SyncStore,
+    private val maintenance: MaintenanceService,
     private val policy: SyncPolicy,
     private val clock: Clock,
 ) {
@@ -81,11 +83,14 @@ class HistoryImporter(
         else -> LocalDateTime.now(clock)
     }
 
-    private fun stage(capability: HealthCapability, record: SourceRecord): NewOutboxItem = capability.staged(
-        uid = record.uid,
-        envelope = capability.mapper.map(record),
-        at = clock.instant(),
-    )
+    private suspend fun stage(capability: HealthCapability, record: SourceRecord): NewOutboxItem {
+        maintenance.reportUnknownEnums(capability, record)
+        return capability.staged(
+            uid = record.uid,
+            envelope = capability.mapper.map(record),
+            at = clock.instant(),
+        )
+    }
 
     private fun lastLocalStart(records: List<SourceRecord>): LocalDateTime =
         records.maxOf { LocalDateTime.ofInstant(it.startTime, it.zoneOffset) }

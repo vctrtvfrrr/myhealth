@@ -6,6 +6,7 @@ import br.etc.victor.myhealthbridge.contract.IngestionBatch
 import br.etc.victor.myhealthbridge.contract.IngestionContract
 import br.etc.victor.myhealthbridge.contract.ItemStatus
 import br.etc.victor.myhealthbridge.contract.RejectionCode
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
 
 sealed interface SendResult {
 
@@ -26,6 +27,7 @@ class OutboxSender(
     private val store: SyncStore,
     private val endpoints: IngestionEndpointStore,
     private val client: IngestionClient,
+    private val maintenance: MaintenanceService,
     private val policy: SyncPolicy,
 ) {
 
@@ -38,7 +40,7 @@ class OutboxSender(
 
             val envelopes = items.map { decode(it) }
             val undecodable = items.filterIndexed { index, _ -> envelopes[index] == null }
-            undecodable.forEach { store.reject(it.id, listOf(RejectionCode.INVALID_PAYLOAD)) }
+            undecodable.forEach { reject(capability, it.id, listOf(RejectionCode.INVALID_PAYLOAD)) }
             val sendable = items.filterIndexed { index, _ -> envelopes[index] != null }
             if (sendable.isEmpty()) continue
 
@@ -51,7 +53,7 @@ class OutboxSender(
                 SendOutcome.Unreachable -> return SendResult.Halted(SyncOutcome.INGESTION_UNAVAILABLE)
                 is SendOutcome.Refused -> return SendResult.Halted(outcomeOf(outcome.error))
                 is SendOutcome.Delivered -> {
-                    val settled = settle(sendable, outcome)
+                    val settled = settle(capability, sendable, outcome)
                     // Answering fewer positions than were sent leaves the batch unresolved, and
                     // asking again for the same items would spin. It is the API failing to keep its
                     // side of the contract, so it is reported as an ingestion failure.
@@ -61,7 +63,11 @@ class OutboxSender(
         }
     }
 
-    private suspend fun settle(items: List<OutboxItem>, delivered: SendOutcome.Delivered): Int {
+    private suspend fun settle(
+        capability: HealthCapability,
+        items: List<OutboxItem>,
+        delivered: SendOutcome.Delivered,
+    ): Int {
         val confirmed = mutableListOf<Long>()
         val rejected = mutableListOf<Pair<Long, List<RejectionCode>>>()
 
@@ -74,8 +80,18 @@ class OutboxSender(
         }
 
         if (confirmed.isNotEmpty()) store.confirm(confirmed)
-        rejected.forEach { (id, codes) -> store.reject(id, codes) }
+        rejected.forEach { (id, codes) -> reject(capability, id, codes) }
         return confirmed.size + rejected.size
+    }
+
+    /**
+     * Keeps the item as a mapping pendency and reports it, which is the same thing said twice on
+     * purpose: the outbox is where the observation waits, and the incident is where its owner is told
+     * that nothing will move it until the mapper changes.
+     */
+    private suspend fun reject(capability: HealthCapability, id: Long, codes: List<RejectionCode>) {
+        store.reject(id, codes)
+        maintenance.reportUnmappableRecord(capability, codes)
     }
 
     private fun decode(item: OutboxItem): HealthRecordEnvelope? = runCatching {
