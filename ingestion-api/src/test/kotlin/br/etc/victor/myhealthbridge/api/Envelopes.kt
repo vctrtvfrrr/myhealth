@@ -3,6 +3,7 @@ package br.etc.victor.myhealthbridge.api
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -125,10 +126,14 @@ object Envelopes {
         altitude: String? = "760.0",
     ): JsonObject = buildJsonObject {
         put("at", at)
-        latitude?.let { put("latitudeDegrees", it.toBigDecimal()) }
-        longitude?.let { put("longitudeDegrees", it.toBigDecimal()) }
-        altitude?.let { put("altitudeMeters", it.toBigDecimal()) }
+        latitude?.let { put("latitudeDegrees", measurement(it)) }
+        longitude?.let { put("longitudeDegrees", measurement(it)) }
+        altitude?.let { put("altitudeMeters", measurement(it)) }
     }
+
+    /** A number when it is one, so a test can also state what a defective mapper would have put there. */
+    private fun measurement(value: String): JsonPrimitive =
+        value.toBigDecimalOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(value)
 
     private fun JsonObjectBuilder.quantity(name: String, value: String?, unit: String) {
         if (value == null) return

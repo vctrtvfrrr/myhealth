@@ -5,6 +5,7 @@ import br.etc.victor.myhealthbridge.contract.IngestionContract
 import br.etc.victor.myhealthbridge.contract.ItemResult
 import br.etc.victor.myhealthbridge.contract.ItemStatus
 import br.etc.victor.myhealthbridge.contract.RejectionCode
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceCode
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertSame
@@ -35,7 +36,7 @@ class OutboxSenderTest {
         importer.import(heartRate)
     }
 
-    private fun sender(client: FakeIngestionClient) =
+    private fun sender(client: FakeIngestionClient, policy: SyncPolicy = this.policy) =
         OutboxSender(store, endpoints, client, maintenanceService(maintenance, clock), policy)
 
     private fun allAccepted(status: ItemStatus = ItemStatus.ACCEPTED) = FakeIngestionClient { batch ->
@@ -107,6 +108,52 @@ class OutboxSenderTest {
         sender(client).drain(heartRate)
 
         assertTrue(client.batches.isEmpty())
+    }
+
+    /**
+     * A count alone does not bound a request: an exercise carries its whole route, so what fits is
+     * decided by the bytes of the envelopes and not by how many of them there are.
+     */
+    @Test
+    fun `sends fewer items than the count allows when they do not fit one request`() = runTest {
+        stage("a", "b")
+        val oneEnvelope = store.staged.first().item.envelopeJson.length
+
+        val client = allAccepted()
+        val result = sender(client, policy.copy(maxBatchBytes = oneEnvelope)).drain(heartRate)
+
+        assertSame(SendResult.Drained, result)
+        assertEquals(listOf(1, 1), client.batches.map { it.items.size })
+    }
+
+    @Test
+    fun `sends fewer items still when the API says the batch is too large`() = runTest {
+        stage("a", "b")
+        val client = FakeIngestionClient { batch ->
+            if (batch.items.size > 1) SendOutcome.Refused(BatchErrorCode.BATCH_TOO_LARGE)
+            else SendOutcome.Delivered(batch.items.indices.map { ItemResult(it, ItemStatus.ACCEPTED) })
+        }
+
+        val result = sender(client).drain(heartRate)
+
+        assertSame(SendResult.Drained, result)
+        assertTrue(store.staged.isEmpty(), "every item was delivered once the batch was small enough")
+    }
+
+    /**
+     * Nothing but a change to the mapper can shrink an envelope the API refuses on its own, so it waits
+     * as a mapping pendency instead of blocking every observation staged behind it.
+     */
+    @Test
+    fun `keeps an envelope the API refuses for its size out of every later batch`() = runTest {
+        stage("a", "b")
+        val client = FakeIngestionClient { SendOutcome.Refused(BatchErrorCode.BATCH_TOO_LARGE) }
+
+        val result = sender(client, policy.copy(batchItems = 1)).drain(heartRate)
+
+        assertSame(SendResult.Drained, result)
+        assertEquals(2, store.staged.count { it.codes != null }, "both were kept as pendencies")
+        assertEquals(listOf(MaintenanceCode.UNMAPPABLE_RECORD), maintenance.reportedCodes.distinct())
     }
 
     @Test

@@ -67,6 +67,31 @@ class ExercisePayloadTest {
         )
     }
 
+    /**
+     * The read model casts every key of a point to the type its name promises. A value that cannot be
+     * cast has to be refused here: stored, it would fail every query over the view rather than only the
+     * exercise that carried it.
+     */
+    @Test
+    fun `rejects a point the read model could not read`() {
+        assertEquals(
+            listOf(RejectionCode.INVALID_PAYLOAD),
+            reject(Envelopes.exercise(route = listOf(Envelopes.routePoint(at = "not-an-instant")))),
+        )
+        assertEquals(
+            listOf(RejectionCode.INVALID_PAYLOAD),
+            reject(Envelopes.exercise(route = listOf(Envelopes.routePoint(altitude = "up")))),
+        )
+    }
+
+    @Test
+    fun `rejects an altitude no place on earth has`() {
+        assertEquals(
+            listOf(RejectionCode.INVALID_PAYLOAD),
+            reject(Envelopes.exercise(route = listOf(Envelopes.routePoint(altitude = "99000.0")))),
+        )
+    }
+
     @Test
     fun `rejects an exercise mapped by a version this server does not know`() {
         assertEquals(

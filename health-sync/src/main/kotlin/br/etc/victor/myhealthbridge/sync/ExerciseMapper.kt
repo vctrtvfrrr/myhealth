@@ -64,11 +64,18 @@ object ExerciseMapper : RecordMapper {
         )
     }
 
-    /** Null when no session reported the measurement, which is different from every one reporting zero. */
-    private fun total(sessions: List<Map<String, SourceValue>>, field: String): BigDecimal? = sessions
-        .mapNotNull { it[field] as? SourceValue.Number }
-        .map { it.value }
-        .reduceOrNull(BigDecimal::add)
+    /**
+     * Null unless every session reported the measurement.
+     *
+     * Adding up the sessions that did report it would answer the same shape for a total of the whole
+     * exercise and for a total of the part of it the source happened to measure, and nothing downstream
+     * could tell the two apart. An absent total says what is true: this exercise has none.
+     */
+    private fun total(sessions: List<Map<String, SourceValue>>, field: String): BigDecimal? {
+        if (sessions.isEmpty()) return null
+        val measured = sessions.map { (it[field] as? SourceValue.Number ?: return null).value }
+        return measured.reduce(BigDecimal::add)
+    }
 
     /**
      * The route of the whole exercise, in the order its sessions were reported.

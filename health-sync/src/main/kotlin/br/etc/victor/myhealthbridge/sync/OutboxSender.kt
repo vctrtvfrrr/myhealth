@@ -34,8 +34,12 @@ class OutboxSender(
     suspend fun drain(capability: HealthCapability): SendResult {
         val endpoint = endpoints.read() ?: return SendResult.Halted(SyncOutcome.NOT_CONFIGURED)
 
+        // Lowered, never raised: the API's own limit is not readable from here, so a refusal for size
+        // is the only thing that can tell this side its budget was too generous.
+        var budget = policy.maxBatchBytes
+
         while (true) {
-            val items = store.pending(capability.recordType, policy.batchItems)
+            val items = withinByteBudget(store.pending(capability.recordType, policy.batchItems), budget)
             if (items.isEmpty()) return SendResult.Drained
 
             val envelopes = items.map { decode(it) }
@@ -51,7 +55,17 @@ class OutboxSender(
 
             when (val outcome = client.send(endpoint, batch)) {
                 SendOutcome.Unreachable -> return SendResult.Halted(SyncOutcome.INGESTION_UNAVAILABLE)
-                is SendOutcome.Refused -> return SendResult.Halted(outcomeOf(outcome.error))
+                is SendOutcome.Refused -> when {
+                    outcome.error != BatchErrorCode.BATCH_TOO_LARGE ->
+                        return SendResult.Halted(outcomeOf(outcome.error))
+
+                    // Nothing but a change to the mapper can shrink a single envelope the API refuses,
+                    // so it becomes a mapping pendency instead of staying at the head of the outbox
+                    // blocking every observation staged behind it.
+                    sendable.size == 1 -> reject(capability, sendable.first().id, TOO_LARGE)
+
+                    else -> budget /= 2
+                }
                 is SendOutcome.Delivered -> {
                     val settled = settle(capability, sendable, outcome)
                     // Answering fewer positions than were sent leaves the batch unresolved, and
@@ -61,6 +75,30 @@ class OutboxSender(
                 }
             }
         }
+    }
+
+    /**
+     * The longest prefix of the outbox that fits one request, never shorter than a single item.
+     *
+     * A prefix is what keeps delivery in the order the observations were staged. One item alone over
+     * the budget is still sent: only the API can say whether its own limit refuses it, and answering
+     * that here from a number this side guessed would strand a record the API would have taken.
+     */
+    private fun withinByteBudget(items: List<OutboxItem>, budget: Int): List<OutboxItem> {
+        var bytes = 0
+        return items.takeIndexedWhile { index, item ->
+            bytes += item.envelopeJson.length
+            index == 0 || bytes <= budget
+        }
+    }
+
+    private fun <T> List<T>.takeIndexedWhile(keep: (Int, T) -> Boolean): List<T> {
+        val taken = mutableListOf<T>()
+        forEachIndexed { index, element ->
+            if (!keep(index, element)) return taken
+            taken += element
+        }
+        return taken
     }
 
     private suspend fun settle(
@@ -102,6 +140,17 @@ class OutboxSender(
     private fun decode(item: OutboxItem): HealthRecordEnvelope? = runCatching {
         IngestionContract.json.decodeFromString(HealthRecordEnvelope.serializer(), item.envelopeJson)
     }.getOrNull()
+
+    private companion object {
+        /**
+         * What an envelope the API refuses for its size is kept as.
+         *
+         * The contract has no code for it, and inventing one would mean a wire change for a condition
+         * whose fix is the same as every other pendency's: the mapper has to render the record
+         * differently. The size is not the item's content, so nothing about it is echoed anywhere.
+         */
+        val TOO_LARGE = listOf(RejectionCode.INVALID_PAYLOAD)
+    }
 
     private fun outcomeOf(error: BatchErrorCode): SyncOutcome = when (error) {
         BatchErrorCode.INVALID_DEVICE_TOKEN -> SyncOutcome.NOT_CONFIGURED

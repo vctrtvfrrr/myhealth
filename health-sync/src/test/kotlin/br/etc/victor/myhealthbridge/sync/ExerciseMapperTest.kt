@@ -89,6 +89,26 @@ class ExerciseMapperTest {
         assertNull(exercise["distance"])
     }
 
+    /** Half of an exercise measured is not a total of it, and would be indistinguishable from one. */
+    @Test
+    fun `leaves out a total only part of the exercise reported`() {
+        val record = exerciseRecord(
+            sessions = listOf(session(distance = "1500.0"), session(distance = null)),
+        )
+
+        val exercise = exerciseOf(mapper.map(record))
+        assertNull(exercise["distance"])
+        assertEquals("3600.000" to "s", quantity(exercise, "duration"))
+    }
+
+    @Test
+    fun `leaves out every total of an exercise the source reported no session for`() {
+        val exercise = exerciseOf(mapper.map(exerciseRecord(sessions = null)))
+
+        assertEquals("RUNNING", (exercise["type"] as JsonPrimitive).content)
+        assertNull(exercise["duration"])
+    }
+
     @Test
     fun `emits no normalization for an exercise the source did not name`() {
         val envelope = mapper.map(exerciseRecord(exerciseType = null))

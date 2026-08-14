@@ -103,6 +103,15 @@ interface IngestionEndpointStore {
 data class SyncPolicy(
     val maxOutboxItems: Int = 5_000,
     val batchItems: Int = 200,
+    /**
+     * How many bytes of envelopes one batch may carry.
+     *
+     * A count alone does not bound a request: an exercise carries its whole route, so a batch of them
+     * is orders of magnitude heavier than a batch of measurements and would be refused whole by the
+     * API's own byte limit — the same prefix every run, forever. It is deliberately below that limit,
+     * which this side cannot read, leaving room for the framing around the envelopes.
+     */
+    val maxBatchBytes: Int = 1_000_000,
     /** How far back the overlap re-read pulls the next read of a category. */
     val overlapWindow: Duration = Duration.ofDays(7),
     /** How much time has to pass between two overlap re-reads of the same category. */
