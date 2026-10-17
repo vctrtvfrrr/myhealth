@@ -20,12 +20,29 @@ class ReadModelAccessTest : IngestionApiTest() {
     @Test
     fun `a read only account queries the view and can write nothing`() {
         send(Envelopes.heartRate(samsungUid = "uid-read-only"))
+        api.postBatch(
+            Envelopes.batch(
+                recordType = Envelopes.EXERCISE_RECORD_TYPE,
+                items = listOf(Envelopes.exercise(samsungUid = "uid-read-only", route = listOf(Envelopes.routePoint()))),
+            ),
+            token,
+        )
         grantReadAccess()
 
         asReader { reader ->
             assertEquals(
                 1,
                 reader.count("select count(*) from read_model.current_heart_rate where samsung_uid = 'uid-read-only'"),
+            )
+            assertEquals(
+                1,
+                reader.count("select count(*) from read_model.current_exercise where samsung_uid = 'uid-read-only'"),
+            )
+            assertEquals(
+                1,
+                reader.count(
+                    "select count(*) from read_model.current_exercise_location where samsung_uid = 'uid-read-only'",
+                ),
             )
 
             listOf(

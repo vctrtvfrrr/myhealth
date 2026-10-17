@@ -81,10 +81,11 @@ object Envelopes {
         caloriesUnit: String = "kcal",
         route: List<JsonObject>? = null,
         mapperVersion: String = EXERCISE_MAPPER_VERSION,
+        observedAt: String = "2026-08-10T10:00:00Z",
     ): JsonObject = buildJsonObject {
         put("samsungUid", samsungUid)
         putJsonObject("observedAt") {
-            put("instant", "2026-08-10T10:00:00Z")
+            put("instant", observedAt)
             put("offset", "-03:00")
         }
         put("mapperVersion", mapperVersion)
