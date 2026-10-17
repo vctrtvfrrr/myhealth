@@ -37,9 +37,10 @@
     <string name="health_availability_unknown">Disponibilidade ainda não verificada.</string>
     <string name="health_availability_ready">O Samsung Health está respondendo às consultas deste aplicativo.</string>
     <string name="health_availability_setup">O Samsung Health precisa ser instalado, atualizado ou ativado neste aparelho.</string>
-    <string name="health_availability_not_recognized">O Samsung Health não reconhece este aplicativo. Confirme que o developer mode está ativado nas configurações do Samsung Health.</string>
+    <string name="health_availability_not_recognized">O Samsung Health não reconhece este aplicativo. Ative o Developer Mode for Data Read em Samsung Health › Configurações › Sobre o Samsung Health, tocando dez vezes na versão.</string>
     <string name="health_availability_temporarily_unavailable">O Samsung Health não respondeu agora. Tente novamente em instantes.</string>
     <string name="health_availability_unsupported">Este aparelho não atende aos requisitos do Samsung Health.</string>
+    <string name="health_availability_diagnostic">Código de diagnóstico: %1$s</string>
     <string name="health_availability_resolve">Resolver no Samsung Health</string>
 
     <string name="health_last_check">Última verificação bem-sucedida: %1$s</string>

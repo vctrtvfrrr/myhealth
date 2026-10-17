@@ -8,7 +8,11 @@ package br.etc.victor.myhealthbridge.health
  */
 sealed interface SamsungHealthAvailability {
 
-    /** Preserved for sanitized diagnostics. It is never shown to the Data Owner. */
+    /**
+     * Which SDK condition this was, as a code this build defines, never the SDK's own failure text. It
+     * is shown to the Data Owner because the same message covers several codes, and only the code says
+     * which one a device produced.
+     */
     val diagnosticCode: String?
 
     data object Ready : SamsungHealthAvailability {
@@ -31,10 +35,10 @@ sealed interface SamsungHealthAvailability {
 }
 
 enum class Remediation {
-    /** Samsung Health is absent, outdated, disabled or not initialized. */
+    /** Samsung Health is absent, outdated, disabled, not initialized or not from an official source. */
     SAMSUNG_HEALTH_SETUP,
 
-    /** Samsung Health does not recognize this application's signature, package or scope. */
+    /** Samsung Health refuses this application, which in developer mode means the mode is switched off. */
     APPLICATION_NOT_RECOGNIZED,
 }
 

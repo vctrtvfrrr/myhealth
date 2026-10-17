@@ -112,6 +112,12 @@ private fun AvailabilityCard(state: HealthPermissionsUiState, onResolve: () -> U
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(stringResource(availabilityMessage(availability)))
+            availability?.diagnosticCode?.let { code ->
+                Text(
+                    text = stringResource(R.string.health_availability_diagnostic, code),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
             val resolution = (availability as? SamsungHealthAvailability.ActionRequired)?.resolution
             if (resolution != null) {
                 OutlinedButton(onClick = onResolve, enabled = !state.busy) {

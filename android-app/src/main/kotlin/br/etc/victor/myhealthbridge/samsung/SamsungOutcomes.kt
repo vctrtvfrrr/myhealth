@@ -36,17 +36,19 @@ internal class SamsungOutcomes(private val foregroundActivity: () -> Activity?) 
             ErrorCode.ERR_OLD_VERSION_PLATFORM,
             ErrorCode.ERR_PLATFORM_DISABLED,
             ErrorCode.ERR_PLATFORM_NOT_INITIALIZED,
+            // The signature checked here is Samsung Health's own, not this application's: the SDK
+            // refuses a Samsung Health that did not come from an official source.
+            ErrorCode.ERR_INVALID_PLATFORM_SIGNATURE,
             -> SamsungHealthAvailability.ActionRequired(
                 remediation = Remediation.SAMSUNG_HEALTH_SETUP,
                 resolution = resolutionOf(failure),
                 diagnosticCode = diagnosticCode,
             )
 
-            ErrorCode.ERR_INVALID_PLATFORM_SIGNATURE,
+            // Without partner approval only developer mode lets Samsung Health serve this application,
+            // and the SDK reports it switched off the same way it reports an unregistered application.
             ErrorCode.ERR_INVALID_CALLER,
-            ErrorCode.ERR_INVALID_UID,
             ErrorCode.ERR_ACCESS_CONTROL,
-            ErrorCode.ERR_INVALID_INPUT,
             -> SamsungHealthAvailability.ActionRequired(
                 remediation = Remediation.APPLICATION_NOT_RECOGNIZED,
                 resolution = resolutionOf(failure),
