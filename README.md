@@ -310,6 +310,30 @@ O APK de depuração é assinado por outra chave, então a primeira instalação
 
 A atualização preserva outbox e estado operacional local porque nem o `applicationId` nem a assinatura mudam. `versionCode` e `versionName` ficam em `android-app/build.gradle.kts` e sobem por edição deliberada; o Android aceita reinstalar o mesmo `versionCode`, mas recusa um menor.
 
+#### Reconhecimento pelo Samsung Health
+
+O aplicativo lê o Samsung Health em developer mode, não como partner app aprovado. Nesse modo o Samsung Health deixa de conferir a assinatura do aplicativo chamador, então o APK de release é reconhecido do mesmo jeito que o de depuração e **nenhum certificado precisa ser registrado** na Samsung. O registro de pacote e SHA-256 só existe no programa de parceria, exigido para distribuir a terceiros sem developer mode ou para escrever dados, e nenhum dos dois está no escopo. Ver [`docs/research/samsung-health-release-key.md`](docs/research/samsung-health-release-key.md).
+
+O developer mode é uma configuração do Samsung Health no aparelho, não do aplicativo. Ele exige Samsung Health 6.30.2 ou superior e é ligado assim:
+
+1. No Samsung Health, abra o menu ⋮ e vá em **Configurações > Sobre o Samsung Health**.
+2. Toque rapidamente na linha da versão dez vezes ou mais, até aparecer **Developer mode (Samsung Health Data SDK)**.
+3. Abra essa opção, aceite o aviso e ligue **Developer Mode for Data Read**.
+
+Desligar é o mesmo interruptor. Reinstalar este aplicativo não mexe nele, mas limpar os dados do Samsung Health, reinstalá-lo ou uma atualização dele pode desligá-lo; por isso, diante da mensagem de que o Samsung Health não reconhece o aplicativo, a primeira coisa a conferir é esse interruptor.
+
+A primeira instalação de release por cima de uma de depuração exige desinstalar, e a desinstalação apaga as permissões concedidas no Samsung Health. Depois dela, solicite as permissões de novo pela tela de permissões.
+
+Para conferir qual certificado assina um APK sem acesso ao keystore, use o `apksigner` das build-tools do Android SDK sobre o APK descompactado do artefato:
+
+```sh
+apksigner verify --print-certs android-app-release.apk
+```
+
+A linha `Signer #1 certificate SHA-256 digest` é a impressão digital. `keytool -printcert -jarfile` não serve aqui: com `minSdk` 29 o APK é assinado só pelos esquemas v2 e v3, que o `keytool` não lê.
+
+Se a chave de assinatura mudar, o developer mode continua valendo e nada precisa ser registrado na Samsung. O que muda é o Android: a nova chave não atualiza a instalação existente, então é preciso desinstalar, instalar o APK novo, conferir que o developer mode segue ligado e solicitar as permissões outra vez. Só se o aplicativo um dia entrar no programa de parceria a impressão digital da chave passa a ser registrada, e aí trocar a chave exige registrar a nova antes de distribuir.
+
 Na API, só `DATABASE_PORT` e `PORT` têm default; as demais são obrigatórias e valor em branco conta como ausente. O default de name e user vive por isso no workflow, na convenção da plataforma de nomear role e database como o próprio app: definir `vars.DATABASE_NAME` ou `vars.DATABASE_USER` substitui, deixar em branco herda `myhealth`. O único segredo de runtime é `secrets.DATABASE_PASS`, copiado do vault da plataforma, e é o único valor sem default — daí o job conferir que ele existe antes de publicar qualquer coisa.
 
 Antes do primeiro deploy, a plataforma precisa provisionar a database no PostgreSQL compartilhado e o domínio — ver o runbook de Application Stacks em `codelab/infra`.
