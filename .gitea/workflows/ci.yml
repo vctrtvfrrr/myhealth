@@ -24,7 +24,11 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      # The action's default also asks for the legacy 'tools' package, which the SDK repository no
+      # longer serves, so the install fails before anything is built.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - name: Provision the Samsung Health Data SDK
         env:
