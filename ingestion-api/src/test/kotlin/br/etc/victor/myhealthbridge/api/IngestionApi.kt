@@ -124,6 +124,7 @@ class IngestionApi(
         val builder = ProcessBuilder(
             listOfNotNull(
                 "${System.getProperty("java.home")}/bin/java",
+                API_MAX_HEAP,
                 "-cp",
                 "$distribution/lib/*",
                 "br.etc.victor.myhealthbridge.api.ApplicationKt",
@@ -169,3 +170,7 @@ class IngestionApi(
         const val CHUNK_BYTES = 8 * 1024
     }
 }
+
+// The heap the stack gives the API, a 512 MiB container at MaxRAMPercentage=75: a test process never
+// has more than production does, and several of them share the runner's host with the stacks.
+internal const val API_MAX_HEAP = "-Xmx384m"

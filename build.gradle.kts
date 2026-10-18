@@ -7,6 +7,14 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
 }
 
+// Without a bound every test JVM may take a quarter of the host's memory, and the CI runner shares
+// its host with the deployed stacks, with no swap to absorb a spike.
+subprojects {
+    tasks.withType<Test>().configureEach {
+        maxHeapSize = "1g"
+    }
+}
+
 tasks.register<Exec>("devUp") {
     group = "docker"
     description = "Rebuilds the ingestion API image and starts the local development stack."

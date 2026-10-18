@@ -100,6 +100,7 @@ class StartupProcessTest {
 
         val builder = ProcessBuilder(
             "${System.getProperty("java.home")}/bin/java",
+            API_MAX_HEAP,
             "-cp",
             classpath,
             "br.etc.victor.myhealthbridge.api.ApplicationKt",
