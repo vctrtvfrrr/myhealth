@@ -157,6 +157,8 @@ class SyncService(
 
         when (halted.outcome) {
             SyncOutcome.CONTRACT_INCOMPATIBLE -> maintenance.report(MaintenanceCode.CONTRACT_INCOMPATIBLE)
+            // Unlike an endpoint never configured, a token was given and refused, and no run fixes that.
+            SyncOutcome.DEVICE_TOKEN_REFUSED -> maintenance.report(MaintenanceCode.DEVICE_TOKEN_REFUSED)
             SyncOutcome.INGESTION_UNAVAILABLE -> maintenance.report(MaintenanceCode.INGESTION_UNREACHABLE)
             // An endpoint that was never configured and an outbox at its limit are both the system
             // working as designed, waiting on the Data Owner or on itself rather than on the code.

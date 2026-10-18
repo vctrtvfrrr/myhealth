@@ -6,6 +6,7 @@ import br.etc.victor.myhealthbridge.contract.IngestionBatch
 import br.etc.victor.myhealthbridge.contract.IngestionContract
 import br.etc.victor.myhealthbridge.contract.ItemStatus
 import br.etc.victor.myhealthbridge.contract.RejectionCode
+import br.etc.victor.myhealthbridge.maintenance.MaintenanceCode
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
 
 sealed interface SendResult {
@@ -67,6 +68,9 @@ class OutboxSender(
                     else -> budget /= 2
                 }
                 is SendOutcome.Delivered -> {
+                    // Only an answered batch proves the token is accepted: a category with nothing to
+                    // deliver succeeds without the API ever being asked.
+                    maintenance.resolve(MaintenanceCode.DEVICE_TOKEN_REFUSED)
                     val settled = settle(capability, sendable, outcome)
                     // Answering fewer positions than were sent leaves the batch unresolved, and
                     // asking again for the same items would spin. It is the API failing to keep its
@@ -153,7 +157,7 @@ class OutboxSender(
     }
 
     private fun outcomeOf(error: BatchErrorCode): SyncOutcome = when (error) {
-        BatchErrorCode.INVALID_DEVICE_TOKEN -> SyncOutcome.NOT_CONFIGURED
+        BatchErrorCode.INVALID_DEVICE_TOKEN -> SyncOutcome.DEVICE_TOKEN_REFUSED
         BatchErrorCode.CONTRACT_VERSION_TOO_OLD,
         BatchErrorCode.CONTRACT_VERSION_TOO_NEW,
         -> SyncOutcome.CONTRACT_INCOMPATIBLE

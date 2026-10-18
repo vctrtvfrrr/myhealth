@@ -14,6 +14,9 @@
     <string name="maintenance_contract_incompatible">Contrato de ingestão incompatível</string>
     <string name="maintenance_contract_incompatible_action">O aplicativo e a API falam versões diferentes do contrato. Atualize o lado que ficou fora do intervalo suportado.</string>
 
+    <string name="maintenance_device_token_refused">Token do aparelho recusado</string>
+    <string name="maintenance_device_token_refused_action">A API de ingestão não reconhece o token salvo neste aparelho. Provisione ou rotacione o Ingestion Device na API e salve o novo token; a sincronização retoma na próxima entrega aceita.</string>
+
     <string name="maintenance_permission_revoked">Permissão de leitura revogada</string>
     <string name="maintenance_permission_revoked_action">O acesso a esta categoria era concedido e deixou de ser. Conceda a permissão novamente na tela de permissões.</string>
 

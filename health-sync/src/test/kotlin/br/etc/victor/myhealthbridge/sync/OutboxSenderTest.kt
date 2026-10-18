@@ -178,14 +178,14 @@ class OutboxSenderTest {
     }
 
     @Test
-    fun `reports a refused device token as a configuration problem`() = runTest {
+    fun `reports a refused device token as its own outcome`() = runTest {
         stage("a")
 
         val result = sender(
             FakeIngestionClient { SendOutcome.Refused(BatchErrorCode.INVALID_DEVICE_TOKEN) },
         ).drain(heartRate)
 
-        assertEquals(SendResult.Halted(SyncOutcome.NOT_CONFIGURED), result)
+        assertEquals(SendResult.Halted(SyncOutcome.DEVICE_TOKEN_REFUSED), result)
     }
 
     @Test

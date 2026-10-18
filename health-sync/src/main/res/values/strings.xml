@@ -36,7 +36,8 @@
     <string name="sync_outcome_succeeded">Última sincronização concluída.</string>
     <string name="sync_outcome_waiting_permission">Aguardando a permissão de leitura desta categoria.</string>
     <string name="sync_outcome_samsung_unavailable">O Samsung Health não respondeu na última tentativa.</string>
-    <string name="sync_outcome_not_configured">A API de ingestão não está configurada ou não aceitou o token deste aparelho.</string>
+    <string name="sync_outcome_not_configured">A API de ingestão não está configurada neste aparelho.</string>
+    <string name="sync_outcome_device_token_refused">A API de ingestão recusou o token deste aparelho. Veja a aba Diagnóstico.</string>
     <string name="sync_outcome_ingestion_unavailable">A API de ingestão não respondeu na última tentativa.</string>
     <string name="sync_outcome_contract_incompatible">O aplicativo e a API falam versões diferentes do contrato de ingestão.</string>
     <string name="sync_outcome_outbox_full">A outbox atingiu o limite e a leitura pausou até a entrega avançar.</string>

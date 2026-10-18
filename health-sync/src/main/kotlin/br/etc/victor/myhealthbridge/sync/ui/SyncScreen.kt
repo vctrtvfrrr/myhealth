@@ -221,6 +221,7 @@ private fun outcomeLabel(outcome: SyncOutcome): Int = when (outcome) {
     SyncOutcome.WAITING_PERMISSION -> R.string.sync_outcome_waiting_permission
     SyncOutcome.SAMSUNG_UNAVAILABLE -> R.string.sync_outcome_samsung_unavailable
     SyncOutcome.NOT_CONFIGURED -> R.string.sync_outcome_not_configured
+    SyncOutcome.DEVICE_TOKEN_REFUSED -> R.string.sync_outcome_device_token_refused
     SyncOutcome.INGESTION_UNAVAILABLE -> R.string.sync_outcome_ingestion_unavailable
     SyncOutcome.CONTRACT_INCOMPATIBLE -> R.string.sync_outcome_contract_incompatible
     SyncOutcome.OUTBOX_FULL -> R.string.sync_outcome_outbox_full

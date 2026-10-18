@@ -42,6 +42,12 @@ enum class MaintenanceCode(
         action = R.string.maintenance_contract_incompatible_action,
     ),
 
+    DEVICE_TOKEN_REFUSED(
+        id = "device_token_refused",
+        title = R.string.maintenance_device_token_refused,
+        action = R.string.maintenance_device_token_refused_action,
+    ),
+
     PERMISSION_REVOKED(
         id = "permission_revoked",
         title = R.string.maintenance_permission_revoked,

@@ -22,6 +22,10 @@ enum class SyncOutcome {
     WAITING_PERMISSION,
     SAMSUNG_UNAVAILABLE,
     NOT_CONFIGURED,
+
+    /** The API refused the device token, which no run fixes until the Ingestion Device is provisioned or rotated. */
+    DEVICE_TOKEN_REFUSED,
+
     INGESTION_UNAVAILABLE,
     CONTRACT_INCOMPATIBLE,
     OUTBOX_FULL,
