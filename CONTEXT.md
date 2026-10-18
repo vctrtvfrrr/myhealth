@@ -45,7 +45,7 @@ The sole person whose Consolidated Health Data is collected and who uses the sys
 _Avoid_: Customer, patient, app user
 
 **Ingestion Device**:
-A provisioned device authorized to deliver Health Records to the ingestion API, identified by a token whose digest is the only part the system retains; it is not necessarily the device the Source Provenance names.
+A provisioned device authorized to deliver Health Records to the ingestion API, identified by a token whose digest is the only part the ingestion API retains; it is not necessarily the device the Source Provenance names.
 _Avoid_: Client, API user, source device
 
 **Ingestion**:

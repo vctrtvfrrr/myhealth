@@ -108,7 +108,7 @@ As 25 Health Categories catalogadas cobrem exatamente os data types legíveis do
 
 A tela de sincronização é a segunda aba do aplicativo. Nela o Data Owner informa o endereço da API e o token deste Ingestion Device, inicia a carga inicial, pede uma sincronização manual e aciona a reconciliação integral; ela também mostra o tamanho da outbox, o progresso da carga inicial, o horário da última tentativa, o horário do último sucesso, o horário da última releitura sobreposta e o estado de cada Health Category sincronizada.
 
-O endereço e o token ficam no Room do aparelho e não são embutidos no APK, porque o token é criado por `device create <label>` e mostrado uma única vez. O campo do token começa vazio a cada abertura e salvar substitui o que estiver guardado; ele nunca é lido de volta para a tela.
+O endereço e o token ficam no Room do aparelho e não são embutidos no APK, porque o token é criado por `device create <label>` e mostrado uma única vez. O campo do token começa vazio a cada abertura e salvar substitui o que estiver guardado; ele nunca é lido de volta para a tela. O token fica em claro, sem cifragem própria: ele divide o banco com a outbox, que já guarda dados de saúde em claro, e só autoriza entregas que `device revoke` ou `device rotate` cortam na hora. Ver ADR `0020`.
 
 O catálogo de capacidades declara, por Health Category, o record type, as operações de leitura, o tamanho de página, o mapper e se a API projeta aquele record type. Hoje ele tem duas entradas, `heart_rate` e `exercise`, e a de exercício declara também que a categoria traz dados associados. Uma Health Category sem entrada continua catalogada para permissões e simplesmente não é sincronizada — cobertura cresce por vertical, nunca por atualização do SDK.
 
