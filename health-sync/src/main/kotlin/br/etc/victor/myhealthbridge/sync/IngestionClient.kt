@@ -7,6 +7,7 @@ import br.etc.victor.myhealthbridge.contract.IngestionResponse
 import br.etc.victor.myhealthbridge.contract.InventoryResult
 import br.etc.victor.myhealthbridge.contract.ItemResult
 import br.etc.victor.myhealthbridge.contract.ProblemDetails
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -33,15 +34,40 @@ interface IngestionClient {
 }
 
 /**
+ * Where the client says that the version it sends has fallen behind the one the API recommends.
+ *
+ * It is told only the two versions, never the batch or the endpoint, so nothing biometric and no token
+ * can reach the log through it.
+ */
+fun interface RecommendedVersionLog {
+
+    fun behind(declaredVersion: Int, recommendedVersion: Int)
+}
+
+object LogcatRecommendedVersionLog : RecommendedVersionLog {
+
+    override fun behind(declaredVersion: Int, recommendedVersion: Int) {
+        Log.w(
+            "IngestionContract",
+            "Ingestion Contract Version $declaredVersion is below the recommended version $recommendedVersion",
+        )
+    }
+}
+
+/**
  * The ingestion client over plain HTTP.
  *
  * An answer that cannot be read as either a result list or a problem document is [SendOutcome.Unreachable]
  * on purpose: the batch may well be stored, and inventing a refusal would let the outbox be cleared
  * over something the API never said.
+ *
+ * Falling behind the recommended version is advice, not a Contract Incompatibility: the batch was
+ * accepted, so it is only logged and never changes the outcome. See ADR 0007.
  */
 class HttpIngestionClient(
     private val connectTimeoutMs: Int = 15_000,
     private val readTimeoutMs: Int = 60_000,
+    private val recommendedVersionLog: RecommendedVersionLog = LogcatRecommendedVersionLog,
 ) : IngestionClient {
 
     override suspend fun send(endpoint: IngestionEndpoint, batch: IngestionBatch): SendOutcome =
@@ -59,6 +85,7 @@ class HttpIngestionClient(
             try {
                 connection.outputStream.use { it.write(body) }
                 val status = connection.responseCode
+                noticeRecommendation(batch.contractVersion, connection)
                 val answer = (if (status < 400) connection.inputStream else connection.errorStream)
                     ?.use { it.readBytes().decodeToString() }
                     .orEmpty()
@@ -81,6 +108,16 @@ class HttpIngestionClient(
             setRequestProperty("Authorization", "Bearer ${endpoint.deviceToken}")
             setRequestProperty("Content-Type", IngestionContract.MEDIA_TYPE)
             setRequestProperty("Accept", IngestionContract.MEDIA_TYPE)
+        }
+    }
+
+    private fun noticeRecommendation(declaredVersion: Int, connection: HttpURLConnection) {
+        val recommendedVersion = connection.getHeaderField(IngestionContract.RECOMMENDED_HEADER)
+            ?.trim()
+            ?.toIntOrNull()
+            ?: return
+        if (declaredVersion < recommendedVersion) {
+            recommendedVersionLog.behind(declaredVersion, recommendedVersion)
         }
     }
 
