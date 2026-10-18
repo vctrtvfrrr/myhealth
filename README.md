@@ -16,7 +16,7 @@ A primeira fatia vertical está fechada para frequência cardíaca: o aplicativo
 
 Os exercícios seguem o mesmo critério, e trazem o que só existe dentro do registro que os carrega: a rota, que o Samsung Health não expõe como leitura própria e cuja Health Category existe apenas para que a permissão dela seja pedida. Ela é preservada no envelope do exercício e projetada como linhas próprias. Ver ADR `0019`.
 
-O sono segue o mesmo critério: as sessões de cada noite e os estágios de cada sessão, que não têm identidade própria, viajam no envelope do sono e são projetados como linhas próprias. Os pontos de oxigenação do sangue e de temperatura da pele que o Samsung Health associa a uma noite não entram no sono: têm UID próprio e chegam pelas próprias Health Categories. Ver ADR `0020`.
+O sono segue o mesmo critério: as sessões de cada noite e os estágios de cada sessão, que não têm identidade própria, viajam no envelope do sono e são projetados como linhas próprias. Os pontos de oxigenação do sangue e de temperatura da pele que o Samsung Health associa a uma noite não entram no sono: têm UID próprio e chegam pelas próprias Health Categories. Ver ADR `0023`.
 
 Alterações feitas depois no Samsung Health se refletem no Current Health Record, e um Source Removal muda o estado corrente sem apagar Observed Record Version alguma. Além do cursor, cada execução lê o Source Change Feed da categoria, uma vez por dia relê os sete dias anteriores, e o Data Owner pode acionar uma reconciliação integral que relê todo o histórico acessível.
 

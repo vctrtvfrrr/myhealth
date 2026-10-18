@@ -71,7 +71,7 @@ object HealthCapabilities {
             recordType = "sleep",
             // The stages are fields of the sleep, read with it. The associated read Samsung Health offers
             // for a night is not used: what it returns are blood oxygen and skin temperature records that
-            // carry their own UIDs, and their own categories read them. See ADR 0020.
+            // carry their own UIDs, and their own categories read them. See ADR 0023.
             readOperations = setOf(ReadOperation.TIME_RANGE, ReadOperation.CHANGES),
             // A night carries every stage it went through, so a page is heavier than one of measurements,
             // though far lighter than a page of routes.
