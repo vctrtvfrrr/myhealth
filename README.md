@@ -259,7 +259,16 @@ Depois da purga, a API reinicia, migra desde o banco vazio e volta a atender; o 
 
 ### Integração contínua
 
-O workflow `.gitea/workflows/ci.yml` executa `./gradlew check` a cada push e a cada pull request, e falha quando qualquer módulo quebra. Ele tem três jobs: `build` valida, constrói a imagem e — só em push na `master` que gera release — produz o APK de release assinado; `deploy` entrega a API em todo push na `master`, só depois de o `build` passar inteiro; `release` publica a versão, só depois de a API responder saudável. A imagem recebe o nome do commit ainda no job `build`, para que uma execução concorrente de outro branch não troque a tag `myhealth-api:local` entre os jobs.
+O workflow `.gitea/workflows/ci.yml` roda em todo pull request e em todo push na `master`; um branch é validado pelo seu pull request, e não também pelo push. Num mesmo ref de branch, uma revisão nova cancela a execução anterior; a `master` nunca cancela, porque cada push ali calcula a sua versão a partir da release anterior. São quatro jobs:
+
+| Job | Quando | O que faz |
+| --- | --- | --- |
+| `api` | Sempre | Testes do `contract` e da API, inclusive os de integração, e a imagem, já nomeada pelo commit para que outra execução não troque `myhealth-api:local` entre os jobs. |
+| `android` | Sempre, em paralelo ao `api` | Testes unitários e lint do variant debug dos módulos Android e o APK de depuração; numa release, também o APK assinado. |
+| `deploy` | Push na `master`, depois de `api` e `android` | Entrega a API. Espera a suíte inteira, inclusive a do aplicativo. |
+| `release` | Push na `master` que gera release, depois do `deploy` | Publica a versão. |
+
+Os testes rodam só sobre o variant debug, porque o release executaria os mesmos testes sobre o mesmo código. Os testes de integração rodam duas classes por vez: cada uma já tem o próprio PostgreSQL, processo da API, porta e diretório, e o limite em dois poupa o host, que é compartilhado com os stacks publicados. As dependências do Gradle e o Android SDK ficam em cache entre execuções.
 
 ### Versões e releases
 

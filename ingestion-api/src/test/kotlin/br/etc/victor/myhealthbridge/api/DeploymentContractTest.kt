@@ -72,8 +72,15 @@ class DeploymentContractTest {
 
     @Test
     fun `the delivery waits for the whole suite`() {
-        assertTrue(workflow.contains("needs: build"), "the deploy job does not wait for the build job")
-        assertTrue(workflow.contains("./gradlew check"), "the build job does not run the suite")
+        assertTrue(workflow.contains("needs: [api, android]"), "the deploy job does not wait for both suites")
+        assertTrue(
+            workflow.contains("./gradlew :contract:check :ingestion-api:check"),
+            "the api job does not run the API suite",
+        )
+        assertTrue(
+            workflow.contains("./gradlew testDebugUnitTest lintDebug"),
+            "the android job does not run the application suite",
+        )
     }
 
     @Test

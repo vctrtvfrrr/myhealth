@@ -43,6 +43,9 @@ val integrationTest = tasks.register<Test>("integrationTest") {
     useJUnitPlatform {
         includeTags("integration")
     }
+    // Every class brings its own PostgreSQL, API process, free port and directory, so classes run
+    // side by side. Two at a time, because the runner shares its host with the deployed stacks.
+    maxParallelForks = 2
     dependsOn(tasks.installDist)
     systemProperty("distributionDir", layout.buildDirectory.dir("install/${project.name}").get().asFile.absolutePath)
     systemProperty("repositoryRoot", rootDir.absolutePath)
