@@ -12,7 +12,7 @@ import javax.sql.DataSource
 import kotlin.system.exitProcess
 
 /**
- * One artifact, two jobs: it serves ingestion, or it runs a device subcommand and exits.
+ * One artifact, two jobs: it serves ingestion, or it runs an administrative subcommand and exits.
  *
  * Provisioning never opens the HTTP port, which keeps token management off the public surface of a
  * personal instance.
@@ -44,6 +44,8 @@ private fun serve() {
 private fun administer(arguments: List<String>) {
     try {
         val database = DatabaseConfig.fromEnvironment()
+        if (arguments.first() == "database") return DatabaseAdmin.run(arguments, database, ::println)
+
         migrate(database)
         DriverManager.getConnection(database.jdbcUrl, database.user, database.password).use { connection ->
             when (arguments.first()) {
@@ -58,7 +60,7 @@ private fun administer(arguments: List<String>) {
     }
 }
 
-private val USAGE = "${DeviceAdmin.USAGE}\n${ProjectionAdmin.USAGE}"
+private val USAGE = "${DeviceAdmin.USAGE}\n${ProjectionAdmin.USAGE}\n${DatabaseAdmin.USAGE}"
 
 private class Startup(val ingestion: IngestionConfig, val pool: HikariDataSource)
 

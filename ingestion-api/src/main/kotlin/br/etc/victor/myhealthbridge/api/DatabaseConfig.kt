@@ -3,7 +3,7 @@ package br.etc.victor.myhealthbridge.api
 class DatabaseConfig(
     host: String,
     port: Int,
-    name: String,
+    val name: String,
     val user: String,
     val password: String,
 ) {

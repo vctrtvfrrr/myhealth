@@ -178,7 +178,7 @@ As migrations Flyway rodam na inicialização. Se qualquer uma falhar, a API reg
 | `GET /ingestion-contract` | Não | Publica o Supported Contract Range: `minimumVersion`, `maximumVersion` e `recommendedVersion`. Não acessa o banco. |
 | `POST /ingestions` | `Bearer <token>` | Recebe um lote homogêneo de envelopes canônicos e devolve um resultado por posição enviada. |
 
-Não existe endpoint de consulta, alteração ou exclusão de Health Records: a superfície HTTP é só ingestão e saúde.
+Não existe endpoint de consulta, alteração ou exclusão de Health Records: a superfície HTTP é só ingestão e saúde. A única exclusão é a [purga integral](#purga-integral), feita fora da superfície HTTP.
 
 ### Compatibilidade do contrato
 
@@ -244,6 +244,18 @@ O schema `read_model` é a superfície de consulta. Hoje ele tem seis views:
 Uma Health Record removida na origem sai da view: a remoção é estado corrente, não medição corrente, e continua projetada e preservada. Um exercício removido leva a rota dele junto, e um sono removido leva as sessões e os estágios dele, pela mesma razão. `source_app` ou `source_device` nulo é o unknown explícito da Source Provenance, que é o que a fonte reportou.
 
 A conta somente leitura é criada por quem administra o PostgreSQL, porque o papel de runtime da API não tem esse privilégio. Depois disso, as permissões vêm de [`docs/sql/read-access.sql`](docs/sql/read-access.sql), executado como o papel de runtime — uma vez, e novamente a cada deploy que acrescente uma view ao `read_model`. Nada é concedido sobre as tabelas de ingestão: a view roda com os privilégios de quem a possui, então a conta alcança os envelopes preservados apenas pelo formato que a view expõe. Ver ADR `0013`.
+
+### Purga integral
+
+O Data Owner mantém o controle final sobre a cópia remota por uma purga integral: ela apaga tudo o que a API guarda no PostgreSQL, inclusive o `read_model`, os Ingestion Devices e o histórico do Flyway, e a importação recomeça do zero. O procedimento completo, verificado contra banco descartável pelo teste de integração, está em [`docs/purge.md`](docs/purge.md). Ver ADR `0021`.
+
+| Comando | Efeito |
+| --- | --- |
+| `database purge <database>` | Apaga o schema da API e o `read_model`. Exige o nome da database configurada como confirmação e mostra `purged`. Não aplica migrations: elas rodam na próxima partida da API. |
+
+Depois da purga, a API reinicia, migra desde o banco vazio e volta a atender; o aparelho é provisionado de novo, o acesso de leitura é concedido de novo e uma reconciliação integral no aplicativo reimporta o histórico acessível sem duplicações.
+
+**Exclusão seletiva permanente não é suportada.** Não há como apagar um Health Record, um período ou uma Health Category impedindo que eles sejam reimportados: a próxima sincronização, a releitura diária ou uma reconciliação os trariam de volta. A purga é integral ou não acontece.
 
 ### Integração contínua
 

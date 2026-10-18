@@ -48,14 +48,23 @@ class IngestionApi(
 
     fun logs(): String = logFile.takeIf { it.exists() }?.readText().orEmpty()
 
-    /** Runs a device subcommand in its own process and returns everything it printed. */
+    /** Runs a subcommand in its own process and returns everything it printed. */
     fun administer(vararg arguments: String): String {
-        val output = workingDirectory.resolve("$name-device-${arguments.joinToString("-")}.log").toFile()
-        val command = launch(arguments.toList(), output)
-        check(command.waitFor(2, TimeUnit.MINUTES)) { "the device subcommand never exited" }
-        check(command.exitValue() == 0) { "the device subcommand failed: ${output.readText()}" }
-        return output.readText()
+        val run = attempt(*arguments)
+        check(run.exitCode == 0) { "the subcommand failed: ${run.output}" }
+        return run.output
     }
+
+    /** Runs a subcommand in its own process, whether or not it succeeds. */
+    fun attempt(vararg arguments: String): AdministrativeRun {
+        val output = workingDirectory.resolve("$name-${arguments.joinToString("-")}.log").toFile()
+        output.delete()
+        val command = launch(arguments.toList(), output)
+        check(command.waitFor(2, TimeUnit.MINUTES)) { "the subcommand never exited" }
+        return AdministrativeRun(command.exitValue(), output.readText())
+    }
+
+    class AdministrativeRun(val exitCode: Int, val output: String)
 
     fun provision(label: String): String = tokenIn(administer("device", "create", label))
 

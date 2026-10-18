@@ -1,0 +1,9 @@
+# Purge the whole schema rather than delete selectively
+
+The Data Owner keeps final control over the remote copy through a Full Purge: `database purge <database name>`, a subcommand of the API artifact, drops `read_model` and then lets Flyway clean the schema it migrates, history table included. The API that starts next migrates from empty, as every startup does under ADR 0006, and a Full Reconciliation on the device brings the accessible history back without duplicates, because a re-read renders the same Observed Record Versions (ADRs 0014 and 0017). The procedure is `docs/purge.md`, and `DatabasePurgeTest` runs it against a disposable database.
+
+Selective permanent deletion is not offered. Deleting a Health Record, a period or a Health Category would not keep the next run, the daily overlap or a reconciliation from importing it again, so it would promise something the system cannot keep; preventing reimport would need a record of what not to import, which is itself a copy of what was deleted. A Full Purge promises only what it does: everything goes, and the import starts over.
+
+The purge drops `read_model` itself because Flyway keeps a schema it did not create, and a `read_model` left behind empty would make the next startup fail on creating it again. It deliberately never migrates, before or after: it must also work on a schema left in a failed state, and migrating is the restarted API's job. It takes the Ingestion Devices with it, since a token that outlives the purge would be state the purge failed to remove; provisioning the device again is a step of the procedure. Read access, granted outside the migrations under ADR 0013, goes with the schema and is granted again with the same file, while the read-only role, which belongs to the cluster, survives.
+
+The confirmation is the configured database's name, so a command copied from another environment cannot empty this one.

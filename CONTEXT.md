@@ -96,6 +96,10 @@ _Avoid_: Backfill, retry window
 A re-reading of the whole accessible history of every granted Health Category, asked for by the Data Owner, trusting no Sync Cursor. It recovers from lost local state or a suspected divergence, and duplicates nothing because a re-read produces the same Observed Record Versions. It cannot recover a Source Removal that was never observed, which no re-reading can.
 _Avoid_: Resync, full sync, repair
 
+**Full Purge**:
+The removal of everything the ingestion API keeps, asked for by the Data Owner, after which the import starts over from empty. It is the only permanent deletion the system offers: removing part of the Personal Health History is not supported, because nothing would keep the next import from bringing it back.
+_Avoid_: Selective delete, wipe, reset
+
 **Unrecoverable Sync Cursor**:
 A stored Sync Cursor whose position this build cannot interpret. It is never given a default position: the Health Category it belongs to is answered with a Full Reconciliation of itself and the condition is reported, because a guessed position is a gap nothing would ever report.
 _Avoid_: Corrupt cursor, invalid state
