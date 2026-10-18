@@ -140,7 +140,7 @@ class DeclaredAbsenceTest : IngestionApiTest() {
     }
 
     @Test
-    fun `publishes both contract versions and keeps the earlier one accepted, concluding nothing for it`() {
+    fun `publishes the range up to version 3 and keeps version 1 accepted, concluding nothing for it`() {
         send(heartRate("uid-old-client", "2026-07-02T12:00:00Z"))
 
         val range = Json.parseToJsonElement(api.get("/ingestion-contract").body).jsonObject
@@ -156,7 +156,7 @@ class DeclaredAbsenceTest : IngestionApiTest() {
         )
 
         assertEquals("1", range["minimumVersion"]!!.jsonPrimitive.content)
-        assertEquals("2", range["maximumVersion"]!!.jsonPrimitive.content)
+        assertEquals("3", range["maximumVersion"]!!.jsonPrimitive.content)
         assertEquals(200, response.status, response.body)
         assertEquals(listOf("accepted"), statuses(response.body))
         assertNull(Json.parseToJsonElement(response.body).jsonObject["inventory"])

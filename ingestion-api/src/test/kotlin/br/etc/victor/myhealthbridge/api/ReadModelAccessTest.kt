@@ -39,6 +39,10 @@ class ReadModelAccessTest : IngestionApiTest() {
             ),
             token,
         )
+        api.postBatch(
+            Snapshots.batch(items = listOf(Snapshots.steps(start = "2026-07-01T09:00:00", end = "2026-07-01T10:00:00"))),
+            token,
+        )
         grantReadAccess()
 
         asReader { reader ->
@@ -64,16 +68,33 @@ class ReadModelAccessTest : IngestionApiTest() {
                 )
             }
 
+            assertEquals(
+                1,
+                reader.count(
+                    "select count(*) from read_model.current_observed_snapshot where window_start = '2026-07-01T09:00:00'",
+                ),
+            )
+            assertEquals(
+                1,
+                reader.count("select count(*) from read_model.current_hourly_steps where window_start = '2026-07-01T09:00:00'"),
+            )
+
             listOf(
                 "insert into health_record_identity (record_type, samsung_uid) values ('heart_rate', 'uid-forged')",
                 "update observed_record_version set state = 'removed'",
                 "delete from ingestion_item",
                 "update ingestion_device set revoked_at = null",
                 "delete from current_health_record",
+                "delete from current_observed_snapshot",
+                "insert into observed_snapshot (snapshot_type) values ('steps')",
             ).forEach { write ->
                 assertTrue(reader.isDenied(write), "the read account was allowed to: $write")
             }
 
+            assertTrue(
+                reader.isDenied("select count(*) from snapshot_observation"),
+                "the preserved snapshot observations are reachable only through the read model",
+            )
             assertTrue(
                 reader.isDenied("select count(*) from observed_record_version"),
                 "the preserved envelopes are reachable only through the read model",

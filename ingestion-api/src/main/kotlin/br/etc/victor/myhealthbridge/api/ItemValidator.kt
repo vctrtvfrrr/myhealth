@@ -9,12 +9,10 @@ import br.etc.victor.myhealthbridge.contract.SourceProvenance
 import br.etc.victor.myhealthbridge.contract.ZonedInstant
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.time.Instant
-import java.time.ZoneOffset
 import java.util.TreeSet
 
 sealed interface ItemValidation {
@@ -143,12 +141,6 @@ class ItemValidator(private val recordType: String) {
         retainUnknown(raw, "recordType", "samsungUid", "mapperVersion", "observedAt", "sourceProvenance", "state")
     }
 
-    private fun canonical(instant: ZonedInstant, raw: JsonObject?) = buildJsonObject {
-        put("instant", instant.instant)
-        put("offset", instant.offset)
-        retainUnknown(raw, "instant", "offset")
-    }
-
     private fun canonical(period: SourcePeriod, raw: JsonObject?) = buildJsonObject {
         put("start", canonical(period.start, raw.node("start")))
         put("end", canonical(period.end, raw.node("end")))
@@ -192,19 +184,6 @@ class ItemValidator(private val recordType: String) {
                 retainUnknown(raw, "kind", "period")
             }
         }
-    }
-
-    private fun JsonObject?.node(key: String): JsonObject? = this?.get(key) as? JsonObject
-
-    /**
-     * Carries into the canonical document whatever this contract version could not interpret.
-     *
-     * Inside the digest rather than beside it: an unknown property is part of what the source reported,
-     * and leaving it out would let two observations that differ only by it collapse onto one Observed
-     * Record Version, discarding the second on the uniqueness constraint.
-     */
-    private fun JsonObjectBuilder.retainUnknown(raw: JsonObject?, vararg written: String) {
-        raw?.forEach { (key, value) -> if (key !in written) put(key, value) }
     }
 
     private fun resolveMapper(
@@ -292,36 +271,7 @@ class ItemValidator(private val recordType: String) {
         return Period(start.instant, end.instant, SourcePeriod(start.wire, end.wire))
     }
 
-    private fun JsonObject.zonedInstant(key: String, codes: MutableSet<RejectionCode>): TimePoint? {
-        val node = this[key] as? JsonObject ?: run {
-            codes += RejectionCode.INVALID_TIME_RANGE
-            return null
-        }
-
-        val instantText = node.opaqueText("instant", MAX_INSTANT_LENGTH)
-        val instant = instantText?.let(::parseUtcInstant)
-        if (instant == null) codes += RejectionCode.INVALID_TIME_RANGE
-
-        val offsetText = node.opaqueText("offset", MAX_OFFSET_LENGTH)?.takeIf(::isOriginalOffset)
-        if (offsetText == null) codes += RejectionCode.INVALID_OFFSET
-
-        if (instant == null || offsetText == null) return null
-        return TimePoint(instant, ZonedInstant(instantText, offsetText))
-    }
-
-    /**
-     * Opaque means opaque: the text is length checked and never trimmed, case folded or Unicode
-     * normalized, because a Samsung identifier that differs only in whitespace is a different one.
-     */
-    private fun JsonObject.opaqueText(key: String, maxLength: Int): String? =
-        (this[key] as? JsonPrimitive)
-            ?.takeIf { it.isString }
-            ?.content
-            ?.takeIf { it.isNotEmpty() && it.length <= maxLength }
-
     private class Payloads(val source: JsonObject, val normalized: JsonObject)
-
-    private class TimePoint(val instant: Instant, val wire: ZonedInstant)
 
     private class Period(val start: Instant, val end: Instant, val wire: SourcePeriod)
 
@@ -337,15 +287,5 @@ class ItemValidator(private val recordType: String) {
         const val MAX_SOURCE_ID_LENGTH = 256
         const val MAX_MAPPER_VERSION_LENGTH = 128
         const val MAX_KIND_LENGTH = 32
-        const val MAX_INSTANT_LENGTH = 64
-        const val MAX_OFFSET_LENGTH = 6
-
-        val ORIGINAL_OFFSET = Regex("""[+-]\d{2}:\d{2}""")
-
-        fun parseUtcInstant(text: String): Instant? =
-            if (!text.endsWith("Z")) null else runCatching { Instant.parse(text) }.getOrNull()
-
-        fun isOriginalOffset(text: String): Boolean =
-            ORIGINAL_OFFSET.matches(text) && runCatching { ZoneOffset.of(text) }.isSuccess
     }
 }

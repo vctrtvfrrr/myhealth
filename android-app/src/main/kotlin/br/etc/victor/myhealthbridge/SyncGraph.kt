@@ -12,6 +12,7 @@ import br.etc.victor.myhealthbridge.sync.ChangeImporter
 import br.etc.victor.myhealthbridge.sync.HistoryImporter
 import br.etc.victor.myhealthbridge.sync.HttpIngestionClient
 import br.etc.victor.myhealthbridge.sync.OutboxSender
+import br.etc.victor.myhealthbridge.sync.SnapshotImporter
 import br.etc.victor.myhealthbridge.sync.SyncPolicy
 import br.etc.victor.myhealthbridge.sync.SyncRun
 import br.etc.victor.myhealthbridge.sync.SyncService
@@ -69,6 +70,13 @@ class SyncGraph(context: Context) {
             maintenance = maintenance,
             policy = policy,
             clock = Clock.systemUTC(),
+        ),
+        snapshots = SnapshotImporter(
+            source = source,
+            store = syncStore,
+            policy = policy,
+            // Local time, because a Snapshot Window is a stretch of the phone's local time.
+            clock = Clock.systemDefaultZone(),
         ),
         sender = OutboxSender(
             store = syncStore,

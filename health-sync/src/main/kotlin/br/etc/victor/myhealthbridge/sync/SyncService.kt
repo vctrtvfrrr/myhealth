@@ -24,9 +24,10 @@ enum class SyncRun {
 /**
  * One synchronization run over every cataloged capability.
  *
- * A run reads a category twice: forward from its cursor, and then over what the source reports as
- * changed. The second read is what reflects a later edit and a Source Removal, neither of which a
- * forward walk can see, and the overlap re-read covers what the changes feed itself may have missed.
+ * A run reads a category of Health Records twice: forward from its cursor, and then over what the source
+ * reports as changed. The second read is what reflects a later edit and a Source Removal, neither of
+ * which a forward walk can see, and the overlap re-read covers what the changes feed itself may have
+ * missed. A category of Observed Snapshots is read once, from its last closed window up to now.
  *
  * Categories advance independently: each one records how its own run ended, and a category that
  * cannot be read leaves the others untouched. Whether the run was asked for by the hourly schedule or
@@ -36,6 +37,7 @@ class SyncService(
     private val permissions: HealthPermissionsService,
     private val importer: HistoryImporter,
     private val changes: ChangeImporter,
+    private val snapshots: SnapshotImporter,
     private val sender: OutboxSender,
     private val store: SyncStore,
     private val maintenance: MaintenanceService,
@@ -145,8 +147,16 @@ class SyncService(
 
         takeOverlapReread(capability)
 
-        deliverWhileReading(capability) { importer.import(capability, it) }?.let { return it }
-        deliverWhileReading(capability) { changes.import(capability, it) }?.let { return it }
+        when (capability) {
+            is RecordCapability -> {
+                deliverWhileReading(capability) { importer.import(capability, it) }?.let { return it }
+                deliverWhileReading(capability) { changes.import(capability, it) }?.let { return it }
+            }
+
+            // No changes feed exists for an aggregate: re-reading from the last closed window is all
+            // there is, and the overlap above is what reaches back further.
+            is SnapshotCapability -> deliverWhileReading(capability) { snapshots.import(capability) }?.let { return it }
+        }
 
         return deliver(capability) ?: SyncOutcome.SUCCEEDED
     }

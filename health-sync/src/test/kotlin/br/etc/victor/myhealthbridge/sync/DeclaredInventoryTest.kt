@@ -136,7 +136,7 @@ class DeclaredInventoryTest {
         assertSame(SendResult.Drained, result)
         assertEquals(listOf(listOf("a"), emptyList()), client.batches.map { batch -> batch.items.map { it.samsungUid } })
         assertEquals(listOf(null, inventory(HISTORY_FLOOR, WINDOW_END, "a")), client.batches.map { it.inventory })
-        assertEquals(IngestionContract.INVENTORY_VERSION, client.batches.last().contractVersion)
+        assertTrue(client.batches.last().contractVersion >= IngestionContract.INVENTORY_VERSION)
         assertTrue(store.declared.isEmpty())
     }
 

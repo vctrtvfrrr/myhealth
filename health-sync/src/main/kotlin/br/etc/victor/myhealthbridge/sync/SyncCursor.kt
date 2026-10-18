@@ -38,10 +38,11 @@ enum class SyncOutcome {
 }
 
 /**
- * Samsung Health did not exist before this, so nothing accessible can be older. It bounds the initial
- * load instead of leaving it open at the far end, where a filter has no natural floor.
+ * The Data Owner's history in Samsung Health begins in 2025, so nothing accessible is older. It bounds
+ * the initial load instead of leaving it open at the far end, where a filter has no natural floor, and
+ * it is what keeps the hourly Observed Snapshots of the initial load from being decades of empty hours.
  */
-val HISTORY_FLOOR: LocalDateTime = LocalDateTime.of(2000, 1, 1, 0, 0)
+val HISTORY_FLOOR: LocalDateTime = LocalDateTime.of(2025, 1, 1, 0, 0)
 
 /** The stretch of local time the initial load has to walk, fixed when it starts. */
 data class InitialLoadWindow(val start: LocalDateTime, val end: LocalDateTime) {

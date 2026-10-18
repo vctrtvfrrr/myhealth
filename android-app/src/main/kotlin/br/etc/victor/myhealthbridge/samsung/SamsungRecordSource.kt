@@ -1,15 +1,20 @@
 package br.etc.victor.myhealthbridge.samsung
 
 import android.content.Context
+import br.etc.victor.myhealthbridge.contract.SourceScope
 import br.etc.victor.myhealthbridge.health.HealthCategory
 import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
+import br.etc.victor.myhealthbridge.sync.AggregateWindow
 import br.etc.victor.myhealthbridge.sync.ChangePage
 import br.etc.victor.myhealthbridge.sync.ChangeWindow
-import br.etc.victor.myhealthbridge.sync.HealthCapability
+import br.etc.victor.myhealthbridge.sync.RecordCapability
 import br.etc.victor.myhealthbridge.sync.HealthRecordSource
 import br.etc.victor.myhealthbridge.sync.ReadWindow
 import br.etc.victor.myhealthbridge.sync.RecordPage
+import br.etc.victor.myhealthbridge.sync.SnapshotCapability
+import br.etc.victor.myhealthbridge.sync.SnapshotWindowUnit
+import br.etc.victor.myhealthbridge.sync.SourceAggregate
 import br.etc.victor.myhealthbridge.sync.SourceChange
 import br.etc.victor.myhealthbridge.sync.SourceRecord
 import br.etc.victor.myhealthbridge.sync.SourceValue
@@ -25,11 +30,15 @@ import com.samsung.android.sdk.health.data.data.entries.ExerciseSession
 import com.samsung.android.sdk.health.data.data.entries.HeartRate
 import com.samsung.android.sdk.health.data.data.entries.SleepSession
 import com.samsung.android.sdk.health.data.data.entries.SwimmingLog
+import com.samsung.android.sdk.health.data.request.AggregateRequest
+import com.samsung.android.sdk.health.data.request.AggregateSourceFilter
 import com.samsung.android.sdk.health.data.request.ChangedDataRequest
 import com.samsung.android.sdk.health.data.request.DataType
 import com.samsung.android.sdk.health.data.request.DataTypes
 import com.samsung.android.sdk.health.data.request.InstantTimeFilter
 import com.samsung.android.sdk.health.data.request.LocalTimeFilter
+import com.samsung.android.sdk.health.data.request.LocalTimeGroup
+import com.samsung.android.sdk.health.data.request.LocalTimeGroupUnit
 import com.samsung.android.sdk.health.data.request.Ordering
 import com.samsung.android.sdk.health.data.request.ReadDataRequest
 import java.math.BigDecimal
@@ -75,7 +84,7 @@ class SamsungRecordSource(
     private val outcomes = SamsungOutcomes(foregroundActivity)
 
     override suspend fun readPage(
-        capability: HealthCapability,
+        capability: RecordCapability,
         window: ReadWindow,
         pageToken: String?,
     ): SamsungHealthOutcome<RecordPage> {
@@ -94,7 +103,7 @@ class SamsungRecordSource(
     }
 
     override suspend fun readChanges(
-        capability: HealthCapability,
+        capability: RecordCapability,
         window: ChangeWindow,
         pageToken: String?,
     ): SamsungHealthOutcome<ChangePage> {
@@ -112,9 +121,55 @@ class SamsungRecordSource(
         }
     }
 
+    /**
+     * Collects every page of the aggregate before handing it on, because the importer observes a window
+     * Samsung Health left out as empty: a page not read yet would pass for a stretch of empty hours.
+     */
+    override suspend fun readAggregates(
+        capability: SnapshotCapability,
+        window: AggregateWindow,
+    ): SamsungHealthOutcome<List<SourceAggregate>> = when (capability.category) {
+        HealthCategory.STEPS -> outcomes.observing {
+            aggregate(capability, window) { DataType.StepsType.TOTAL.requestBuilder }
+        }
+        else -> SamsungHealthOutcome.Failed(
+            SamsungHealthAvailability.Unsupported("uncatalogued_aggregate_${capability.snapshotType}"),
+        )
+    }
+
+    /**
+     * Collects every page of the aggregate before handing it on, because the importer observes a window
+     * Samsung Health left out as empty: a page not read yet would pass for a stretch of empty hours.
+     */
+    private suspend fun <T : Any> aggregate(
+        capability: SnapshotCapability,
+        window: AggregateWindow,
+        builder: () -> AggregateRequest.LocalTimeBuilder<T>,
+    ): List<SourceAggregate> = buildList {
+        var pageToken: String? = null
+        do {
+            val request = builder()
+                .setLocalTimeFilterWithGroup(
+                    LocalTimeFilter.of(window.from, window.until, true, false),
+                    LocalTimeGroup.of(groupUnitOf(capability.window), 1),
+                )
+                .apply {
+                    if (capability.mapper.sourceScope == SourceScope.PLATFORM) {
+                        setSourceFilter(AggregateSourceFilter.fromPlatform())
+                    }
+                }
+                .setOrdering(Ordering.ASC)
+                .also { request -> pageToken?.let(request::setPageToken) }
+                .build()
+            val response = store.aggregateData(request)
+            response.dataList.forEach { add(SourceAggregate(it.getStartLocalDateTime(), sourceValueOf(it.value))) }
+            pageToken = response.pageToken
+        } while (pageToken != null)
+    }
+
     /** Null for a capability this build declares but cannot yet build a read for. */
     private fun requestOf(
-        capability: HealthCapability,
+        capability: RecordCapability,
         window: ReadWindow,
         pageToken: String?,
     ): ReadDataRequest<HealthDataPoint>? = readBuilderOf(capability)
@@ -126,7 +181,7 @@ class SamsungRecordSource(
 
     /** Null for a capability that declares the changes feed without this build reading it. */
     private fun changesRequestOf(
-        capability: HealthCapability,
+        capability: RecordCapability,
         window: ChangeWindow,
         pageToken: String?,
     ): ChangedDataRequest<HealthDataPoint>? = changesBuilderOf(capability)
@@ -136,7 +191,7 @@ class SamsungRecordSource(
         ?.build()
 
     private fun readBuilderOf(
-        capability: HealthCapability,
+        capability: RecordCapability,
     ): ReadDataRequest.DualTimeBuilder<HealthDataPoint>? = when (capability.category) {
         HealthCategory.HEART_RATE -> DataTypes.HEART_RATE.readDataRequestBuilder
         HealthCategory.EXERCISE -> DataTypes.EXERCISE.readDataRequestBuilder
@@ -144,8 +199,12 @@ class SamsungRecordSource(
         else -> null
     }
 
+    private fun groupUnitOf(unit: SnapshotWindowUnit): LocalTimeGroupUnit = when (unit) {
+        SnapshotWindowUnit.LOCAL_HOUR -> LocalTimeGroupUnit.HOURLY
+    }
+
     private fun changesBuilderOf(
-        capability: HealthCapability,
+        capability: RecordCapability,
     ): ChangedDataRequest.BasicBuilder<HealthDataPoint>? = when (capability.category) {
         HealthCategory.HEART_RATE -> DataTypes.HEART_RATE.changedDataRequestBuilder
         HealthCategory.EXERCISE -> DataTypes.EXERCISE.changedDataRequestBuilder
@@ -155,7 +214,7 @@ class SamsungRecordSource(
 }
 
 /** The fields this build reads out of a record, or none for a category it does not read. */
-private fun fieldsOf(capability: HealthCapability): List<Field<*>> = when (capability.category) {
+private fun fieldsOf(capability: RecordCapability): List<Field<*>> = when (capability.category) {
     HealthCategory.HEART_RATE -> heartRateFields
     HealthCategory.EXERCISE -> exerciseFields
     HealthCategory.SLEEP -> sleepFields
@@ -166,12 +225,12 @@ private fun fieldsOf(capability: HealthCapability): List<Field<*>> = when (capab
  * A removal that does not name what was removed is dropped rather than guessed at, the way an unknown
  * value type is: it cannot happen without an SDK change.
  */
-private fun Change<HealthDataPoint>.toSourceChange(capability: HealthCapability): SourceChange? = when (changeType) {
+private fun Change<HealthDataPoint>.toSourceChange(capability: RecordCapability): SourceChange? = when (changeType) {
     ChangeType.UPSERT -> SourceChange.Upserted(changeTime, upsertDataPoint.toSourceRecord(capability))
     ChangeType.DELETE -> deleteDataUid?.let { SourceChange.Removed(changeTime, it) }
 }
 
-private fun HealthDataPoint.toSourceRecord(capability: HealthCapability): SourceRecord = SourceRecord(
+private fun HealthDataPoint.toSourceRecord(capability: RecordCapability): SourceRecord = SourceRecord(
     uid = uid,
     startTime = startTime,
     endTime = endTime,

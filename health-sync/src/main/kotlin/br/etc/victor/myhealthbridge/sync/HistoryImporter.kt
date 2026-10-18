@@ -49,7 +49,7 @@ class HistoryImporter(
 ) {
 
     /** [resumeFrom] continues a walk this importer paused, which the cursor alone cannot express. */
-    suspend fun import(capability: HealthCapability, resumeFrom: String? = null): ImportResult {
+    suspend fun import(capability: RecordCapability, resumeFrom: String? = null): ImportResult {
         var cursor = store.cursor(capability.category) ?: return ImportResult.Completed
         if (cursor.phase == ImportPhase.NOT_STARTED) return ImportResult.Completed
 
@@ -97,7 +97,7 @@ class HistoryImporter(
         else -> LocalDateTime.now(clock)
     }
 
-    private suspend fun stage(capability: HealthCapability, record: SourceRecord): NewOutboxItem {
+    private suspend fun stage(capability: RecordCapability, record: SourceRecord): NewOutboxItem {
         maintenance.reportUnknownEnums(capability, record)
         return capability.staged(
             uid = record.uid,
@@ -117,7 +117,7 @@ class HistoryImporter(
      * from the cursor.
      */
     private fun inventoryOf(
-        capability: HealthCapability,
+        capability: RecordCapability,
         cursor: SyncCursor,
         page: RecordPage,
         window: ReadWindow,

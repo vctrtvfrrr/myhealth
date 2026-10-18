@@ -12,14 +12,14 @@ import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
 // single notification however many categories meet it.
 
 /** The mapper does not interpret a constant Samsung Health reported, which only the mapper can fix. */
-internal suspend fun MaintenanceService.reportUnknownEnums(capability: HealthCapability, record: SourceRecord) {
+internal suspend fun MaintenanceService.reportUnknownEnums(capability: RecordCapability, record: SourceRecord) {
     capability.mapper.unknownEnums(record).forEach {
         report(MaintenanceCode.UNKNOWN_ENUM, capability.category, detail = it)
     }
 }
 
 /**
- * The API could not turn an observation into an Observed Record Version.
+ * The API could not turn an observation into an Observed Record Version or an Observed Snapshot.
  *
  * The rejection codes are the detail because they are the contract's own vocabulary, they name which
  * mapper defect this is, and they echo nothing that was submitted.

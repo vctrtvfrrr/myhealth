@@ -13,6 +13,14 @@ Pull requests are not an issue request surface for triage.
 ## Wayfinding operations
 
 - **Network:** `tea` reaches Gitea only outside the sandbox. Use the `agent` login (`--login agent`); the `vctrtvfrrr` login's OAuth token does not refresh non-interactively.
+- **Launching on Windows:** never call `tea` directly from an agent's Bash or PowerShell tool: it hangs forever, even for `tea --version`. While initializing, `charm.land/lipgloss/v2/compat` queries the terminal background color (OSC 11); in a console of its own the query gives up after 2 s, but in the console the agent tool hands down it never returns. Start it in a hidden console of its own instead, with a timeout, and read the results from files:
+
+  ```powershell
+  $p = Start-Process -FilePath tea -ArgumentList @('api', '--login', 'agent', '/repos/{owner}/{repo}/issues/27', '-o', "$env:TEMP\issue.json") -WorkingDirectory D:\MyHealth -PassThru -WindowStyle Hidden -RedirectStandardOutput "$env:TEMP\tea.out" -RedirectStandardError "$env:TEMP\tea.err"
+  if (-not $p.WaitForExit(30000)) { Stop-Process $p.Id -Force }
+  ```
+
+  Each call takes about 2.3 s, most of it the abandoned color query.
 - **Map:** an issue labelled `wayfinder:map`. Find it with `tea api --login agent '/repos/{owner}/{repo}/issues?state=open&labels=wayfinder:map&type=issues'`.
 - **Child tickets:** Gitea has no native sub-issues, so a ticket names its map in a `## Parent` section of its body (`Mapa #<n>`), and carries one `wayfinder:<type>` label (`research`, `prototype`, `grilling`, `task`). Find children by searching open issues whose body contains `Mapa #<n>`.
 - **Blocking:** native Gitea dependencies. `POST /repos/{owner}/{repo}/issues/{blocked}/dependencies` with `{"owner","repo","index": <blocker>}`; read them with `GET .../issues/{n}/dependencies`.

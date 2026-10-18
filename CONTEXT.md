@@ -33,8 +33,16 @@ The latest known state of a Health Record, derived from its observed versions an
 _Avoid_: Latest sample, live record
 
 **Observed Snapshot**:
-A value, aggregate, goal, or profile state captured at a known observation time when Samsung Health does not expose it as an individually identifiable historical record.
+A value, aggregate, goal, or profile state captured at a known observation time when Samsung Health does not expose it as an individually identifiable historical record. Its identity is its kind together with its Snapshot Window; seeing different content for the same window is a new observation of the same snapshot, while seeing the same content as the observation before it is not an observation at all.
 _Avoid_: Health Record, historical measurement
+
+**Snapshot Window**:
+The stretch of local time an Observed Snapshot summarizes: one local hour for step and activity totals, one local day for goals, and none for the profile, which has a single snapshot. An observation made before its window ended is partial, and a window with nothing in it is observed as empty rather than left unobserved.
+_Avoid_: Bucket, period, interval
+
+**Current Observed Snapshot**:
+The latest observation of an Observed Snapshot, decided by observation time rather than by arrival, and used for ordinary queries and visualizations.
+_Avoid_: Latest value, live total
 
 **Source Removal**:
 The observed absence or deletion of a previously imported Health Record in Samsung Health, reported by the Source Change Feed or concluded from a Record Inventory that leaves it out, preserved as an Observed Record Version without biometric content; it changes the current state without erasing the record's ingestion history.
@@ -49,7 +57,7 @@ A provisioned device authorized to deliver Health Records to the ingestion API, 
 _Avoid_: Client, API user, source device
 
 **Ingestion**:
-A single authenticated attempt to deliver a batch of Observed Record Versions, recorded with its positional result for every submitted item; a retry is a new Ingestion, never a replay of an earlier answer.
+A single authenticated attempt to deliver a batch of Observed Record Versions or of Observed Snapshot observations, recorded with its positional result for every submitted item; a retry is a new Ingestion, never a replay of an earlier answer.
 _Avoid_: Upload session, sync run, batch id
 
 **Ingestion Contract Version**:
@@ -57,7 +65,7 @@ The version of the transport surface shared by the application and the ingestion
 _Avoid_: API version, protocol version, schema version
 
 **Supported Contract Range**:
-The set of Ingestion Contract Versions the API accepts, bounded below by the minimum supported version and above by the maximum, which is the newest version the API itself speaks. Both bounds are published, along with a recommended version that is advice on what to send rather than a bound. It spans versions 1 and 2, and being a range is what allows the two sides to be updated at different moments.
+The set of Ingestion Contract Versions the API accepts, bounded below by the minimum supported version and above by the maximum, which is the newest version the API itself speaks. Both bounds are published, along with a recommended version that is advice on what to send rather than a bound. It spans versions 1 to 3, and being a range is what allows the two sides to be updated at different moments.
 _Avoid_: Supported version, version list
 
 **Contract Incompatibility**:
@@ -77,7 +85,7 @@ The application's current understanding of read access for a Health Category: no
 _Avoid_: SDK permission status, consent status
 
 **Health Capability**:
-A cataloged declaration of how a Health Category is synchronized: the record type it becomes on the wire, the read operations it supports, the size of a read page, the mapper that renders it and whether the API projects it. A Health Category without one is cataloged for permissions and not synchronized.
+A cataloged declaration of how a Health Category is synchronized: the record or snapshot type it becomes on the wire, the read operations it supports, how much one read covers, the mapper that renders it and whether the API projects it. A category read by aggregation becomes Observed Snapshots rather than Health Records. A Health Category without one is cataloged for permissions and not synchronized.
 _Avoid_: Data type support, sync config
 
 **Sync Cursor**:

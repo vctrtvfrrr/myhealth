@@ -8,7 +8,7 @@ MyHealth Bridge é um sistema pessoal para copiar os dados de saúde e atividade
 
 O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. As verticais de contrato implementadas são `heart_rate`, `exercise` e `sleep`, exercitadas com envelopes sintéticos.
 
-Cada ingestão também projeta o Current Health Record, e o schema de leitura `read_model` oferece as views `current_heart_rate`, `current_exercise`, `current_exercise_location`, `current_sleep`, `current_sleep_session` e `current_sleep_stage` para consulta por uma conta somente leitura.
+Cada ingestão também projeta o Current Health Record e o Current Observed Snapshot, e o schema de leitura `read_model` oferece as views `current_heart_rate`, `current_exercise`, `current_exercise_location`, `current_sleep`, `current_sleep_session`, `current_sleep_stage`, `current_observed_snapshot` e `current_hourly_steps` para consulta por uma conta somente leitura.
 
 O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas.
 
@@ -182,7 +182,7 @@ Não existe endpoint de consulta, alteração ou exclusão de Health Records: a 
 
 ### Compatibilidade do contrato
 
-O lote declara a sua Ingestion Contract Version e a API declara o Supported Contract Range, de modo que aplicativo e servidor possam ser atualizados em momentos diferentes. Hoje a mínima é `1` e a recomendada e a atual valem `2`; a versão `2` acrescenta o Record Inventory, e um aplicativo na versão `1` continua aceito, sem inventário e sem concluir remoção. Ver ADRs `0007` e `0022`.
+O lote declara a sua Ingestion Contract Version e a API declara o Supported Contract Range, de modo que aplicativo e servidor possam ser atualizados em momentos diferentes. Hoje a mínima é `1` e a recomendada e a atual valem `3`; a versão `2` acrescenta o Record Inventory, e um aplicativo na versão `1` continua aceito, sem inventário e sem concluir remoção; a versão `3` acrescenta o lote de Observed Snapshots e deixa o lote de Health Records como era. Ver ADRs `0007`, `0022` e `0025`.
 
 Toda resposta de `POST /ingestions`, inclusive os problem documents, carrega `Ingestion-Contract-Minimum`, `Ingestion-Contract-Maximum` e `Ingestion-Contract-Recommended`, para que a divergência apareça antes de algo quebrar. `GET /ingestion-contract` responde os mesmos números sem autenticação e sem depender do banco, porque é justamente com o serviço degradado que o cliente precisa distinguir uma queda de uma incompatibilidade. Os dois limites são publicados: sem o superior, um cliente mais novo não consegue distinguir "a API não aceita a minha versão" de "aceita, mas recomenda outra". O aplicativo lê `Ingestion-Contract-Recommended` de cada resposta e, quando a versão que envia está abaixo dela, registra no logcat (tag `IngestionContract`) só as duas versões; é um aviso, não uma Contract Incompatibility, então a sincronização segue, a outbox não é tocada e nenhum Maintenance Incident é aberto.
 
@@ -192,7 +192,9 @@ Campo desconhecido no envelope é preservado, em qualquer nível de aninhamento,
 
 Campo desconhecido na **raiz do lote** é a exceção e continua ignorado: é enquadramento de transporte, não algo que a fonte observou, então não pertence a nenhuma observação. Um item que não carrega nada desconhecido é renderizado exatamente como antes, então nenhum digest armazenado muda.
 
-O lote declara `contractVersion`, `recordType` e `items`; o tipo de registro aparece somente na raiz. A partir da versão `2` o lote pode trazer `inventory` (`interval` com `start` incluído e `end` excluído em horário local, `readAt` e `samsungUids`), caso em que `items` pode vir vazio, e a resposta traz `inventory` com `status` — `concluded`, `incomplete` ou `invalid` — e `removals`. Cada resultado traz `index` e `status` — `accepted`, `already_present` ou `rejected` —, e um item rejeitado traz códigos estáveis e ordenados. `accepted` e `already_present` significam igualmente que a observação está durável, o que permite ao aplicativo remover o item da outbox. Erros de lote usam RFC 9457 Problem Details com um `code` estável e não ecoam nada do que foi recebido.
+O lote declara `contractVersion`, `recordType` e `items`; o tipo de registro aparece somente na raiz. A partir da versão `2` o lote pode trazer `inventory` (`interval` com `start` incluído e `end` excluído em horário local, `readAt` e `samsungUids`), caso em que `items` pode vir vazio, e a resposta traz `inventory` com `status` — `concluded`, `incomplete` ou `invalid` — e `removals`. Cada resultado traz `index` e `status` — `accepted`, `already_present` ou `rejected` —, e um item rejeitado traz códigos estáveis e ordenados. `accepted` e `already_present` significam igualmente que a observação está durável, o que permite ao aplicativo remover o item da outbox.
+
+A partir da versão `3` o mesmo endpoint aceita um lote de Observed Snapshots, que nomeia `snapshotType` na raiz em vez de `recordType` (um lote com os dois é `invalid_batch`). Cada item traz `window` (a Snapshot Window, `start` incluído e `end` excluído em horário local), `observedAt` (o instante em que o aplicativo leu, com offset), `sourceScope` (`platform` ou `all_sources`), `mapperVersion` e `content`, ausente ou nulo para uma janela vazia. O digest de um snapshot exclui o `observedAt`, e a API só grava a observação que difere da imediatamente anterior em `observedAt`; igual a ela, responde `already_present`. Um valor que volta a um já visto (A, B, A) é gravado de novo. Ver ADR `0025`. Erros de lote usam RFC 9457 Problem Details com um `code` estável e não ecoam nada do que foi recebido.
 
 Uma observação é a mesma Observed Record Version quando a representação canônica validada tem o mesmo digest SHA-256. Mudança em conteúdo, Source Provenance, offset original ou mapper version cria outra versão da mesma Health Record Identity. Versões observadas são imutáveis: `UPDATE` e `DELETE` são recusados pelo próprio PostgreSQL.
 
@@ -228,9 +230,9 @@ A reconstrução é o mesmo enunciado SQL sobre todas as identidades, exposto co
 
 | Comando | Efeito |
 | --- | --- |
-| `projection rebuild` | Descarta a projeção e a regenera a partir dos envelopes preservados. Mostra a contagem, prefixada por `projected=`. |
+| `projection rebuild` | Descarta as projeções e as regenera a partir dos envelopes e observações preservados. Mostra a contagem de Current Health Records, prefixada por `projected=`, e a de Current Observed Snapshots, prefixada por `projected_snapshots=`. |
 
-O schema `read_model` é a superfície de consulta. Hoje ele tem seis views:
+O schema `read_model` é a superfície de consulta. Hoje ele tem oito views:
 
 | View | Conteúdo |
 | --- | --- |
@@ -239,6 +241,8 @@ O schema `read_model` é a superfície de consulta. Hoje ele tem seis views:
 | `read_model.current_exercise_location` | A rota dos exercícios correntes, uma linha por ponto: `samsung_uid` do exercício a que pertence, `position` na ordem em que a fonte reportou, `at`, `latitude_degrees`, `longitude_degrees`, `altitude_meters` e `accuracy_meters`. Um exercício cuja rota o Samsung Health não revelou não contribui linha alguma. |
 | `read_model.current_sleep` | Noites de sono correntes: identidade, `duration_seconds`, `sleep_score` (escala não documentada pelo Samsung Health), período e observação em UTC com o zone offset original, proveniência e `mapper_version`. |
 | `read_model.current_sleep_session` | As sessões das noites correntes, uma linha por sessão: `samsung_uid` do sono a que pertence, `position` na ordem em que a fonte reportou, `start_at`, `end_at` e `duration_seconds`. |
+| `read_model.current_observed_snapshot` | Todo Current Observed Snapshot, de qualquer tipo: `snapshot_type`, `window_start` e `window_end` em horário local, `observed_at` em UTC com o offset original, `partial` (a observação foi feita antes do fim da janela, em horário local), `empty`, `content` (nulo numa janela vazia), `source_scope` e `mapper_version`. Nada aqui é Health Record. |
+| `read_model.current_hourly_steps` | Os passos de cada hora local em que o Samsung Health contou algum: `window_start`, `window_end`, `steps`, `partial`, observação e `source_scope`. Uma hora observada como vazia sai da view, então o total de um dia é uma soma simples sobre ela. |
 | `read_model.current_sleep_stage` | Os estágios das sessões correntes, uma linha por estágio: `samsung_uid` do sono, `session_position` da sessão a que pertence, `position` dentro dela, `start_at`, `end_at` e `stage` com a constante que a fonte reportou (`AWAKE`, `LIGHT`, `DEEP`, `REM` ou `UNDEFINED` no SDK fixado). Uma sessão sem estágios não contribui linha alguma. |
 
 Uma Health Record removida na origem sai da view: a remoção é estado corrente, não medição corrente, e continua projetada e preservada. Um exercício removido leva a rota dele junto, e um sono removido leva as sessões e os estágios dele, pela mesma razão. `source_app` ou `source_device` nulo é o unknown explícito da Source Provenance, que é o que a fonte reportou.

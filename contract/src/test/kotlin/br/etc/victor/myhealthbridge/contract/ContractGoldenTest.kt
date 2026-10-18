@@ -51,6 +51,46 @@ class ContractGoldenTest {
         )
     }
 
+    /**
+     * Version 3 adds a batch of Observed Snapshots beside the batch of Health Records, told apart by the
+     * type its root names. An empty window carries no content at all, which is how it is told from a
+     * window of zero. See ADR 0025.
+     */
+    @Test
+    fun `pins the version 3 snapshot request document`() {
+        val batch = SnapshotBatch(
+            snapshotType = "steps",
+            items = listOf(
+                SnapshotObservation(
+                    window = LocalInterval(start = "2026-08-10T14:00:00", end = "2026-08-10T15:00:00"),
+                    observedAt = ZonedInstant("2026-08-10T18:20:00Z", "-03:00"),
+                    sourceScope = SourceScope.PLATFORM,
+                    mapperVersion = "samsung-health-steps/1",
+                    content = buildJsonObject { put("steps", 1234) },
+                ),
+                SnapshotObservation(
+                    window = LocalInterval(start = "2026-08-10T15:00:00", end = "2026-08-10T16:00:00"),
+                    observedAt = ZonedInstant("2026-08-10T18:20:00Z", "-03:00"),
+                    sourceScope = SourceScope.PLATFORM,
+                    mapperVersion = "samsung-health-steps/1",
+                    content = null,
+                ),
+            ),
+            contractVersion = 3,
+        )
+
+        assertEquals(
+            """{"snapshotType":"steps","items":[{"window":{"start":"2026-08-10T14:00:00","end":"2026-08-10T15:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"platform","mapperVersion":"samsung-health-steps/1","content":{"steps":1234}},{"window":{"start":"2026-08-10T15:00:00","end":"2026-08-10T16:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"platform","mapperVersion":"samsung-health-steps/1"}],"contractVersion":3}""",
+            IngestionContract.json.encodeToString(SnapshotBatch.serializer(), batch),
+            BUMP,
+        )
+    }
+
+    @Test
+    fun `pins every published source scope`() {
+        assertEquals(listOf("platform", "all_sources"), SourceScope.entries.map { it.wireValue }, BUMP)
+    }
+
     @Test
     fun `pins the version 2 response document`() {
         val response = IngestionResponse(

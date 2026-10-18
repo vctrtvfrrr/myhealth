@@ -39,6 +39,7 @@ class SyncServiceTest {
             ),
             importer = HistoryImporter(source, store, channel, policy, clock),
             changes = ChangeImporter(source, store, channel, policy, clock),
+            snapshots = SnapshotImporter(source, store, policy, clock),
             sender = OutboxSender(store, endpoints, client, channel, policy),
             store = store,
             maintenance = channel,

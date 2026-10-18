@@ -93,22 +93,29 @@ class IngestionEndpoint(
             return call.refuse(BatchErrorCode.INGESTION_TEMPORARILY_UNAVAILABLE)
         }
 
-        when (request) {
-            is BatchRequest.Refused -> call.refuse(request.error)
+        val (contractVersion, response) = when (request) {
+            is BatchRequest.Refused -> return call.refuse(request.error)
             is BatchRequest.Accepted -> {
                 val validator = ItemValidator(request.recordType)
                 val validated = request.items.map(validator::validate)
+                request.contractVersion to
+                    persist { store.persist(request.deviceId, request.contractVersion, it, validated, request.inventory) }
+            }
 
-                val response = persist(request.deviceId, request.contractVersion, validated, request.inventory)
-                    ?: return call.refuse(BatchErrorCode.INGESTION_TEMPORARILY_UNAVAILABLE)
-
-                IngestionLog.ingested(response, request.contractVersion, elapsedMs(startedAt))
-                call.respondText(
-                    IngestionContract.json.encodeToString(IngestionResponse.serializer(), response),
-                    ContentType.Application.Json,
-                )
+            is BatchRequest.Snapshots -> {
+                val validator = SnapshotValidator(request.snapshotType)
+                val validated = request.items.map(validator::validate)
+                request.contractVersion to
+                    persist { store.persistSnapshots(request.deviceId, request.contractVersion, it, validated) }
             }
         }
+        if (response == null) return call.refuse(BatchErrorCode.INGESTION_TEMPORARILY_UNAVAILABLE)
+
+        IngestionLog.ingested(response, contractVersion, elapsedMs(startedAt))
+        call.respondText(
+            IngestionContract.json.encodeToString(IngestionResponse.serializer(), response),
+            ContentType.Application.Json,
+        )
     }
 
     /**
@@ -149,11 +156,22 @@ class IngestionEndpoint(
 
         if (items.size > config.maxItems) return BatchRequest.Refused(BatchErrorCode.TOO_MANY_ITEMS)
 
-        val recordType = (root["recordType"] as? JsonPrimitive)?.takeIf { it.isString }?.content
-        if (recordType.isNullOrEmpty()) return BatchRequest.Refused(BatchErrorCode.INVALID_BATCH)
-
         // Safe: a version inside the range is one this build speaks, so it fits an Int by construction.
         val contractVersion = declaredVersion.toInt()
+
+        // A version that predates snapshots never sent one, so what it carries under that name is an
+        // unknown property and the batch is read as the batch of Health Records it always was.
+        if (contractVersion >= IngestionContract.SNAPSHOT_VERSION && SNAPSHOT_TYPE in root) {
+            val snapshotType = root.text(SNAPSHOT_TYPE)
+            // Naming both types would leave which dating rule applies to a guess.
+            if (snapshotType.isNullOrEmpty() || RECORD_TYPE in root || items.isEmpty()) {
+                return BatchRequest.Refused(BatchErrorCode.INVALID_BATCH)
+            }
+            return BatchRequest.Snapshots(deviceId, contractVersion, snapshotType, items)
+        }
+
+        val recordType = root.text(RECORD_TYPE)
+        if (recordType.isNullOrEmpty()) return BatchRequest.Refused(BatchErrorCode.INVALID_BATCH)
 
         // A version that predates inventories never had one to send, so whatever it carries under that
         // name is an unknown property, ignored like any other, and concludes nothing.
@@ -172,20 +190,24 @@ class IngestionEndpoint(
      * The deadline lives in the store, with the transaction it has to bound. Cancelling this coroutine
      * would not stop a blocking driver, and would let a cancelled ingestion commit anyway.
      */
-    private suspend fun persist(
-        deviceId: Long,
-        contractVersion: Int,
-        validated: List<ItemValidation>,
-        inventory: DeclaredInventory?,
-    ): IngestionResponse? = try {
-        withContext(Dispatchers.IO) { store.persist(deviceId, contractVersion, Instant.now(), validated, inventory) }
+    private suspend fun persist(write: (receivedAt: Instant) -> IngestionResponse): IngestionResponse? = try {
+        withContext(Dispatchers.IO) { write(Instant.now()) }
     } catch (failure: Exception) {
         IngestionLog.unavailable(failure)
         null
     }
 
+    private fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+
     private sealed interface BatchRequest {
         data class Refused(val error: BatchErrorCode) : BatchRequest
+
+        data class Snapshots(
+            val deviceId: Long,
+            val contractVersion: Int,
+            val snapshotType: String,
+            val items: List<JsonElement>,
+        ) : BatchRequest
 
         data class Accepted(
             val deviceId: Long,
@@ -253,4 +275,6 @@ private suspend fun ApplicationCall.refuse(error: BatchErrorCode) {
 private fun elapsedMs(startedAt: Long): Long = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
 
 private const val BEARER_PREFIX = "Bearer "
+private const val RECORD_TYPE = "recordType"
+private const val SNAPSHOT_TYPE = "snapshotType"
 private const val READ_CHUNK_BYTES = 8 * 1024

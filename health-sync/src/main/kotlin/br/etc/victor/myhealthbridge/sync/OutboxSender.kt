@@ -6,8 +6,11 @@ import br.etc.victor.myhealthbridge.contract.IngestionBatch
 import br.etc.victor.myhealthbridge.contract.IngestionContract
 import br.etc.victor.myhealthbridge.contract.ItemStatus
 import br.etc.victor.myhealthbridge.contract.RejectionCode
+import br.etc.victor.myhealthbridge.contract.SnapshotBatch
+import br.etc.victor.myhealthbridge.contract.SnapshotObservation
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceCode
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
+import kotlinx.serialization.KSerializer
 
 sealed interface SendResult {
 
@@ -35,26 +38,40 @@ class OutboxSender(
     suspend fun drain(capability: HealthCapability): SendResult {
         val endpoint = endpoints.read() ?: return SendResult.Halted(SyncOutcome.NOT_CONFIGURED)
 
+        return when (capability) {
+            is RecordCapability ->
+                deliver(capability, HealthRecordEnvelope.serializer()) { envelopes ->
+                    client.send(endpoint, IngestionBatch(recordType = capability.recordType, items = envelopes))
+                } ?: declareInventories(endpoint, capability)
+
+            is SnapshotCapability ->
+                deliver(capability, SnapshotObservation.serializer()) { observations ->
+                    client.sendSnapshots(endpoint, SnapshotBatch(snapshotType = capability.snapshotType, items = observations))
+                } ?: SendResult.Drained
+        }
+    }
+
+    /** Null once nothing of [capability] is left in the outbox; otherwise why delivering stopped. */
+    private suspend fun <T : Any> deliver(
+        capability: HealthCapability,
+        serializer: KSerializer<T>,
+        send: suspend (List<T>) -> SendOutcome,
+    ): SendResult.Halted? {
         // Lowered, never raised: the API's own limit is not readable from here, so a refusal for size
         // is the only thing that can tell this side its budget was too generous.
         var budget = policy.maxBatchBytes
 
         while (true) {
-            val items = withinByteBudget(store.pending(capability.recordType, policy.batchItems), budget)
-            if (items.isEmpty()) return declareInventories(endpoint, capability)
+            val items = withinByteBudget(store.pending(capability.wireType, policy.batchItems), budget)
+            if (items.isEmpty()) return null
 
-            val envelopes = items.map { decode(it) }
+            val envelopes = items.map { decode(it, serializer) }
             val undecodable = items.filterIndexed { index, _ -> envelopes[index] == null }
             undecodable.forEach { reject(capability, it.id, listOf(RejectionCode.INVALID_PAYLOAD)) }
             val sendable = items.filterIndexed { index, _ -> envelopes[index] != null }
             if (sendable.isEmpty()) continue
 
-            val batch = IngestionBatch(
-                recordType = capability.recordType,
-                items = envelopes.filterNotNull(),
-            )
-
-            when (val outcome = client.send(endpoint, batch)) {
+            when (val outcome = send(envelopes.filterNotNull())) {
                 SendOutcome.Unreachable -> return SendResult.Halted(SyncOutcome.INGESTION_UNAVAILABLE)
                 is SendOutcome.Refused -> when {
                     outcome.error != BatchErrorCode.BATCH_TOO_LARGE ->
@@ -92,7 +109,7 @@ class OutboxSender(
      * sent at all: neither would be answered differently later, and the next read of its stretch
      * declares it again.
      */
-    private suspend fun declareInventories(endpoint: IngestionEndpoint, capability: HealthCapability): SendResult {
+    private suspend fun declareInventories(endpoint: IngestionEndpoint, capability: RecordCapability): SendResult {
         store.inventories(capability.recordType).forEach { pending ->
             val batch = IngestionBatch(
                 recordType = capability.recordType,
@@ -175,8 +192,8 @@ class OutboxSender(
         store.reject(id, codes)
     }
 
-    private fun decode(item: OutboxItem): HealthRecordEnvelope? = runCatching {
-        IngestionContract.json.decodeFromString(HealthRecordEnvelope.serializer(), item.envelopeJson)
+    private fun <T : Any> decode(item: OutboxItem, serializer: KSerializer<T>): T? = runCatching {
+        IngestionContract.json.decodeFromString(serializer, item.envelopeJson)
     }.getOrNull()
 
     private companion object {

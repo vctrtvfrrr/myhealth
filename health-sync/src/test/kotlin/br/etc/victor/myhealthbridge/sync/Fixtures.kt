@@ -9,6 +9,9 @@ import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthGateway
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
 import br.etc.victor.myhealthbridge.contract.IngestionBatch
+import br.etc.victor.myhealthbridge.contract.ItemResult
+import br.etc.victor.myhealthbridge.contract.ItemStatus
+import br.etc.victor.myhealthbridge.contract.SnapshotBatch
 import br.etc.victor.myhealthbridge.contract.InventoryResult
 import br.etc.victor.myhealthbridge.contract.InventoryStatus
 import br.etc.victor.myhealthbridge.contract.RecordInventory
@@ -165,7 +168,7 @@ fun foreignItem(uid: String): NewOutboxItem = NewOutboxItem(
     enqueuedAt = Instant.parse("2026-08-11T12:00:00Z"),
 )
 
-val heartRate: HealthCapability = HealthCapabilities.of(HealthCategory.HEART_RATE)!!
+val heartRate: RecordCapability = HealthCapabilities.of(HealthCategory.HEART_RATE) as RecordCapability
 
 /** An in-memory outbox and cursor set, keeping the page and its cursor as one write. */
 class FakeSyncStore : SyncStore {
@@ -303,7 +306,19 @@ class FakeEndpointStore(private var endpoint: IngestionEndpoint? = IngestionEndp
 class FakeRecordSource(
     private val pages: List<SamsungHealthOutcome<RecordPage>>,
     private val changePages: List<SamsungHealthOutcome<ChangePage>> = emptyList(),
+    private val aggregates: (SnapshotCapability, AggregateWindow) -> SamsungHealthOutcome<List<SourceAggregate>> =
+        { _, _ -> SamsungHealthOutcome.Observed(emptyList()) },
 ) : HealthRecordSource {
+
+    val aggregateWindows = mutableListOf<AggregateWindow>()
+
+    override suspend fun readAggregates(
+        capability: SnapshotCapability,
+        window: AggregateWindow,
+    ): SamsungHealthOutcome<List<SourceAggregate>> {
+        aggregateWindows += window
+        return aggregates(capability, window)
+    }
 
     val windows = mutableListOf<ReadWindow>()
 
@@ -318,7 +333,7 @@ class FakeRecordSource(
     private val byChangeToken: Map<String?, Int> = tokenIndex(changePages) { it.nextPageToken }
 
     override suspend fun readPage(
-        capability: HealthCapability,
+        capability: RecordCapability,
         window: ReadWindow,
         pageToken: String?,
     ): SamsungHealthOutcome<RecordPage> {
@@ -330,7 +345,7 @@ class FakeRecordSource(
     }
 
     override suspend fun readChanges(
-        capability: HealthCapability,
+        capability: RecordCapability,
         window: ChangeWindow,
         pageToken: String?,
     ): SamsungHealthOutcome<ChangePage> {
@@ -362,9 +377,21 @@ fun changePage(changes: List<SourceChange>, nextPageToken: String? = null): Sams
  * An API answering what [answer] says. An inventory it is not told how to answer is concluded, the way
  * an API that stored every observation before it does.
  */
-class FakeIngestionClient(private val answer: (IngestionBatch) -> SendOutcome) : IngestionClient {
+class FakeIngestionClient(
+    private val snapshotAnswer: (SnapshotBatch) -> SendOutcome = { batch ->
+        SendOutcome.Delivered(batch.items.indices.map { ItemResult(it, ItemStatus.ACCEPTED) })
+    },
+    private val answer: (IngestionBatch) -> SendOutcome,
+) : IngestionClient {
 
     val batches = mutableListOf<IngestionBatch>()
+
+    val snapshotBatches = mutableListOf<SnapshotBatch>()
+
+    override suspend fun sendSnapshots(endpoint: IngestionEndpoint, batch: SnapshotBatch): SendOutcome {
+        snapshotBatches += batch
+        return snapshotAnswer(batch)
+    }
 
     /** What was sent as observations, leaving out the batches that only declared an inventory. */
     val observationBatches: List<IngestionBatch> get() = batches.filter { it.inventory == null }

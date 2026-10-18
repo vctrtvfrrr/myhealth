@@ -15,6 +15,8 @@ object ProjectionAdmin {
 
     const val PROJECTED_PREFIX: String = "projected="
 
+    const val SNAPSHOTS_PROJECTED_PREFIX: String = "projected_snapshots="
+
     fun run(arguments: List<String>, connection: Connection, print: (String) -> Unit) {
         require(arguments.size == 2 && arguments[1] == "rebuild") { USAGE }
 
@@ -23,19 +25,24 @@ object ProjectionAdmin {
             // Discarding first is what makes this a rebuild rather than an update: whatever the table
             // held cannot survive into the result and pass as derived.
             connection.createStatement().use { it.executeUpdate("delete from current_health_record") }
+            connection.createStatement().use { it.executeUpdate("delete from current_observed_snapshot") }
 
-            connection.createStatement().use { statement ->
-                statement.executeQuery(
-                    "select project_current_health_record(array(select id from health_record_identity))",
-                ).use { row ->
-                    check(row.next()) { "the projection returned no row" }
-                    print(PROJECTED_PREFIX + row.getInt(1))
-                }
-            }
+            print(PROJECTED_PREFIX + connection.project("project_current_health_record", "health_record_identity"))
+            print(
+                SNAPSHOTS_PROJECTED_PREFIX +
+                    connection.project("project_current_observed_snapshot", "observed_snapshot"),
+            )
             connection.commit()
         } catch (failure: Throwable) {
             connection.rollback()
             throw failure
+        }
+    }
+
+    private fun Connection.project(function: String, identities: String): Int = createStatement().use { statement ->
+        statement.executeQuery("select $function(array(select id from $identities))").use { row ->
+            check(row.next()) { "the projection returned no row" }
+            row.getInt(1)
         }
     }
 }

@@ -7,6 +7,7 @@ import br.etc.victor.myhealthbridge.contract.IngestionResponse
 import br.etc.victor.myhealthbridge.contract.InventoryResult
 import br.etc.victor.myhealthbridge.contract.ItemResult
 import br.etc.victor.myhealthbridge.contract.ProblemDetails
+import br.etc.victor.myhealthbridge.contract.SnapshotBatch
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -31,6 +32,8 @@ sealed interface SendOutcome {
 interface IngestionClient {
 
     suspend fun send(endpoint: IngestionEndpoint, batch: IngestionBatch): SendOutcome
+
+    suspend fun sendSnapshots(endpoint: IngestionEndpoint, batch: SnapshotBatch): SendOutcome
 }
 
 /**
@@ -71,10 +74,14 @@ class HttpIngestionClient(
 ) : IngestionClient {
 
     override suspend fun send(endpoint: IngestionEndpoint, batch: IngestionBatch): SendOutcome =
+        post(endpoint, IngestionContract.json.encodeToString(IngestionBatch.serializer(), batch), batch.contractVersion)
+
+    override suspend fun sendSnapshots(endpoint: IngestionEndpoint, batch: SnapshotBatch): SendOutcome =
+        post(endpoint, IngestionContract.json.encodeToString(SnapshotBatch.serializer(), batch), batch.contractVersion)
+
+    private suspend fun post(endpoint: IngestionEndpoint, document: String, contractVersion: Int): SendOutcome =
         withContext(Dispatchers.IO) {
-            val body = IngestionContract.json
-                .encodeToString(IngestionBatch.serializer(), batch)
-                .toByteArray()
+            val body = document.toByteArray()
 
             val connection = try {
                 open(endpoint, body.size)
@@ -85,7 +92,7 @@ class HttpIngestionClient(
             try {
                 connection.outputStream.use { it.write(body) }
                 val status = connection.responseCode
-                noticeRecommendation(batch.contractVersion, connection)
+                noticeRecommendation(contractVersion, connection)
                 val answer = (if (status < 400) connection.inputStream else connection.errorStream)
                     ?.use { it.readBytes().decodeToString() }
                     .orEmpty()

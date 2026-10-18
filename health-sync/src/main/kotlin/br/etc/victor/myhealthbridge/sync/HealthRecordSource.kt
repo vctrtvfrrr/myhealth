@@ -48,6 +48,17 @@ data class ChangePage(
     val nextPageToken: String?,
 )
 
+/** The stretch of local time one aggregate read covers, start included and end excluded. */
+data class AggregateWindow(val from: LocalDateTime, val until: LocalDateTime)
+
+/**
+ * What Samsung Health aggregated over the window that starts at [start].
+ *
+ * A window it aggregated nothing over may be left out entirely, and the importer reads its absence as an
+ * empty window.
+ */
+data class SourceAggregate(val start: LocalDateTime, val value: SourceValue?)
+
 /**
  * The replaceable boundary in front of reading Samsung Health, mirroring the permissions gateway:
  * SDK types stay behind it, and a failure answers as an availability rather than as an exception.
@@ -55,7 +66,7 @@ data class ChangePage(
 interface HealthRecordSource {
 
     suspend fun readPage(
-        capability: HealthCapability,
+        capability: RecordCapability,
         window: ReadWindow,
         pageToken: String?,
     ): SamsungHealthOutcome<RecordPage>
@@ -68,8 +79,17 @@ interface HealthRecordSource {
      * to an old record never appears in one again.
      */
     suspend fun readChanges(
-        capability: HealthCapability,
+        capability: RecordCapability,
         window: ChangeWindow,
         pageToken: String?,
     ): SamsungHealthOutcome<ChangePage>
+
+    /**
+     * Every window of [capability] inside [window], grouped in local time by its Snapshot Window, read
+     * whole: unlike a page of records, an aggregate read is bounded by the window it is asked for.
+     */
+    suspend fun readAggregates(
+        capability: SnapshotCapability,
+        window: AggregateWindow,
+    ): SamsungHealthOutcome<List<SourceAggregate>>
 }

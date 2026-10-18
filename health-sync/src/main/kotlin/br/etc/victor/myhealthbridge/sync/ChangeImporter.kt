@@ -26,7 +26,7 @@ class ChangeImporter(
 ) {
 
     /** [resumeFrom] continues a walk this importer paused, which the cursor alone cannot express. */
-    suspend fun import(capability: HealthCapability, resumeFrom: String? = null): ImportResult {
+    suspend fun import(capability: RecordCapability, resumeFrom: String? = null): ImportResult {
         if (!capability.supportsChanges) return ImportResult.Completed
         var cursor = store.cursor(capability.category) ?: return ImportResult.Completed
         // Until the accessible history has been walked once there is nothing here to reflect a change on.
@@ -64,7 +64,7 @@ class ChangeImporter(
         return ImportResult.Completed
     }
 
-    private suspend fun stage(capability: HealthCapability, change: SourceChange): NewOutboxItem = when (change) {
+    private suspend fun stage(capability: RecordCapability, change: SourceChange): NewOutboxItem = when (change) {
         is SourceChange.Upserted -> {
             maintenance.reportUnknownEnums(capability, change.record)
             capability.staged(

@@ -68,6 +68,71 @@ class IngestionStore(
         receivedAt: Instant,
         items: List<ItemValidation>,
         inventory: DeclaredInventory? = null,
+    ): IngestionResponse = transaction(deviceId, contractVersion, receivedAt, items.size) { statements, ingestionId ->
+        val observed = LinkedHashSet<Long>()
+        val results = items.mapIndexed { index, item ->
+            when (item) {
+                is ItemValidation.Invalid -> {
+                    statements.insertRejection(ingestionId, index, item.codes)
+                    ItemResult(index, ItemStatus.REJECTED, item.codes)
+                }
+
+                is ItemValidation.Valid -> {
+                    val stored = statements.store(item.envelope, receivedAt)
+                    statements.insertOutcome(ingestionId, index, stored.status, stored.versionId)
+                    observed += stored.identityId
+                    ItemResult(index, stored.status)
+                }
+            }
+        }
+
+        // Projecting inside the same transaction is what keeps the Current Health Record from
+        // ever describing less than the versions this response reports as durable.
+        statements.project(observed)
+
+        // After the projection, so that an observation delivered beside the inventory already
+        // counts as known and as current when the absences are weighed.
+        val concluded = inventory?.let { statements.conclude(ingestionId, it, receivedAt) }
+
+        IngestionResponse(ingestionId.toString(), results, concluded)
+    }
+
+    /**
+     * Writes a batch of Observed Snapshots on the same terms: one transaction for every observation, every
+     * positional result and the Current Observed Snapshot of every snapshot the batch touched.
+     */
+    fun persistSnapshots(
+        deviceId: Long,
+        contractVersion: Int,
+        receivedAt: Instant,
+        items: List<SnapshotValidation>,
+    ): IngestionResponse = transaction(deviceId, contractVersion, receivedAt, items.size) { statements, ingestionId ->
+        val observed = LinkedHashSet<Long>()
+        val results = items.mapIndexed { index, item ->
+            when (item) {
+                is SnapshotValidation.Invalid -> {
+                    statements.insertRejection(ingestionId, index, item.codes)
+                    ItemResult(index, ItemStatus.REJECTED, item.codes)
+                }
+
+                is SnapshotValidation.Valid -> {
+                    val stored = statements.observe(item.observation, receivedAt)
+                    statements.insertSnapshotOutcome(ingestionId, index, stored.status, stored.versionId)
+                    observed += stored.identityId
+                    ItemResult(index, stored.status)
+                }
+            }
+        }
+        statements.projectSnapshots(observed)
+        IngestionResponse(ingestionId.toString(), results)
+    }
+
+    private fun transaction(
+        deviceId: Long,
+        contractVersion: Int,
+        receivedAt: Instant,
+        itemCount: Int,
+        work: (Statements, UUID) -> IngestionResponse,
     ): IngestionResponse {
         val ingestionId = UUID.randomUUID()
         val deadline = Deadline(timeoutSeconds)
@@ -76,37 +141,13 @@ class IngestionStore(
             connection.autoCommit = false
             try {
                 val statements = Statements(connection, deadline)
-                statements.insertIngestion(ingestionId, deviceId, contractVersion, items.size, receivedAt)
-
-                val observed = LinkedHashSet<Long>()
-                val results = items.mapIndexed { index, item ->
-                    when (item) {
-                        is ItemValidation.Invalid -> {
-                            statements.insertRejection(ingestionId, index, item.codes)
-                            ItemResult(index, ItemStatus.REJECTED, item.codes)
-                        }
-
-                        is ItemValidation.Valid -> {
-                            val stored = statements.store(item.envelope, receivedAt)
-                            statements.insertOutcome(ingestionId, index, stored.status, stored.versionId)
-                            observed += stored.identityId
-                            ItemResult(index, stored.status)
-                        }
-                    }
-                }
-
-                // Projecting inside the same transaction is what keeps the Current Health Record from
-                // ever describing less than the versions this response reports as durable.
-                statements.project(observed)
-
-                // After the projection, so that an observation delivered beside the inventory already
-                // counts as known and as current when the absences are weighed.
-                val concluded = inventory?.let { statements.conclude(ingestionId, it, receivedAt) }
+                statements.insertIngestion(ingestionId, deviceId, contractVersion, itemCount, receivedAt)
+                val response = work(statements, ingestionId)
 
                 // Nothing is committed once the budget is gone: a 503 must never describe stored data.
                 deadline.checkNotExpired()
                 connection.commit()
-                return IngestionResponse(ingestionId.toString(), results, concluded)
+                return response
             } catch (failure: Throwable) {
                 connection.rollback()
                 throw failure
@@ -155,6 +196,44 @@ class IngestionStore(
         )
 
         private val projection = prepare("select project_current_health_record(?)")
+
+        private val snapshotIdentity = prepare(
+            """
+            insert into observed_snapshot (snapshot_type, window_start, window_end) values (?, ?, ?)
+            on conflict (
+                snapshot_type,
+                coalesce(window_start, '-infinity'::timestamp),
+                coalesce(window_end, '-infinity'::timestamp)
+            ) do update set snapshot_type = excluded.snapshot_type
+            returning id
+            """,
+        )
+
+        /**
+         * The observation immediately before the one arriving, in observation time. One read at the same
+         * instant counts as before it, so an identical resend meets itself.
+         */
+        private val predecessor = prepare(
+            """
+            select id, content_digest from snapshot_observation
+            where observed_snapshot_id = ? and observed_at <= ?
+            order by observed_at desc, first_received_at desc, id desc
+            limit 1
+            """,
+        )
+
+        private val snapshotObservation = prepare(
+            """
+            insert into snapshot_observation (
+                observed_snapshot_id, content_digest, snapshot_type, observed_at, observed_at_offset,
+                source_scope, mapper_version, empty, observation, first_received_at
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?, cast(? as jsonb), ?)
+            returning id
+            """,
+        )
+
+        private val snapshotProjection = prepare("select project_current_observed_snapshot(?)")
 
         private val knownIdentities = prepare(
             "select count(*) from health_record_identity where record_type = ? and samsung_uid = any (?)",
@@ -206,6 +285,13 @@ class IngestionStore(
             """,
         )
 
+        private val snapshotItem = prepare(
+            """
+            insert into ingestion_item (ingestion_id, position, status, snapshot_observation_id)
+            values (?, ?, ?, ?)
+            """,
+        )
+
         fun insertIngestion(id: UUID, deviceId: Long, contractVersion: Int, itemCount: Int, receivedAt: Instant) {
             ingestion.setObject(1, id)
             ingestion.setLong(2, deviceId)
@@ -244,6 +330,59 @@ class IngestionStore(
             existingVersion.queryWithinBudget().use { existing ->
                 check(existing.next()) { "the conflicting observed record version disappeared" }
                 return StoredVersion(existing.getLong(1), identityId, ItemStatus.ALREADY_PRESENT)
+            }
+        }
+
+        /**
+         * Stores a snapshot observation only when it differs from its predecessor in observation time;
+         * otherwise the predecessor stands, as the first moment that content was seen. See ADR 0025.
+         *
+         * Comparing with a read is safe here because the identity upsert before it holds the snapshot's
+         * row until this transaction ends, so no concurrent ingestion can slip an observation in between.
+         */
+        fun observe(observation: SnapshotEnvelope, receivedAt: Instant): StoredVersion {
+            val snapshotId = snapshotOf(observation)
+
+            predecessor.setLong(1, snapshotId)
+            predecessor.setUtc(2, observation.observedAt)
+            predecessor.queryWithinBudget().use { row ->
+                if (row.next() && row.getBytes(2).contentEquals(observation.digest)) {
+                    return StoredVersion(row.getLong(1), snapshotId, ItemStatus.ALREADY_PRESENT)
+                }
+            }
+
+            snapshotObservation.setLong(1, snapshotId)
+            snapshotObservation.setBytes(2, observation.digest)
+            snapshotObservation.setString(3, observation.snapshotType)
+            snapshotObservation.setUtc(4, observation.observedAt)
+            snapshotObservation.setString(5, observation.observedAtOffset)
+            snapshotObservation.setString(6, observation.sourceScope)
+            snapshotObservation.setString(7, observation.mapperVersion)
+            snapshotObservation.setBoolean(8, observation.empty)
+            snapshotObservation.setString(9, observation.canonicalJson)
+            snapshotObservation.setUtc(10, receivedAt)
+            snapshotObservation.queryWithinBudget().use { inserted ->
+                check(inserted.next()) { "the snapshot observation insert returned no row" }
+                return StoredVersion(inserted.getLong(1), snapshotId, ItemStatus.ACCEPTED)
+            }
+        }
+
+        /** Recomputes the Current Observed Snapshot of every snapshot this ingestion observed. */
+        fun projectSnapshots(snapshotIds: Set<Long>) {
+            if (snapshotIds.isEmpty()) return
+            snapshotProjection.setArray(1, connection.createArrayOf("bigint", snapshotIds.toTypedArray()))
+            snapshotProjection.queryWithinBudget().use { row ->
+                check(row.next()) { "the snapshot projection returned no row" }
+            }
+        }
+
+        private fun snapshotOf(observation: SnapshotEnvelope): Long {
+            snapshotIdentity.setString(1, observation.snapshotType)
+            snapshotIdentity.setObject(2, observation.windowStart, Types.TIMESTAMP)
+            snapshotIdentity.setObject(3, observation.windowEnd, Types.TIMESTAMP)
+            snapshotIdentity.queryWithinBudget().use { row ->
+                check(row.next()) { "the observed snapshot upsert returned no row" }
+                return row.getLong(1)
             }
         }
 
@@ -337,6 +476,14 @@ class IngestionStore(
             item.setLong(4, versionId)
             item.setArray(5, connection.createArrayOf("text", emptyArray()))
             item.executeWithinBudget()
+        }
+
+        fun insertSnapshotOutcome(ingestionId: UUID, position: Int, status: ItemStatus, observationId: Long) {
+            snapshotItem.setObject(1, ingestionId)
+            snapshotItem.setInt(2, position)
+            snapshotItem.setString(3, status.wireValue)
+            snapshotItem.setLong(4, observationId)
+            snapshotItem.executeWithinBudget()
         }
 
         fun insertRejection(ingestionId: UUID, position: Int, codes: List<RejectionCode>) {

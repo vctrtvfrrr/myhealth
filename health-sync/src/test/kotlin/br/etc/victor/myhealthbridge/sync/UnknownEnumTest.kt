@@ -31,7 +31,7 @@ class UnknownEnumTest {
         override fun map(record: SourceRecord): HealthRecordEnvelope = removalOf(record.uid, record.startTime)
     }
 
-    private val capability = HealthCapability(
+    private val capability = RecordCapability(
         category = HealthCategory.SLEEP,
         recordType = "sleep",
         readOperations = setOf(ReadOperation.TIME_RANGE),

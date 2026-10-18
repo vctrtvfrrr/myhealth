@@ -49,13 +49,16 @@ class UnexpectedFailureTest {
 
         private val nothing = FakeRecordSource(emptyList())
 
-        override suspend fun readPage(capability: HealthCapability, window: ReadWindow, pageToken: String?) =
+        override suspend fun readPage(capability: RecordCapability, window: ReadWindow, pageToken: String?) =
             failIfAsked(capability) ?: sourceOf(capability).readPage(capability, window, pageToken)
 
-        override suspend fun readChanges(capability: HealthCapability, window: ChangeWindow, pageToken: String?) =
+        override suspend fun readChanges(capability: RecordCapability, window: ChangeWindow, pageToken: String?) =
             failIfAsked(capability) ?: sourceOf(capability).readChanges(capability, window, pageToken)
 
-        private fun sourceOf(capability: HealthCapability) = if (capability.category == failing) records else nothing
+        override suspend fun readAggregates(capability: SnapshotCapability, window: AggregateWindow) =
+            failIfAsked(capability) ?: nothing.readAggregates(capability, window)
+
+        private fun sourceOf(capability: RecordCapability) = if (capability.category == failing) records else nothing
 
         private fun failIfAsked(capability: HealthCapability): Nothing? {
             val failure = failure
@@ -77,6 +80,7 @@ class UnexpectedFailureTest {
             permissions = HealthPermissionsService(gateway, InMemoryPermissionHistory(), clock),
             importer = HistoryImporter(source, store, channel, policy, clock),
             changes = ChangeImporter(source, store, channel, policy, clock),
+            snapshots = SnapshotImporter(source, store, policy, clock),
             sender = OutboxSender(store, FakeEndpointStore(), client, channel, policy),
             store = store,
             maintenance = channel,

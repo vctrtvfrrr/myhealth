@@ -4,12 +4,16 @@ import br.etc.victor.myhealthbridge.contract.HealthRecordEnvelope
 import br.etc.victor.myhealthbridge.contract.IngestionContract
 import br.etc.victor.myhealthbridge.contract.RecordInventory
 import br.etc.victor.myhealthbridge.contract.RejectionCode
+import br.etc.victor.myhealthbridge.contract.SnapshotObservation
 import br.etc.victor.myhealthbridge.health.HealthCategory
 import kotlinx.coroutines.flow.Flow
 import java.time.Duration
 import java.time.Instant
 
-/** An envelope waiting to be delivered, as it is about to be staged. */
+/**
+ * An envelope waiting to be delivered, as it is about to be staged. [recordType] is the type its batch
+ * names at the root, a record type or a snapshot type.
+ */
 data class NewOutboxItem(
     val category: HealthCategory,
     val recordType: String,
@@ -19,7 +23,7 @@ data class NewOutboxItem(
 )
 
 /** One observation of this capability, rendered as the outbox keeps it. */
-internal fun HealthCapability.staged(
+internal fun RecordCapability.staged(
     uid: String,
     envelope: HealthRecordEnvelope,
     at: Instant,
@@ -28,6 +32,18 @@ internal fun HealthCapability.staged(
     recordType = recordType,
     samsungUid = uid,
     envelopeJson = IngestionContract.json.encodeToString(HealthRecordEnvelope.serializer(), envelope),
+    enqueuedAt = at,
+)
+
+/**
+ * One observation of this snapshot capability, rendered as the outbox keeps it. It has no Samsung UID,
+ * so the outbox labels it by the start of its window.
+ */
+internal fun SnapshotCapability.staged(observation: SnapshotObservation, at: Instant): NewOutboxItem = NewOutboxItem(
+    category = category,
+    recordType = snapshotType,
+    samsungUid = observation.window?.start ?: snapshotType,
+    envelopeJson = IngestionContract.json.encodeToString(SnapshotObservation.serializer(), observation),
     enqueuedAt = at,
 )
 

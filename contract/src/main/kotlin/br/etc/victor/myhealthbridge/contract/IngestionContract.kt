@@ -12,10 +12,13 @@ import java.math.BigInteger
  * this negotiation exists to prevent.
  */
 object IngestionContract {
-    const val CURRENT_VERSION: Int = 2
+    const val CURRENT_VERSION: Int = 3
 
     /** The first version whose batch may declare a [RecordInventory]. See ADR 0022. */
     const val INVENTORY_VERSION: Int = 2
+
+    /** The first version that may send a [SnapshotBatch]. See ADR 0025. */
+    const val SNAPSHOT_VERSION: Int = 3
 
     /**
      * The bottom of the Supported Contract Range.
@@ -31,7 +34,7 @@ object IngestionContract {
      * It sits inside the Supported Contract Range: a client below it is still accepted, and is only
      * being told that it has fallen behind.
      */
-    const val RECOMMENDED_VERSION: Int = 2
+    const val RECOMMENDED_VERSION: Int = 3
 
     const val MEDIA_TYPE: String = "application/json"
 
