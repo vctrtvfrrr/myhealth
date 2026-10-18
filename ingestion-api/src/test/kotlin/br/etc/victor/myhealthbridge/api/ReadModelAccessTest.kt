@@ -27,6 +27,18 @@ class ReadModelAccessTest : IngestionApiTest() {
             ),
             token,
         )
+        api.postBatch(
+            Envelopes.batch(
+                recordType = Envelopes.SLEEP_RECORD_TYPE,
+                items = listOf(
+                    Envelopes.sleep(
+                        samsungUid = "uid-read-only",
+                        sessions = listOf(Envelopes.sleepSession(stages = listOf(Envelopes.sleepStage()))),
+                    ),
+                ),
+            ),
+            token,
+        )
         grantReadAccess()
 
         asReader { reader ->
@@ -44,6 +56,13 @@ class ReadModelAccessTest : IngestionApiTest() {
                     "select count(*) from read_model.current_exercise_location where samsung_uid = 'uid-read-only'",
                 ),
             )
+            listOf("current_sleep", "current_sleep_session", "current_sleep_stage").forEach { view ->
+                assertEquals(
+                    1,
+                    reader.count("select count(*) from read_model.$view where samsung_uid = 'uid-read-only'"),
+                    view,
+                )
+            }
 
             listOf(
                 "insert into health_record_identity (record_type, samsung_uid) values ('heart_rate', 'uid-forged')",

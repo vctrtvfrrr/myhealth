@@ -110,6 +110,49 @@ fun location(
     accuracy?.let { put("accuracy", number(it)) }
 }
 
+/** A synthetic night of sleep, as the adapter hands one over. Every value is invented. */
+fun sleepRecord(
+    uid: String = "uid-sleep-1",
+    start: Instant = Instant.parse("2026-08-10T02:00:00Z"),
+    end: Instant? = Instant.parse("2026-08-10T09:30:00Z"),
+    updateTime: Instant? = Instant.parse("2026-08-10T09:35:00Z"),
+    duration: String? = "27000.000",
+    score: String? = "82",
+    sessions: List<Map<String, SourceValue>>? = listOf(sleepSession()),
+): SourceRecord = sourceRecord(
+    uid = uid,
+    start = start,
+    end = end,
+    updateTime = updateTime,
+    fields = buildMap {
+        duration?.let { put("sleep_duration", number(it)) }
+        score?.let { put("sleep_score", number(it)) }
+        sessions?.let { put("sessions", SourceValue.Series(it)) }
+    },
+)
+
+fun sleepSession(
+    start: String? = "2026-08-10T02:00:00Z",
+    end: String? = "2026-08-10T09:30:00Z",
+    duration: String? = "27000.000",
+    stages: List<Map<String, SourceValue>> = emptyList(),
+): Map<String, SourceValue> = buildMap {
+    start?.let { put("start_time", SourceValue.Text(it)) }
+    end?.let { put("end_time", SourceValue.Text(it)) }
+    duration?.let { put("duration", number(it)) }
+    if (stages.isNotEmpty()) put("stages", SourceValue.Series(stages))
+}
+
+fun sleepStage(
+    start: String? = "2026-08-10T02:00:00Z",
+    end: String? = "2026-08-10T02:40:00Z",
+    stage: String? = "LIGHT",
+): Map<String, SourceValue> = buildMap {
+    start?.let { put("start_time", SourceValue.Text(it)) }
+    end?.let { put("end_time", SourceValue.Text(it)) }
+    stage?.let { put("stage", SourceValue.Text(it)) }
+}
+
 /** An outbox item of a record type no capability in this test drains. */
 fun foreignItem(uid: String): NewOutboxItem = NewOutboxItem(
     category = HealthCategory.STEPS,

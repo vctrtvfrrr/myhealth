@@ -20,6 +20,7 @@ object NormalizedPayloads {
     private val validators: Map<Pair<String, String>, (JsonObject) -> List<RejectionCode>> = mapOf(
         ("heart_rate" to "samsung-health-heart-rate/1") to ::validateHeartRate,
         ("exercise" to "samsung-health-exercise/1") to ::validateExercise,
+        ("sleep" to "samsung-health-sleep/1") to ::validateSleep,
     )
 
     private val recordTypes: Set<String> = validators.keys.mapTo(mutableSetOf()) { it.first }
@@ -123,6 +124,66 @@ object NormalizedPayloads {
                 coordinates.instant("at")
         }
         return if (valid) emptyList() else listOf(RejectionCode.INVALID_PAYLOAD)
+    }
+
+    /**
+     * Samsung Health does not document the scale of its sleep score, so the bound only catches what no
+     * scale could mean; the read model casts it to an integer, so a fraction is refused here.
+     */
+    private val PLAUSIBLE_SLEEP_SCORE = BigDecimal.ZERO..BigDecimal(1_000)
+
+    /** As long as the longest constant an SDK could plausibly name a stage with, as the exercise type is. */
+    private const val MAX_SLEEP_STAGE_LENGTH = 64
+
+    /**
+     * A night requires nothing beyond its own normalization: a duration, a score or a session the source
+     * did not report is absent. What did arrive is checked down to each stage, because the read model
+     * casts every key of a session and of a stage to the type its name promises.
+     */
+    private fun validateSleep(payload: JsonObject): List<RejectionCode> {
+        val sleep = payload["sleep"] as? JsonObject ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+
+        val codes = mutableListOf<RejectionCode>()
+        codes += quantity(sleep["duration"], SECONDS, PLAUSIBLE_SECONDS)
+        if (!sleep.optionalWhole("score", PLAUSIBLE_SLEEP_SCORE)) codes += RejectionCode.INVALID_PAYLOAD
+        if (!sessions(sleep["sessions"])) codes += RejectionCode.INVALID_PAYLOAD
+
+        return codes
+    }
+
+    private fun sessions(node: JsonElement?): Boolean {
+        if (node == null) return true
+        val sessions = node as? JsonArray ?: return false
+
+        return sessions.all { element ->
+            val session = element as? JsonObject ?: return@all false
+            session.requiredInstant("start") &&
+                session.requiredInstant("end") &&
+                session.optional("durationSeconds", PLAUSIBLE_SECONDS) &&
+                stages(session["stages"])
+        }
+    }
+
+    private fun stages(node: JsonElement?): Boolean {
+        if (node == null) return true
+        val stages = node as? JsonArray ?: return false
+
+        return stages.all { element ->
+            val stage = element as? JsonObject ?: return@all false
+            val name = (stage["stage"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+            stage.requiredInstant("start") &&
+                stage.requiredInstant("end") &&
+                !name.isNullOrEmpty() &&
+                name.length <= MAX_SLEEP_STAGE_LENGTH
+        }
+    }
+
+    private fun JsonObject.requiredInstant(key: String): Boolean = this[key] != null && instant(key)
+
+    private fun JsonObject.optionalWhole(key: String, plausible: ClosedRange<BigDecimal>): Boolean {
+        val node = this[key] ?: return true
+        val value = (node as? JsonPrimitive)?.takeIf { !it.isString }?.decimalOrNull() ?: return false
+        return value.stripTrailingZeros().scale() <= 0 && value in plausible
     }
 
     /** False when the point does not state the measurement: a point without both coordinates is not a location. */

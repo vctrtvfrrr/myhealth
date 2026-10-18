@@ -37,6 +37,24 @@ class HealthCapabilitiesTest {
         assertTrue(capability.projected)
     }
 
+    /**
+     * The stages travel inside the sleep they belong to, and the blood oxygen and skin temperature
+     * Samsung Health associates with a night are records of their own categories, not data of the sleep.
+     */
+    @Test
+    fun `declares sleep end to end, with nothing associated to read beside it`() {
+        val capability = requireNotNull(HealthCapabilities.of(HealthCategory.SLEEP))
+
+        assertEquals(HealthCategory.SLEEP, capability.category)
+        assertEquals("sleep", capability.recordType)
+        assertEquals(SleepMapper, capability.mapper)
+        assertTrue(ReadOperation.TIME_RANGE in capability.readOperations)
+        assertTrue(capability.supportsChanges)
+        assertFalse(capability.hasAssociatedData)
+        assertTrue(capability.pageSize > 0)
+        assertTrue(capability.projected)
+    }
+
     /** The route is read as part of the exercise, so it is never a capability of its own. */
     @Test
     fun `catalogs no capability for the exercise location`() {

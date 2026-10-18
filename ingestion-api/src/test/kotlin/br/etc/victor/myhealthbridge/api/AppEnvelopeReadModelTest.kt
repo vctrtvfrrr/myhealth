@@ -135,6 +135,91 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
         assertEquals(2, versionsOf("uid-golden-routed").size)
     }
 
+    /**
+     * A night carries the stages that only exist inside it: its sessions and their stages reach the read
+     * model as rows of their own, projected out of the envelope the sleep was preserved in.
+     */
+    @Test
+    fun `a night the application mapped becomes queryable, sessions and stages and all`() {
+        val response = api.postBatch("""{"contractVersion":1,"recordType":"sleep","items":[$MAPPED_SLEEP]}""", token)
+
+        assertEquals(200, response.status)
+        assertEquals(listOf("accepted"), statuses(response.body))
+
+        val sleep = row(
+            """
+            select duration_seconds::text, sleep_score::text, period_start, period_start_offset, source_app,
+                   mapper_version
+            from read_model.current_sleep
+            where samsung_uid = ?
+            """.trimIndent(),
+            "uid-golden-sleep",
+        )
+        assertEquals("25200", sleep.getValue("duration_seconds"))
+        assertEquals("82", sleep.getValue("sleep_score"))
+        assertEquals("-03:00", sleep.getValue("period_start_offset"))
+        assertEquals("com.example.shealth", sleep.getValue("source_app"))
+        assertEquals("samsung-health-sleep/1", sleep.getValue("mapper_version"))
+
+        assertEquals(2, countOf(rowsOf("current_sleep_session", "uid-golden-sleep")))
+        val session = row(
+            """
+            select start_at, end_at, duration_seconds::text
+            from read_model.current_sleep_session
+            where samsung_uid = ? and position = 2
+            """.trimIndent(),
+            "uid-golden-sleep",
+        )
+        assertEquals("14400", session.getValue("duration_seconds"))
+
+        val stages = column(
+            """
+            select stage from read_model.current_sleep_stage
+            where samsung_uid = ? order by session_position, position
+            """.trimIndent(),
+            "uid-golden-sleep",
+        )
+        assertEquals(listOf("LIGHT", "DEEP"), stages)
+    }
+
+    /** A removed night takes its sessions and stages with it, and none of it erases what was observed. */
+    @Test
+    fun `a Source Removal takes the night and its stages out of the read model`() {
+        api.postBatch(
+            Envelopes.batch(
+                recordType = Envelopes.SLEEP_RECORD_TYPE,
+                items = listOf(
+                    Envelopes.sleep(
+                        samsungUid = "uid-golden-removed-sleep",
+                        sessions = listOf(Envelopes.sleepSession(stages = listOf(Envelopes.sleepStage()))),
+                    ),
+                ),
+            ),
+            token,
+        )
+        assertEquals(1, countOf(rowsOf("current_sleep_stage", "uid-golden-removed-sleep")))
+
+        val response = api.postBatch(
+            """{"contractVersion":1,"recordType":"sleep","items":[$MAPPED_SLEEP_REMOVAL]}""",
+            token,
+        )
+
+        assertEquals(listOf("accepted"), statuses(response.body))
+        assertEquals(0, countOf(rowsOf("current_sleep", "uid-golden-removed-sleep")))
+        assertEquals(0, countOf(rowsOf("current_sleep_session", "uid-golden-removed-sleep")))
+        assertEquals(0, countOf(rowsOf("current_sleep_stage", "uid-golden-removed-sleep")))
+        assertEquals(2, versionsOf("uid-golden-removed-sleep").size)
+    }
+
+    private fun column(sql: String, samsungUid: String): List<String?> = api.query { connection ->
+        connection.prepareStatement(sql).use { statement ->
+            statement.setString(1, samsungUid)
+            statement.executeQuery().use { rows ->
+                buildList { while (rows.next()) add(rows.getString(1)) }
+            }
+        }
+    }
+
     private fun rowsOf(view: String, samsungUid: String): String =
         "select count(*) from read_model.$view where samsung_uid = '$samsungUid'"
 
@@ -179,6 +264,10 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
         const val MAPPED_ROUTED ="""{"samsungUid":"uid-golden-routed","observedAt":{"instant":"2026-08-09T10:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-exercise/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-09T09:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-09T09:30:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"exercise_type":"BIKING"}},"normalizedPayload":{"exercise":{"type":"BIKING","route":[{"at":"2026-08-09T09:00:00Z","latitudeDegrees":-23.5,"longitudeDegrees":-46.6}]}}}}"""
 
         const val MAPPED_EXERCISE_REMOVAL ="""{"samsungUid":"uid-golden-routed","observedAt":{"instant":"2026-08-12T09:00:00Z","offset":"+00:00"},"mapperVersion":"samsung-health-exercise/1","sourceProvenance":{"sourceApp":{"kind":"unknown"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"removed"}}"""
+
+        const val MAPPED_SLEEP ="""{"samsungUid":"uid-golden-sleep","observedAt":{"instant":"2026-08-10T09:35:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-sleep/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T02:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T09:30:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"sleep_duration":25200.0,"sleep_score":82,"sessions":[{"start_time":"2026-08-10T02:00:00Z","end_time":"2026-08-10T05:00:00Z","duration":10800.0,"stages":[{"start_time":"2026-08-10T02:00:00Z","end_time":"2026-08-10T02:40:00Z","stage":"LIGHT"},{"start_time":"2026-08-10T02:40:00Z","end_time":"2026-08-10T03:30:00Z","stage":"DEEP"}]},{"start_time":"2026-08-10T05:30:00Z","end_time":"2026-08-10T09:30:00Z","duration":14400.0}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"sleep":{"duration":{"value":25200.0,"unit":"s"},"score":82,"sessions":[{"start":"2026-08-10T02:00:00Z","end":"2026-08-10T05:00:00Z","durationSeconds":10800.0,"stages":[{"start":"2026-08-10T02:00:00Z","end":"2026-08-10T02:40:00Z","stage":"LIGHT"},{"start":"2026-08-10T02:40:00Z","end":"2026-08-10T03:30:00Z","stage":"DEEP"}]},{"start":"2026-08-10T05:30:00Z","end":"2026-08-10T09:30:00Z","durationSeconds":14400.0}]}}}}"""
+
+        const val MAPPED_SLEEP_REMOVAL ="""{"samsungUid":"uid-golden-removed-sleep","observedAt":{"instant":"2026-08-12T09:00:00Z","offset":"+00:00"},"mapperVersion":"samsung-health-sleep/1","sourceProvenance":{"sourceApp":{"kind":"unknown"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"removed"}}"""
 
         const val EXERCISE_LOCATIONS =
             "select count(*) from read_model.current_exercise_location where samsung_uid = 'uid-golden-exercise'"

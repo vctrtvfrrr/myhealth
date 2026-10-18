@@ -4,6 +4,7 @@ import com.samsung.android.sdk.health.data.data.entries.ExerciseLocation
 import com.samsung.android.sdk.health.data.data.entries.ExerciseLog
 import com.samsung.android.sdk.health.data.data.entries.ExerciseSession
 import com.samsung.android.sdk.health.data.data.entries.HeartRate
+import com.samsung.android.sdk.health.data.data.entries.SleepSession
 import com.samsung.android.sdk.health.data.data.entries.SwimmingLog
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.DynamicTest
@@ -27,6 +28,8 @@ class NestedEntryCoverageTest {
         coverageOf(ExerciseLog::class.java, exerciseLogEntries),
         coverageOf(SwimmingLog::class.java, swimmingLogEntries),
         coverageOf(SwimmingLog.SwimmingInterval::class.java, swimmingIntervalEntries),
+        coverageOf(SleepSession::class.java, sleepSessionEntries),
+        coverageOf(SleepSession.SleepStage::class.java, sleepStageEntries),
     )
 
     private fun <T> coverageOf(type: Class<T>, entries: Entries<T>): DynamicTest = dynamicTest(type.simpleName) {

@@ -23,6 +23,7 @@ import com.samsung.android.sdk.health.data.data.entries.ExerciseLocation
 import com.samsung.android.sdk.health.data.data.entries.ExerciseLog
 import com.samsung.android.sdk.health.data.data.entries.ExerciseSession
 import com.samsung.android.sdk.health.data.data.entries.HeartRate
+import com.samsung.android.sdk.health.data.data.entries.SleepSession
 import com.samsung.android.sdk.health.data.data.entries.SwimmingLog
 import com.samsung.android.sdk.health.data.request.ChangedDataRequest
 import com.samsung.android.sdk.health.data.request.DataType
@@ -48,6 +49,13 @@ internal val exerciseFields: List<Field<*>> = listOf(
     DataType.ExerciseType.EXERCISE_TYPE,
     DataType.ExerciseType.CUSTOM_TITLE,
     DataType.ExerciseType.SESSIONS,
+)
+
+/** The fields of a sleep record this build reads, pinned to the SDK the same way. */
+internal val sleepFields: List<Field<*>> = listOf(
+    DataType.SleepType.DURATION,
+    DataType.SleepType.SLEEP_SCORE,
+    DataType.SleepType.SESSIONS,
 )
 
 /**
@@ -132,6 +140,7 @@ class SamsungRecordSource(
     ): ReadDataRequest.DualTimeBuilder<HealthDataPoint>? = when (capability.category) {
         HealthCategory.HEART_RATE -> DataTypes.HEART_RATE.readDataRequestBuilder
         HealthCategory.EXERCISE -> DataTypes.EXERCISE.readDataRequestBuilder
+        HealthCategory.SLEEP -> DataTypes.SLEEP.readDataRequestBuilder
         else -> null
     }
 
@@ -140,6 +149,7 @@ class SamsungRecordSource(
     ): ChangedDataRequest.BasicBuilder<HealthDataPoint>? = when (capability.category) {
         HealthCategory.HEART_RATE -> DataTypes.HEART_RATE.changedDataRequestBuilder
         HealthCategory.EXERCISE -> DataTypes.EXERCISE.changedDataRequestBuilder
+        HealthCategory.SLEEP -> DataTypes.SLEEP.changedDataRequestBuilder
         else -> null
     }
 }
@@ -148,6 +158,7 @@ class SamsungRecordSource(
 private fun fieldsOf(capability: HealthCapability): List<Field<*>> = when (capability.category) {
     HealthCategory.HEART_RATE -> heartRateFields
     HealthCategory.EXERCISE -> exerciseFields
+    HealthCategory.SLEEP -> sleepFields
     else -> emptyList()
 }
 
@@ -207,6 +218,8 @@ private fun entryOf(element: Any?): Map<String, SourceValue>? = when (element) {
     is ExerciseLocation -> exerciseLocationEntries.entryOf(element)
     is ExerciseLog -> exerciseLogEntries.entryOf(element)
     is SwimmingLog.SwimmingInterval -> swimmingIntervalEntries.entryOf(element)
+    is SleepSession -> sleepSessionEntries.entryOf(element)
+    is SleepSession.SleepStage -> sleepStageEntries.entryOf(element)
     else -> null
 }
 
@@ -298,4 +311,17 @@ internal val swimmingIntervalEntries: Entries<SwimmingLog.SwimmingInterval> = li
     "stroke_type" to SwimmingLog.SwimmingInterval::strokeType,
     "stroke_count" to SwimmingLog.SwimmingInterval::strokeCount,
     "interval" to SwimmingLog.SwimmingInterval::interval,
+)
+
+internal val sleepSessionEntries: Entries<SleepSession> = listOf(
+    "start_time" to SleepSession::startTime,
+    "end_time" to SleepSession::endTime,
+    "duration" to SleepSession::duration,
+    "stages" to SleepSession::stages,
+)
+
+internal val sleepStageEntries: Entries<SleepSession.SleepStage> = listOf(
+    "start_time" to SleepSession.SleepStage::startTime,
+    "end_time" to SleepSession.SleepStage::endTime,
+    "stage" to SleepSession.SleepStage::stage,
 )

@@ -132,6 +132,79 @@ object Envelopes {
         altitude?.let { put("altitudeMeters", measurement(it)) }
     }
 
+    const val SLEEP_RECORD_TYPE = "sleep"
+    const val SLEEP_MAPPER_VERSION = "samsung-health-sleep/1"
+
+    /** A synthetic night, staged when its sessions say so. */
+    fun sleep(
+        samsungUid: String = "uid-sleep-1",
+        duration: String? = "27000.0",
+        durationUnit: String = "s",
+        score: String? = "82",
+        sessions: List<JsonObject>? = listOf(sleepSession()),
+        mapperVersion: String = SLEEP_MAPPER_VERSION,
+        observedAt: String = "2026-08-10T09:35:00Z",
+        withSleep: Boolean = true,
+    ): JsonObject = buildJsonObject {
+        put("samsungUid", samsungUid)
+        putJsonObject("observedAt") {
+            put("instant", observedAt)
+            put("offset", "-03:00")
+        }
+        put("mapperVersion", mapperVersion)
+        putJsonObject("sourceProvenance") {
+            putJsonObject("sourceApp") { identity("com.example.shealth") }
+            putJsonObject("sourceDevice") { identity("device-1") }
+        }
+        putJsonObject("state") {
+            put("kind", "present")
+            putJsonObject("period") {
+                putJsonObject("start") {
+                    put("instant", "2026-08-10T02:00:00Z")
+                    put("offset", "-03:00")
+                }
+                putJsonObject("end") {
+                    put("instant", "2026-08-10T09:30:00Z")
+                    put("offset", "-03:00")
+                }
+            }
+            putJsonObject("sourcePayload") {
+                putJsonObject("fields") { duration?.let { put("sleep_duration", it.toBigDecimal()) } }
+            }
+            putJsonObject("normalizedPayload") {
+                if (withSleep) {
+                    putJsonObject("sleep") {
+                        quantity("duration", duration, durationUnit)
+                        score?.let { put("score", measurement(it)) }
+                        sessions?.let { put("sessions", JsonArray(it)) }
+                    }
+                }
+            }
+        }
+    }
+
+    fun sleepSession(
+        start: String? = "2026-08-10T02:00:00Z",
+        end: String? = "2026-08-10T09:30:00Z",
+        durationSeconds: String? = "27000.0",
+        stages: List<JsonObject>? = null,
+    ): JsonObject = buildJsonObject {
+        start?.let { put("start", it) }
+        end?.let { put("end", it) }
+        durationSeconds?.let { put("durationSeconds", measurement(it)) }
+        stages?.let { put("stages", JsonArray(it)) }
+    }
+
+    fun sleepStage(
+        start: String? = "2026-08-10T02:00:00Z",
+        end: String? = "2026-08-10T02:40:00Z",
+        stage: String? = "LIGHT",
+    ): JsonObject = buildJsonObject {
+        start?.let { put("start", it) }
+        end?.let { put("end", it) }
+        stage?.let { put("stage", it) }
+    }
+
     /** A number when it is one, so a test can also state what a defective mapper would have put there. */
     private fun measurement(value: String): JsonPrimitive =
         value.toBigDecimalOrNull()?.let(::JsonPrimitive) ?: JsonPrimitive(value)
@@ -148,13 +221,14 @@ object Envelopes {
         samsungUid: String = "uid-1",
         observedAt: String = "2026-08-11T09:00:00Z",
         withPeriod: Boolean = false,
+        mapperVersion: String = MAPPER_VERSION,
     ): JsonObject = buildJsonObject {
         put("samsungUid", samsungUid)
         putJsonObject("observedAt") {
             put("instant", observedAt)
             put("offset", "-03:00")
         }
-        put("mapperVersion", MAPPER_VERSION)
+        put("mapperVersion", mapperVersion)
         putJsonObject("sourceProvenance") {
             putJsonObject("sourceApp") { identity("com.example.shealth") }
             putJsonObject("sourceDevice") { identity(null) }
