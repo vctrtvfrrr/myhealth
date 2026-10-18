@@ -32,6 +32,12 @@ class SyncCursorRowTest {
     }
 
     @Test
+    fun `reads back the records it carries at its position, and none from a row that predates them`() {
+        assertEquals(setOf("uid-a", "uid-b"), row(inventoryCarry = """["uid-a","uid-b"]""").toCursor()!!.inventoryCarry)
+        assertEquals(emptySet<String>(), row(inventoryCarry = null).toCursor()!!.inventoryCarry)
+    }
+
+    @Test
     fun `keeps a row it cannot interpret as an unrecoverable cursor`() {
         assertNotNull(row(readFrom = "not-a-local-time").toCursor()!!.unrecoverable)
         assertNotNull(row(phase = "SOMETHING_ELSE").toCursor()!!.unrecoverable)
@@ -59,6 +65,7 @@ class SyncCursorRowTest {
         readFrom: String = "2026-08-11T12:00",
         initialLoadStart: String? = "2000-01-01T00:00",
         lastOutcome: String? = SyncOutcome.SUCCEEDED.name,
+        inventoryCarry: String? = null,
     ) = SyncCursorEntity(
         categoryId = categoryId,
         phase = phase,
@@ -68,6 +75,7 @@ class SyncCursorRowTest {
         changesFrom = 1_700_000_000_000,
         changesUntil = null,
         lastOverlapAt = 1_700_000_100_000,
+        inventoryCarry = inventoryCarry,
         importedRecords = 7,
         lastAttemptAt = null,
         lastSuccessAt = null,

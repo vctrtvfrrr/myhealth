@@ -35,10 +35,23 @@ data class SyncCursorEntity(
     @ColumnInfo(name = "changes_from") val changesFrom: Long?,
     @ColumnInfo(name = "changes_until") val changesUntil: Long?,
     @ColumnInfo(name = "last_overlap_at") val lastOverlapAt: Long?,
+    @ColumnInfo(name = "inventory_carry") val inventoryCarry: String? = null,
     @ColumnInfo(name = "imported_records") val importedRecords: Long,
     @ColumnInfo(name = "last_attempt_at") val lastAttemptAt: Long?,
     @ColumnInfo(name = "last_success_at") val lastSuccessAt: Long?,
     @ColumnInfo(name = "last_outcome") val lastOutcome: String?,
+)
+
+/** A declared inventory waiting for the API to answer it, kept as its wire document. */
+@Entity(
+    tableName = "pending_inventory",
+    indices = [Index(value = ["record_type", "id"])],
+)
+data class PendingInventoryEntity(
+    @PrimaryKey(autoGenerate = true) @ColumnInfo(name = "id") val id: Long = 0,
+    @ColumnInfo(name = "category_id") val categoryId: String,
+    @ColumnInfo(name = "record_type") val recordType: String,
+    @ColumnInfo(name = "inventory") val inventory: String,
 )
 
 /** The single configured ingestion endpoint; the fixed key is what keeps it single. */

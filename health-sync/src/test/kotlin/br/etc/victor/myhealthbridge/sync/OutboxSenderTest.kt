@@ -69,9 +69,9 @@ class OutboxSenderTest {
 
         sender(client).drain(heartRate)
 
-        assertEquals(listOf(2, 1), client.batches.map { it.items.size })
-        assertEquals(setOf("heart_rate"), client.batches.map { it.recordType }.toSet())
-        assertEquals(setOf(IngestionContract.CURRENT_VERSION), client.batches.map { it.contractVersion }.toSet())
+        assertEquals(listOf(2, 1), client.observationBatches.map { it.items.size })
+        assertEquals(setOf("heart_rate"), client.observationBatches.map { it.recordType }.toSet())
+        assertEquals(setOf(IngestionContract.CURRENT_VERSION), client.observationBatches.map { it.contractVersion }.toSet())
     }
 
     @Test
@@ -123,7 +123,7 @@ class OutboxSenderTest {
         val result = sender(client, policy.copy(maxBatchBytes = oneEnvelope)).drain(heartRate)
 
         assertSame(SendResult.Drained, result)
-        assertEquals(listOf(1, 1), client.batches.map { it.items.size })
+        assertEquals(listOf(1, 1), client.observationBatches.map { it.items.size })
     }
 
     @Test

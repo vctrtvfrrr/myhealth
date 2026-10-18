@@ -1,9 +1,14 @@
 package br.etc.victor.myhealthbridge.api
 
 import br.etc.victor.myhealthbridge.contract.IngestionResponse
+import br.etc.victor.myhealthbridge.contract.InventoryResult
+import br.etc.victor.myhealthbridge.contract.InventoryStatus
 import br.etc.victor.myhealthbridge.contract.ItemResult
 import br.etc.victor.myhealthbridge.contract.ItemStatus
 import br.etc.victor.myhealthbridge.contract.RejectionCode
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.ResultSet
@@ -62,6 +67,7 @@ class IngestionStore(
         contractVersion: Int,
         receivedAt: Instant,
         items: List<ItemValidation>,
+        inventory: DeclaredInventory? = null,
     ): IngestionResponse {
         val ingestionId = UUID.randomUUID()
         val deadline = Deadline(timeoutSeconds)
@@ -93,10 +99,14 @@ class IngestionStore(
                 // ever describing less than the versions this response reports as durable.
                 statements.project(observed)
 
+                // After the projection, so that an observation delivered beside the inventory already
+                // counts as known and as current when the absences are weighed.
+                val concluded = inventory?.let { statements.conclude(ingestionId, it, receivedAt) }
+
                 // Nothing is committed once the budget is gone: a 503 must never describe stored data.
                 deadline.checkNotExpired()
                 connection.commit()
-                return IngestionResponse(ingestionId.toString(), results)
+                return IngestionResponse(ingestionId.toString(), results, concluded)
             } catch (failure: Throwable) {
                 connection.rollback()
                 throw failure
@@ -145,6 +155,49 @@ class IngestionStore(
         )
 
         private val projection = prepare("select project_current_health_record(?)")
+
+        private val knownIdentities = prepare(
+            "select count(*) from health_record_identity where record_type = ? and samsung_uid = any (?)",
+        )
+
+        /**
+         * The Health Records the API holds as present, that start inside the interval in their own local
+         * time, that it knew of before the inventory's stretch was read, and that the inventory leaves out.
+         *
+         * The local start is the UTC instant shifted by the offset it was recorded under, which is the
+         * clock a history read is filtered by. `at time zone` cannot do the shift: it reads a numeric
+         * offset with the POSIX sign, the opposite of ISO 8601.
+         */
+        private val absentees = prepare(
+            """
+            select v.envelope::text
+            from health_record_identity i
+            join current_health_record c on c.health_record_identity_id = i.id
+            join observed_record_version v on v.id = c.observed_record_version_id
+            where i.record_type = ?
+              and v.state = 'present'
+              and (v.period_start at time zone 'UTC') + cast(v.period_start_offset as interval) >= ?
+              and (v.period_start at time zone 'UTC') + cast(v.period_start_offset as interval) < ?
+              and v.observed_at < ?
+              and not (i.samsung_uid = any (?))
+            order by i.id
+            for update of i
+            """,
+        )
+
+        private val inventoryRow = prepare(
+            """
+            insert into declared_inventory (
+                ingestion_id, record_type, interval_start, interval_end, read_at, declared_count, status,
+                removal_count
+            )
+            values (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+        )
+
+        private val concludedRemoval = prepare(
+            "insert into concluded_removal (ingestion_id, observed_record_version_id) values (?, ?)",
+        )
 
         private val item = prepare(
             """
@@ -200,6 +253,80 @@ class IngestionStore(
             projection.setArray(1, connection.createArrayOf("bigint", identityIds.toTypedArray()))
             projection.queryWithinBudget().use { row ->
                 check(row.next()) { "the projection returned no row" }
+            }
+        }
+
+        /**
+         * Concludes a Source Removal for every Health Record the inventory proves absent, as an Observed
+         * Record Version of its own; nothing preserved is touched.
+         *
+         * An inventory naming an identity this API never stored is not trusted at all: its stretch was
+         * declared before every observation in it was confirmed, so what it leaves out may simply not have
+         * arrived yet.
+         */
+        fun conclude(ingestionId: UUID, inventory: DeclaredInventory, receivedAt: Instant): InventoryResult {
+            if (inventory !is DeclaredInventory.Valid) {
+                record(ingestionId, inventory, InventoryStatus.INVALID, removed = emptyList())
+                return InventoryResult(InventoryStatus.INVALID)
+            }
+            if (knownCount(inventory) < inventory.samsungUids.size) {
+                record(ingestionId, inventory, InventoryStatus.INCOMPLETE, removed = emptyList())
+                return InventoryResult(InventoryStatus.INCOMPLETE)
+            }
+
+            val validator = ItemValidator(inventory.recordType)
+            val removed = absenteesOf(inventory).mapNotNull { current ->
+                val removal = validator.validate(concludedRemovalOf(current)) as? ItemValidation.Valid
+                removal?.let { store(it.envelope, receivedAt) }
+            }
+            project(removed.mapTo(LinkedHashSet()) { it.identityId })
+            record(ingestionId, inventory, InventoryStatus.CONCLUDED, removed)
+            return InventoryResult(InventoryStatus.CONCLUDED, removed.count { it.status == ItemStatus.ACCEPTED })
+        }
+
+        private fun knownCount(inventory: DeclaredInventory.Valid): Int {
+            knownIdentities.setString(1, inventory.recordType)
+            knownIdentities.setArray(2, connection.createArrayOf("text", inventory.samsungUids.toTypedArray()))
+            knownIdentities.queryWithinBudget().use { row ->
+                check(row.next()) { "the identity count returned no row" }
+                return row.getInt(1)
+            }
+        }
+
+        private fun absenteesOf(inventory: DeclaredInventory.Valid): List<JsonObject> {
+            absentees.setString(1, inventory.recordType)
+            absentees.setObject(2, inventory.start)
+            absentees.setObject(3, inventory.end)
+            absentees.setUtc(4, inventory.readAt)
+            absentees.setArray(5, connection.createArrayOf("text", inventory.samsungUids.toTypedArray()))
+            absentees.queryWithinBudget().use { rows ->
+                return buildList {
+                    while (rows.next()) add(Json.parseToJsonElement(rows.getString(1)).jsonObject)
+                }
+            }
+        }
+
+        private fun record(
+            ingestionId: UUID,
+            inventory: DeclaredInventory,
+            status: InventoryStatus,
+            removed: List<StoredVersion>,
+        ) {
+            val valid = inventory as? DeclaredInventory.Valid
+            inventoryRow.setObject(1, ingestionId)
+            inventoryRow.setString(2, inventory.recordType)
+            inventoryRow.setObject(3, valid?.start, Types.TIMESTAMP)
+            inventoryRow.setObject(4, valid?.end, Types.TIMESTAMP)
+            inventoryRow.setUtc(5, valid?.readAt)
+            inventoryRow.setInt(6, valid?.samsungUids?.size ?: 0)
+            inventoryRow.setString(7, status.wireValue)
+            inventoryRow.setInt(8, removed.count { it.status == ItemStatus.ACCEPTED })
+            inventoryRow.executeWithinBudget()
+
+            removed.map { it.versionId }.distinct().forEach { versionId ->
+                concludedRemoval.setObject(1, ingestionId)
+                concludedRemoval.setLong(2, versionId)
+                concludedRemoval.executeWithinBudget()
             }
         }
 

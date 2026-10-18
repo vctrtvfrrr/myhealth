@@ -102,7 +102,11 @@ class UnexpectedFailureTest {
     @Test
     fun `reports an exception thrown while delivering a category`() = runTest {
         val failure = IllegalStateException("closed")
-        val client = FakeIngestionClient { throw failure }
+        // Only heart rate: every other category still declares the empty stretch it read.
+        val client = FakeIngestionClient { batch ->
+            if (batch.recordType == heartRate.recordType) throw failure
+            SendOutcome.Delivered(emptyList())
+        }
 
         service(FailingSource(HealthCategory.HEART_RATE, failure = null), client).sync(SyncRun.INITIAL_LOAD)
 

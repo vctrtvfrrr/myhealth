@@ -6,13 +6,17 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import br.etc.victor.myhealthbridge.contract.IngestionContract
+import br.etc.victor.myhealthbridge.contract.RecordInventory
 import br.etc.victor.myhealthbridge.contract.RejectionCode
 import br.etc.victor.myhealthbridge.health.HealthCategory
 import br.etc.victor.myhealthbridge.sync.ImportPhase
 import br.etc.victor.myhealthbridge.sync.IngestionEndpoint
 import br.etc.victor.myhealthbridge.sync.IngestionEndpointStore
 import br.etc.victor.myhealthbridge.sync.InitialLoadWindow
+import br.etc.victor.myhealthbridge.sync.NewInventory
 import br.etc.victor.myhealthbridge.sync.NewOutboxItem
+import br.etc.victor.myhealthbridge.sync.PendingInventory
 import br.etc.victor.myhealthbridge.sync.OutboxItem
 import br.etc.victor.myhealthbridge.sync.OutboxSize
 import br.etc.victor.myhealthbridge.sync.SyncCursor
@@ -21,12 +25,19 @@ import br.etc.victor.myhealthbridge.sync.SyncStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
 import java.time.Instant
 import java.time.LocalDateTime
 
 @Database(
-    entities = [OutboxItemEntity::class, SyncCursorEntity::class, IngestionEndpointEntity::class],
-    version = 2,
+    entities = [
+        OutboxItemEntity::class,
+        SyncCursorEntity::class,
+        IngestionEndpointEntity::class,
+        PendingInventoryEntity::class,
+    ],
+    version = 3,
     exportSchema = false,
 )
 abstract class SyncDatabase : RoomDatabase() {
@@ -36,7 +47,7 @@ abstract class SyncDatabase : RoomDatabase() {
     companion object {
         fun open(context: Context): SyncDatabase =
             Room.databaseBuilder(context.applicationContext, SyncDatabase::class.java, "health-sync.db")
-                .addMigrations(CHANGES_AND_OVERLAP)
+                .addMigrations(CHANGES_AND_OVERLAP, DECLARED_INVENTORY)
                 .build()
 
         /**
@@ -57,6 +68,26 @@ abstract class SyncDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE sync_cursor ADD COLUMN changes_until INTEGER")
                 db.execSQL("ALTER TABLE sync_cursor ADD COLUMN last_overlap_at INTEGER")
                 db.execSQL("UPDATE sync_cursor SET changes_from = ?", arrayOf(System.currentTimeMillis()))
+            }
+        }
+
+        /**
+         * What declaring an inventory needs. A cursor that already exists starts with nothing carried,
+         * which is safe: the next walk re-reads from its position, and the records it carried are read
+         * again there.
+         */
+        private val DECLARED_INVENTORY = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE sync_cursor ADD COLUMN inventory_carry TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS pending_inventory (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, category_id TEXT NOT NULL, " +
+                        "record_type TEXT NOT NULL, inventory TEXT NOT NULL)",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_pending_inventory_record_type_id " +
+                        "ON pending_inventory (record_type, id)",
+                )
             }
         }
     }
@@ -86,8 +117,18 @@ internal class RoomSyncStore(private val dao: SyncDao) : SyncStore {
 
     override suspend fun writeCursor(cursor: SyncCursor) = dao.writeCursor(cursor.toEntity())
 
-    override suspend fun acceptPage(items: List<NewOutboxItem>, cursor: SyncCursor) =
-        dao.acceptPage(items.map(NewOutboxItem::toEntity), cursor.toEntity())
+    override suspend fun acceptPage(items: List<NewOutboxItem>, cursor: SyncCursor, inventory: NewInventory?) =
+        dao.acceptPage(items.map(NewOutboxItem::toEntity), cursor.toEntity(), inventory?.toEntity())
+
+    override suspend fun inventories(recordType: String): List<PendingInventory> =
+        dao.inventories(recordType).mapNotNull { row ->
+            // A row this build cannot read is skipped: it only ever withholds a conclusion.
+            runCatching {
+                PendingInventory(row.id, IngestionContract.json.decodeFromString(RecordInventory.serializer(), row.inventory))
+            }.getOrNull()
+        }
+
+    override suspend fun settleInventory(id: Long) = dao.deleteInventory(id)
 
     override suspend fun pending(recordType: String, limit: Int): List<OutboxItem> =
         dao.pending(recordType, limit).map { OutboxItem(id = it.id, envelopeJson = it.envelope) }
@@ -115,6 +156,14 @@ internal class RoomIngestionEndpointStore(private val dao: SyncDao) : IngestionE
 }
 
 private fun IngestionEndpointEntity.toEndpoint() = IngestionEndpoint(baseUrl, deviceToken)
+
+private fun NewInventory.toEntity() = PendingInventoryEntity(
+    categoryId = category.id,
+    recordType = recordType,
+    inventory = IngestionContract.json.encodeToString(RecordInventory.serializer(), inventory),
+)
+
+private val CARRY = ListSerializer(String.serializer())
 
 private fun NewOutboxItem.toEntity() = OutboxItemEntity(
     categoryId = category.id,
@@ -145,6 +194,7 @@ private fun SyncCursorEntity.readPosition(category: HealthCategory) = SyncCursor
     changesFrom = changesFrom?.let(Instant::ofEpochMilli),
     changesUntil = changesUntil?.let(Instant::ofEpochMilli),
     lastOverlapAt = lastOverlapAt?.let(Instant::ofEpochMilli),
+    inventoryCarry = inventoryCarry?.let { IngestionContract.json.decodeFromString(CARRY, it).toSet() }.orEmpty(),
     importedRecords = importedRecords,
     lastAttemptAt = lastAttemptAt?.let(Instant::ofEpochMilli),
     lastSuccessAt = lastSuccessAt?.let(Instant::ofEpochMilli),
@@ -168,6 +218,8 @@ private fun SyncCursor.toEntity() = SyncCursorEntity(
     changesFrom = changesFrom?.toEpochMilli(),
     changesUntil = changesUntil?.toEpochMilli(),
     lastOverlapAt = lastOverlapAt?.toEpochMilli(),
+    inventoryCarry = inventoryCarry.takeIf { it.isNotEmpty() }
+        ?.let { IngestionContract.json.encodeToString(CARRY, it.sorted()) },
     importedRecords = importedRecords,
     lastAttemptAt = lastAttemptAt?.toEpochMilli(),
     lastSuccessAt = lastSuccessAt?.toEpochMilli(),

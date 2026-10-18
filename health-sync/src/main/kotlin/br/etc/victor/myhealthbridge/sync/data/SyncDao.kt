@@ -21,10 +21,24 @@ abstract class SyncDao {
 
     /** The whole page and the cursor over it, or neither: a cursor must never outrun what is staged. */
     @Transaction
-    open suspend fun acceptPage(items: List<OutboxItemEntity>, cursor: SyncCursorEntity) {
+    open suspend fun acceptPage(
+        items: List<OutboxItemEntity>,
+        cursor: SyncCursorEntity,
+        inventory: PendingInventoryEntity?,
+    ) {
         insertAll(items)
+        inventory?.let { insertInventory(it) }
         writeCursor(cursor)
     }
+
+    @Query("SELECT * FROM pending_inventory WHERE record_type = :recordType ORDER BY id")
+    abstract suspend fun inventories(recordType: String): List<PendingInventoryEntity>
+
+    @Query("DELETE FROM pending_inventory WHERE id = :id")
+    abstract suspend fun deleteInventory(id: Long)
+
+    @Insert
+    protected abstract suspend fun insertInventory(inventory: PendingInventoryEntity)
 
     @Query(
         "SELECT * FROM outbox_item WHERE record_type = :recordType AND rejection_codes IS NULL " +

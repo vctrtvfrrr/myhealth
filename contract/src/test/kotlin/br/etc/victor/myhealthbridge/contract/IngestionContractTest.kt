@@ -11,7 +11,7 @@ class IngestionContractTest {
 
     @Test
     fun `pins the wire version so that a bump is a deliberate change`() {
-        assertEquals(1, IngestionContract.CURRENT_VERSION)
+        assertEquals(2, IngestionContract.CURRENT_VERSION)
     }
 
     @Test
@@ -52,7 +52,7 @@ class IngestionContractTest {
     @Test
     fun `publishes both bounds of the supported contract range`() {
         assertEquals(
-            """{"minimumVersion":1,"maximumVersion":1,"recommendedVersion":1}""",
+            """{"minimumVersion":1,"maximumVersion":2,"recommendedVersion":2}""",
             IngestionContract.json.encodeToString(
                 SupportedContractRange.serializer(),
                 SupportedContractRange.PUBLISHED,
@@ -88,7 +88,7 @@ class IngestionContractTest {
 
         assertEquals(
             """
-            {"recordType":"heart_rate","items":[{"samsungUid":"uid-1","observedAt":{"instant":"2026-08-10T22:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"}},"sourcePayload":{"heart_rate":"72"},"normalizedPayload":{"heartRate":{"value":72,"unit":"/min"}}}}],"contractVersion":1}
+            {"recordType":"heart_rate","items":[{"samsungUid":"uid-1","observedAt":{"instant":"2026-08-10T22:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"}},"sourcePayload":{"heart_rate":"72"},"normalizedPayload":{"heartRate":{"value":72,"unit":"/min"}}}}],"contractVersion":2}
             """.trimIndent(),
             encoded,
         )

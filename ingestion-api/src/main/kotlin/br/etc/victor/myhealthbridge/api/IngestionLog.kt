@@ -33,6 +33,14 @@ object IngestionLog {
             counts[ItemStatus.REJECTED],
             codes,
         )
+        response.inventory?.let { inventory ->
+            logger.info(
+                "ingestion={} inventory={} removals={}",
+                response.ingestionId,
+                inventory.status.wireValue,
+                inventory.removals,
+            )
+        }
     }
 
     fun refused(error: BatchErrorCode) {

@@ -86,6 +86,16 @@ data class SyncCursor(
      * closed once all of it is staged; an interrupted walk repeats it whole, which is idempotent.
      */
     val changesUntil: Instant? = null,
+    /**
+     * The records already read whose local start is exactly [readFrom].
+     *
+     * A page may end in the middle of records sharing one local time, so the stretch that starts there
+     * is only declared by a later page, which may not see them again: a walk resumed from a page token
+     * continues after them. Declaring that stretch without them would conclude their removal. A walk
+     * that starts afresh from [readFrom] re-reads them, so anything that moves [readFrom] other than a
+     * page clears this.
+     */
+    val inventoryCarry: Set<String> = emptySet(),
     /** When the overlap re-read last pulled [readFrom] back, or null while it never has. */
     val lastOverlapAt: Instant? = null,
     /**
@@ -121,11 +131,13 @@ data class SyncCursor(
         lastOverlapAt = null,
         unrecoverable = null,
         importedRecords = 0,
+        inventoryCarry = emptySet(),
     )
 
-    fun advancedTo(readFrom: LocalDateTime, records: Int): SyncCursor = copy(
+    fun advancedTo(readFrom: LocalDateTime, records: Int, carry: Set<String> = emptySet()): SyncCursor = copy(
         readFrom = readFrom,
         importedRecords = importedRecords + records,
+        inventoryCarry = carry,
     )
 
     /** [at] counts as an overlap: the walk that just ended covered the window one would re-read. */
@@ -135,6 +147,7 @@ data class SyncCursor(
             phase = ImportPhase.INCREMENTAL,
             readFrom = maxOf(readFrom, initialLoad?.end ?: readFrom),
             lastOverlapAt = at,
+            inventoryCarry = if (initialLoad?.end?.isAfter(readFrom) == true) emptySet() else inventoryCarry,
         )
 
     /** Fixes the interval a changes read covers, before any of it is read. */
@@ -159,6 +172,7 @@ data class SyncCursor(
     fun withOverlap(window: Duration, at: Instant): SyncCursor = copy(
         readFrom = maxOf(readFrom.minus(window), initialLoad?.start ?: HISTORY_FLOOR),
         lastOverlapAt = at,
+        inventoryCarry = emptySet(),
     )
 
     /**

@@ -9,6 +9,9 @@ import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthGateway
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
 import br.etc.victor.myhealthbridge.contract.IngestionBatch
+import br.etc.victor.myhealthbridge.contract.InventoryResult
+import br.etc.victor.myhealthbridge.contract.InventoryStatus
+import br.etc.victor.myhealthbridge.contract.RecordInventory
 import br.etc.victor.myhealthbridge.maintenance.IncidentIdentity
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceCode
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceIncident
@@ -186,10 +189,25 @@ class FakeSyncStore : SyncStore {
         cursors[cursor.category] = cursor
     }
 
-    override suspend fun acceptPage(items: List<NewOutboxItem>, cursor: SyncCursor) {
+    private val inventories = mutableListOf<StagedInventory>()
+
+    class StagedInventory(val id: Long, val recordType: String, val inventory: RecordInventory)
+
+    val declared: List<StagedInventory> get() = inventories
+
+    override suspend fun acceptPage(items: List<NewOutboxItem>, cursor: SyncCursor, inventory: NewInventory?) {
         items.forEach { this.items += StagedItem(nextId++, it, null) }
+        inventory?.let { inventories += StagedInventory(nextId++, it.recordType, it.inventory) }
         cursors[cursor.category] = cursor
         acceptedPages++
+    }
+
+    override suspend fun inventories(recordType: String): List<PendingInventory> = inventories
+        .filter { it.recordType == recordType }
+        .map { PendingInventory(it.id, it.inventory) }
+
+    override suspend fun settleInventory(id: Long) {
+        inventories.removeAll { it.id == id }
     }
 
     override suspend fun pending(recordType: String, limit: Int): List<OutboxItem> = items
@@ -213,6 +231,7 @@ class FakeSyncStore : SyncStore {
     fun forgetLocalState() {
         cursors.clear()
         items.clear()
+        inventories.clear()
         acceptedPages = 0
     }
 }
@@ -339,13 +358,25 @@ fun page(records: List<SourceRecord>, nextPageToken: String? = null): SamsungHea
 fun changePage(changes: List<SourceChange>, nextPageToken: String? = null): SamsungHealthOutcome<ChangePage> =
     SamsungHealthOutcome.Observed(ChangePage(changes, nextPageToken))
 
+/**
+ * An API answering what [answer] says. An inventory it is not told how to answer is concluded, the way
+ * an API that stored every observation before it does.
+ */
 class FakeIngestionClient(private val answer: (IngestionBatch) -> SendOutcome) : IngestionClient {
 
     val batches = mutableListOf<IngestionBatch>()
 
+    /** What was sent as observations, leaving out the batches that only declared an inventory. */
+    val observationBatches: List<IngestionBatch> get() = batches.filter { it.inventory == null }
+
     override suspend fun send(endpoint: IngestionEndpoint, batch: IngestionBatch): SendOutcome {
         batches += batch
-        return answer(batch)
+        val outcome = answer(batch)
+        return if (batch.inventory != null && outcome is SendOutcome.Delivered && outcome.inventory == null) {
+            outcome.copy(inventory = InventoryResult(InventoryStatus.CONCLUDED))
+        } else {
+            outcome
+        }
     }
 }
 

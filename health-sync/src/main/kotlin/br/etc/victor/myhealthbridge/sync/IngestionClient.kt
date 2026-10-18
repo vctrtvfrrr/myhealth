@@ -4,6 +4,7 @@ import br.etc.victor.myhealthbridge.contract.BatchErrorCode
 import br.etc.victor.myhealthbridge.contract.IngestionBatch
 import br.etc.victor.myhealthbridge.contract.IngestionContract
 import br.etc.victor.myhealthbridge.contract.IngestionResponse
+import br.etc.victor.myhealthbridge.contract.InventoryResult
 import br.etc.victor.myhealthbridge.contract.ItemResult
 import br.etc.victor.myhealthbridge.contract.ProblemDetails
 import kotlinx.coroutines.Dispatchers
@@ -13,8 +14,11 @@ import java.net.URI
 
 sealed interface SendOutcome {
 
-    /** The API evaluated the batch and answered one result per submitted position. */
-    data class Delivered(val results: List<ItemResult>) : SendOutcome
+    /**
+     * The API evaluated the batch and answered one result per submitted position, and what it concluded
+     * from the inventory when the batch declared one.
+     */
+    data class Delivered(val results: List<ItemResult>, val inventory: InventoryResult? = null) : SendOutcome
 
     /** The API refused the whole request, and said why with a stable code. */
     data class Refused(val error: BatchErrorCode) : SendOutcome
@@ -85,7 +89,7 @@ class HttpIngestionClient(
             val response = runCatching {
                 IngestionContract.json.decodeFromString(IngestionResponse.serializer(), answer)
             }.getOrNull() ?: return SendOutcome.Unreachable
-            return SendOutcome.Delivered(response.results)
+            return SendOutcome.Delivered(response.results, response.inventory)
         }
 
         val problem = runCatching {

@@ -257,6 +257,29 @@ object Envelopes {
             put("items", kotlinx.serialization.json.JsonArray(items))
         }.toString()
 
+    /** A batch declaring which Health Records the application saw over a stretch of local time it read whole. */
+    fun inventoryBatch(
+        samsungUids: List<String>,
+        from: String = "2026-08-10T00:00:00",
+        until: String = "2026-08-11T00:00:00",
+        readAt: String = "2026-08-12T10:00:00Z",
+        recordType: String = RECORD_TYPE,
+        contractVersion: Int = 2,
+        items: List<JsonObject> = emptyList(),
+    ): String = buildJsonObject {
+        put("contractVersion", contractVersion)
+        put("recordType", recordType)
+        put("items", JsonArray(items))
+        putJsonObject("inventory") {
+            putJsonObject("interval") {
+                put("start", from)
+                put("end", until)
+            }
+            put("readAt", readAt)
+            put("samsungUids", JsonArray(samsungUids.map(::JsonPrimitive)))
+        }
+    }.toString()
+
     private fun JsonObjectBuilder.identity(id: String?) {
         if (id == null) {
             put("kind", "unknown")

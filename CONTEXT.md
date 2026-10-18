@@ -37,7 +37,7 @@ A value, aggregate, goal, or profile state captured at a known observation time 
 _Avoid_: Health Record, historical measurement
 
 **Source Removal**:
-The observed absence or deletion of a previously imported Health Record in Samsung Health, preserved as an Observed Record Version without biometric content; it changes the current state without erasing the record's ingestion history.
+The observed absence or deletion of a previously imported Health Record in Samsung Health, reported by the Source Change Feed or concluded from a Record Inventory that leaves it out, preserved as an Observed Record Version without biometric content; it changes the current state without erasing the record's ingestion history.
 _Avoid_: Hard delete, purge
 
 **Data Owner**:
@@ -57,7 +57,7 @@ The version of the transport surface shared by the application and the ingestion
 _Avoid_: API version, protocol version, schema version
 
 **Supported Contract Range**:
-The set of Ingestion Contract Versions the API accepts, bounded below by the minimum supported version and above by the maximum, which is the newest version the API itself speaks. Both bounds are published, along with a recommended version that is advice on what to send rather than a bound. The range is currently a single version, and being a range is what allows the two sides to be updated at different moments.
+The set of Ingestion Contract Versions the API accepts, bounded below by the minimum supported version and above by the maximum, which is the newest version the API itself speaks. Both bounds are published, along with a recommended version that is advice on what to send rather than a bound. It spans versions 1 and 2, and being a range is what allows the two sides to be updated at different moments.
 _Avoid_: Supported version, version list
 
 **Contract Incompatibility**:
@@ -93,8 +93,12 @@ A daily re-reading of the last seven days of a Health Category, taken by pulling
 _Avoid_: Backfill, retry window
 
 **Full Reconciliation**:
-A re-reading of the whole accessible history of every granted Health Category, asked for by the Data Owner, trusting no Sync Cursor. It recovers from lost local state or a suspected divergence, and duplicates nothing because a re-read produces the same Observed Record Versions. It cannot recover a Source Removal that was never observed, which no re-reading can.
+A re-reading of the whole accessible history of every granted Health Category, asked for by the Data Owner, trusting no Sync Cursor. It recovers from lost local state or a suspected divergence, and duplicates nothing because a re-read produces the same Observed Record Versions. No re-reading reports a Source Removal that was never observed, but the Record Inventories it declares let the API conclude one.
 _Avoid_: Resync, full sync, repair
+
+**Record Inventory**:
+Every Health Record Identity of a Health Category the application read over a stretch of local time it read in full, declared to the API once every observation read there was settled. A known Health Record the API holds as present inside that stretch, and which the inventory leaves out, is concluded removed at the source; naming a record outside the stretch is harmless, and leaving one inside it out is a removal.
+_Avoid_: Snapshot, manifest, full list
 
 **Full Purge**:
 The removal of everything the ingestion API keeps, asked for by the Data Owner, after which the import starts over from empty. It is the only permanent deletion the system offers: removing part of the Personal Health History is not supported, because nothing would keep the next import from bringing it back.

@@ -20,11 +20,57 @@ class ContractGoldenTest {
         val batch = IngestionBatch(
             recordType = "heart_rate",
             items = listOf(present(), removalWithPeriod(), removalWithoutPeriod()),
+            contractVersion = 1,
         )
 
         assertEquals(
             """{"recordType":"heart_rate","items":[{"samsungUid":"uid-1","observedAt":{"instant":"2026-08-10T22:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"}},"sourcePayload":{"heart_rate":"72"},"normalizedPayload":{"heartRate":{"value":72,"unit":"/min"}}}},{"samsungUid":"uid-2","observedAt":{"instant":"2026-08-11T09:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"unknown"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"removed","period":{"start":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"}}}},{"samsungUid":"uid-3","observedAt":{"instant":"2026-08-11T09:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"unknown"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"removed"}}],"contractVersion":1}""",
             IngestionContract.json.encodeToString(IngestionBatch.serializer(), batch),
+            BUMP,
+        )
+    }
+
+    /** Version 2 adds the inventory and nothing else: every envelope keeps its version 1 shape. */
+    @Test
+    fun `pins the version 2 request document`() {
+        val batch = IngestionBatch(
+            recordType = "heart_rate",
+            items = listOf(removalWithoutPeriod()),
+            contractVersion = 2,
+            inventory = RecordInventory(
+                interval = LocalInterval(start = "2026-08-10T00:00:00", end = "2026-08-11T00:00:00"),
+                readAt = "2026-08-12T10:00:00Z",
+                samsungUids = listOf("uid-1", "uid-2"),
+            ),
+        )
+
+        assertEquals(
+            """{"recordType":"heart_rate","items":[{"samsungUid":"uid-3","observedAt":{"instant":"2026-08-11T09:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"unknown"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"removed"}}],"contractVersion":2,"inventory":{"interval":{"start":"2026-08-10T00:00:00","end":"2026-08-11T00:00:00"},"readAt":"2026-08-12T10:00:00Z","samsungUids":["uid-1","uid-2"]}}""",
+            IngestionContract.json.encodeToString(IngestionBatch.serializer(), batch),
+            BUMP,
+        )
+    }
+
+    @Test
+    fun `pins the version 2 response document`() {
+        val response = IngestionResponse(
+            ingestionId = "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+            results = emptyList(),
+            inventory = InventoryResult(InventoryStatus.CONCLUDED, removals = 2),
+        )
+
+        assertEquals(
+            """{"ingestionId":"3f2504e0-4f89-11d3-9a0c-0305e82c3301","results":[],"inventory":{"status":"concluded","removals":2}}""",
+            IngestionContract.json.encodeToString(IngestionResponse.serializer(), response),
+            BUMP,
+        )
+    }
+
+    @Test
+    fun `pins every published inventory status`() {
+        assertEquals(
+            listOf("concluded", "incomplete", "invalid"),
+            InventoryStatus.entries.map { it.wireValue },
             BUMP,
         )
     }
@@ -139,7 +185,7 @@ class ContractGoldenTest {
     private companion object {
         const val MAPPER_VERSION = "samsung-health-heart-rate/1"
 
-        const val BUMP = "The version 1 wire shape changed. If the change is additive, update this " +
+        const val BUMP = "A published wire shape changed. If the change is additive, update this " +
             "golden. If it is not, bump IngestionContract.CURRENT_VERSION and raise MINIMUM_VERSION " +
             "only once no released client still speaks the old one."
     }

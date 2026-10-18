@@ -41,7 +41,7 @@ class OutboxSender(
 
         while (true) {
             val items = withinByteBudget(store.pending(capability.recordType, policy.batchItems), budget)
-            if (items.isEmpty()) return SendResult.Drained
+            if (items.isEmpty()) return declareInventories(endpoint, capability)
 
             val envelopes = items.map { decode(it) }
             val undecodable = items.filterIndexed { index, _ -> envelopes[index] == null }
@@ -79,6 +79,40 @@ class OutboxSender(
                 }
             }
         }
+    }
+
+    /**
+     * Declares what was read, once nothing read is still waiting to be delivered.
+     *
+     * Waiting for the outbox to drain is what makes an inventory honest: every observation of its
+     * stretch is then either stored by the API or a Mapping Pendency, and the API answers an inventory
+     * naming a pendency it never stored as incomplete instead of concluding anything from it.
+     *
+     * An inventory the API answered is dropped whatever it concluded, and so is one too large to be
+     * sent at all: neither would be answered differently later, and the next read of its stretch
+     * declares it again.
+     */
+    private suspend fun declareInventories(endpoint: IngestionEndpoint, capability: HealthCapability): SendResult {
+        store.inventories(capability.recordType).forEach { pending ->
+            val batch = IngestionBatch(
+                recordType = capability.recordType,
+                items = emptyList(),
+                inventory = pending.inventory,
+            )
+            when (val outcome = client.send(endpoint, batch)) {
+                SendOutcome.Unreachable -> return SendResult.Halted(SyncOutcome.INGESTION_UNAVAILABLE)
+                is SendOutcome.Refused ->
+                    if (outcome.error == BatchErrorCode.BATCH_TOO_LARGE) store.settleInventory(pending.id)
+                    else return SendResult.Halted(outcomeOf(outcome.error))
+
+                is SendOutcome.Delivered -> {
+                    maintenance.resolve(MaintenanceCode.DEVICE_TOKEN_REFUSED)
+                    if (outcome.inventory != null) store.settleInventory(pending.id)
+                    else return SendResult.Halted(SyncOutcome.INGESTION_UNAVAILABLE)
+                }
+            }
+        }
+        return SendResult.Drained
     }
 
     /**

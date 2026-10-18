@@ -99,7 +99,7 @@ class IngestionEndpoint(
                 val validator = ItemValidator(request.recordType)
                 val validated = request.items.map(validator::validate)
 
-                val response = persist(request.deviceId, request.contractVersion, validated)
+                val response = persist(request.deviceId, request.contractVersion, validated, request.inventory)
                     ?: return call.refuse(BatchErrorCode.INGESTION_TEMPORARILY_UNAVAILABLE)
 
                 IngestionLog.ingested(response, request.contractVersion, elapsedMs(startedAt))
@@ -150,14 +150,22 @@ class IngestionEndpoint(
         if (items.size > config.maxItems) return BatchRequest.Refused(BatchErrorCode.TOO_MANY_ITEMS)
 
         val recordType = (root["recordType"] as? JsonPrimitive)?.takeIf { it.isString }?.content
-
-        // An empty batch carries no observation, so accepting it would only record an unusable ingestion.
-        if (recordType.isNullOrEmpty() || items.isEmpty()) {
-            return BatchRequest.Refused(BatchErrorCode.INVALID_BATCH)
-        }
+        if (recordType.isNullOrEmpty()) return BatchRequest.Refused(BatchErrorCode.INVALID_BATCH)
 
         // Safe: a version inside the range is one this build speaks, so it fits an Int by construction.
-        return BatchRequest.Accepted(deviceId, declaredVersion.toInt(), recordType, items)
+        val contractVersion = declaredVersion.toInt()
+
+        // A version that predates inventories never had one to send, so whatever it carries under that
+        // name is an unknown property, ignored like any other, and concludes nothing.
+        val inventory = root["inventory"]
+            ?.takeIf { contractVersion >= IngestionContract.INVENTORY_VERSION }
+            ?.let { DeclaredInventory.read(recordType, it) }
+
+        // An empty batch carries no observation, so accepting it would only record an unusable ingestion.
+        // One that declares an inventory carries an absence, which is what it was sent for.
+        if (items.isEmpty() && inventory == null) return BatchRequest.Refused(BatchErrorCode.INVALID_BATCH)
+
+        return BatchRequest.Accepted(deviceId, contractVersion, recordType, items, inventory)
     }
 
     /**
@@ -168,8 +176,9 @@ class IngestionEndpoint(
         deviceId: Long,
         contractVersion: Int,
         validated: List<ItemValidation>,
+        inventory: DeclaredInventory?,
     ): IngestionResponse? = try {
-        withContext(Dispatchers.IO) { store.persist(deviceId, contractVersion, Instant.now(), validated) }
+        withContext(Dispatchers.IO) { store.persist(deviceId, contractVersion, Instant.now(), validated, inventory) }
     } catch (failure: Exception) {
         IngestionLog.unavailable(failure)
         null
@@ -183,6 +192,7 @@ class IngestionEndpoint(
             val contractVersion: Int,
             val recordType: String,
             val items: List<JsonElement>,
+            val inventory: DeclaredInventory?,
         ) : BatchRequest
     }
 }

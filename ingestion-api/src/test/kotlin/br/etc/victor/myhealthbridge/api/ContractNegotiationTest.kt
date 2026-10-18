@@ -16,8 +16,7 @@ import org.junit.jupiter.api.Test
 /**
  * Discovering whether this client is still spoken to, and being told so in a way it can act on.
  *
- * The Supported Contract Range is a single version today, so the range is exercised through both of
- * its edges rather than through a second accepted version. See ADR 0007.
+ * The range is exercised through both of its edges and through every version inside it. See ADR 0007.
  */
 @Tag("integration")
 class ContractNegotiationTest : IngestionApiTest() {

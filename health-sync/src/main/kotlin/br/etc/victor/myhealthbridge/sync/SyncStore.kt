@@ -2,6 +2,7 @@ package br.etc.victor.myhealthbridge.sync
 
 import br.etc.victor.myhealthbridge.contract.HealthRecordEnvelope
 import br.etc.victor.myhealthbridge.contract.IngestionContract
+import br.etc.victor.myhealthbridge.contract.RecordInventory
 import br.etc.victor.myhealthbridge.contract.RejectionCode
 import br.etc.victor.myhealthbridge.health.HealthCategory
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +29,19 @@ internal fun HealthCapability.staged(
     samsungUid = uid,
     envelopeJson = IngestionContract.json.encodeToString(HealthRecordEnvelope.serializer(), envelope),
     enqueuedAt = at,
+)
+
+/** An inventory waiting to be declared, as it is about to be staged. */
+data class NewInventory(
+    val category: HealthCategory,
+    val recordType: String,
+    val inventory: RecordInventory,
+)
+
+/** A staged inventory the sender is about to declare. */
+data class PendingInventory(
+    val id: Long,
+    val inventory: RecordInventory,
 )
 
 /** A staged envelope the sender is about to deliver. */
@@ -63,8 +77,14 @@ interface SyncStore {
 
     suspend fun writeCursor(cursor: SyncCursor)
 
-    /** Stages a whole page and advances its cursor in one transaction, or neither. */
-    suspend fun acceptPage(items: List<NewOutboxItem>, cursor: SyncCursor)
+    /**
+     * Stages a whole page and advances its cursor in one transaction, or neither.
+     *
+     * The [inventory] of the stretch the page closes goes in the same transaction: the cursor that moves
+     * past a stretch is what keeps it from being read again, so a declaration staged apart from it could
+     * be lost between the two writes.
+     */
+    suspend fun acceptPage(items: List<NewOutboxItem>, cursor: SyncCursor, inventory: NewInventory? = null)
 
     suspend fun pending(recordType: String, limit: Int): List<OutboxItem>
 
@@ -77,6 +97,12 @@ interface SyncStore {
 
     /** Keeps a rejected item as a mapping pendency, out of every later batch. */
     suspend fun reject(id: Long, codes: List<RejectionCode>)
+
+    /** The inventories staged for [recordType], in the order their stretches were read. */
+    suspend fun inventories(recordType: String): List<PendingInventory>
+
+    /** Drops an inventory the API answered, whatever it concluded from it. */
+    suspend fun settleInventory(id: Long)
 }
 
 /** The ingestion API this device delivers to. */

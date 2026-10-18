@@ -86,7 +86,7 @@ class SyncServiceTest {
 
         service.sync()
 
-        assertEquals(listOf("uid-1"), client.batches.single().items.map { it.samsungUid })
+        assertEquals(listOf("uid-1"), client.observationBatches.single().items.map { it.samsungUid })
         assertTrue(store.staged.isEmpty())
         assertEquals(SyncOutcome.SUCCEEDED, cursor()!!.lastOutcome)
         assertEquals(now, cursor()!!.lastSuccessAt)
@@ -159,7 +159,7 @@ class SyncServiceTest {
             client = client,
         ).sync()
 
-        assertEquals(listOf("uid-1"), client.batches.single().items.map { it.samsungUid })
+        assertEquals(listOf("uid-1"), client.observationBatches.single().items.map { it.samsungUid })
         assertEquals(now, cursor()!!.changesFrom, "the interval that completed, not a time inside it")
         assertEquals(SyncOutcome.SUCCEEDED, cursor()!!.lastOutcome)
     }
@@ -205,7 +205,7 @@ class SyncServiceTest {
         service.sync()
 
         assertEquals(HISTORY_FLOOR, source.windows.first().from)
-        assertEquals(listOf("uid-1"), client.batches.single().items.map { it.samsungUid })
+        assertEquals(listOf("uid-1"), client.observationBatches.single().items.map { it.samsungUid })
         assertTrue(store.staged.isEmpty(), "an observation the API already holds leaves the outbox")
         assertEquals(ImportPhase.INCREMENTAL, cursor()!!.phase)
     }
@@ -222,7 +222,7 @@ class SyncServiceTest {
         service.sync()
 
         assertEquals(HISTORY_FLOOR, source.windows.first().from)
-        assertEquals(listOf("uid-1"), client.batches.single().items.map { it.samsungUid })
+        assertEquals(listOf("uid-1"), client.observationBatches.single().items.map { it.samsungUid })
         assertTrue(store.staged.isEmpty())
     }
 

@@ -12,14 +12,16 @@ import java.math.BigInteger
  * this negotiation exists to prevent.
  */
 object IngestionContract {
-    const val CURRENT_VERSION: Int = 1
+    const val CURRENT_VERSION: Int = 2
+
+    /** The first version whose batch may declare a [RecordInventory]. See ADR 0022. */
+    const val INVENTORY_VERSION: Int = 2
 
     /**
      * The bottom of the Supported Contract Range.
      *
-     * It equals [CURRENT_VERSION] because only one version has ever existed, and it is a separate
-     * constant because the two mean different things: one is what this build speaks, the other is the
-     * oldest it still accepts. See ADR 0007.
+     * Version 1 stays accepted: an application that has not been updated keeps delivering observations,
+     * and only loses the removals a declared inventory would have concluded. See ADR 0007.
      */
     const val MINIMUM_VERSION: Int = 1
 
@@ -29,7 +31,7 @@ object IngestionContract {
      * It sits inside the Supported Contract Range: a client below it is still accepted, and is only
      * being told that it has fallen behind.
      */
-    const val RECOMMENDED_VERSION: Int = 1
+    const val RECOMMENDED_VERSION: Int = 2
 
     const val MEDIA_TYPE: String = "application/json"
 
