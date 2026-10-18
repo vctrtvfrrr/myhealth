@@ -225,6 +225,7 @@ private fun outcomeLabel(outcome: SyncOutcome): Int = when (outcome) {
     SyncOutcome.CONTRACT_INCOMPATIBLE -> R.string.sync_outcome_contract_incompatible
     SyncOutcome.OUTBOX_FULL -> R.string.sync_outcome_outbox_full
     SyncOutcome.CURSOR_UNRECOVERABLE -> R.string.sync_outcome_cursor_unrecoverable
+    SyncOutcome.UNEXPECTED_FAILURE -> R.string.sync_outcome_unexpected_failure
 }
 
 private val instantFormat: DateTimeFormatter =

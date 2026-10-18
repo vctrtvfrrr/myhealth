@@ -40,6 +40,7 @@
     <string name="sync_outcome_ingestion_unavailable">A API de ingestão não respondeu na última tentativa.</string>
     <string name="sync_outcome_contract_incompatible">O aplicativo e a API falam versões diferentes do contrato de ingestão.</string>
     <string name="sync_outcome_outbox_full">A outbox atingiu o limite e a leitura pausou até a entrega avançar.</string>
+    <string name="sync_outcome_unexpected_failure">A última tentativa falhou por um defeito no código. Veja a aba Diagnóstico.</string>
     <string name="sync_outcome_cursor_unrecoverable">A posição de leitura desta categoria foi perdida. Todo o histórico acessível será lido novamente.</string>
 
 </resources>

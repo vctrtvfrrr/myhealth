@@ -8,6 +8,7 @@ import br.etc.victor.myhealthbridge.maintenance.MaintenanceCode
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
 import java.time.Clock
 import java.time.LocalDateTime
+import kotlin.coroutines.cancellation.CancellationException
 
 /** What a synchronization run is asked to do before it delivers, beyond reading on. */
 enum class SyncRun {
@@ -72,7 +73,26 @@ class SyncService(
         }
     }
 
-    suspend fun sync() {
+    /**
+     * Runs [run] over every capability.
+     *
+     * An exception nobody anticipated becomes a Maintenance Incident instead of ending the run without
+     * a trace: thrown inside a category, it stays that category's and the others go on; thrown before
+     * any category was reached, it names none. A run that gets through without one ends it.
+     */
+    suspend fun sync(run: SyncRun = SyncRun.INCREMENTAL) {
+        val completed = reportingUnexpectedFailure(category = null) {
+            when (run) {
+                SyncRun.INCREMENTAL -> Unit
+                SyncRun.INITIAL_LOAD -> startInitialLoad()
+                SyncRun.FULL_RECONCILIATION -> reconcile()
+            }
+            syncEveryCapability()
+        }
+        if (completed != null) maintenance.resolveEvery(MaintenanceCode.UNEXPECTED_FAILURE)
+    }
+
+    private suspend fun syncEveryCapability() {
         val attemptedAt = clock.instant()
         val check = permissions.check()
         var anySucceeded = false
@@ -86,7 +106,8 @@ class SyncService(
         }
 
         HealthCapabilities.entries.forEach { capability ->
-            val outcome = run(capability, check)
+            val outcome = reportingUnexpectedFailure(capability.category) { run(capability, check) }
+                ?: SyncOutcome.UNEXPECTED_FAILURE
             if (outcome == SyncOutcome.SUCCEEDED) {
                 anySucceeded = true
                 resolveWhatSuccessDisproves(capability)
@@ -202,7 +223,19 @@ class SyncService(
     private suspend fun resolveWhatSuccessDisproves(capability: HealthCapability) {
         maintenance.resolve(MaintenanceCode.UNRECOVERABLE_CURSOR, capability.category)
         maintenance.resolve(MaintenanceCode.CONTRACT_INCOMPATIBLE)
+        maintenance.resolveEvery(MaintenanceCode.UNEXPECTED_FAILURE, capability.category)
     }
+
+    /** Null when [work] threw, which has then been reported; cancellation is not a failure and passes. */
+    private suspend fun <T> reportingUnexpectedFailure(category: HealthCategory?, work: suspend () -> T): T? =
+        try {
+            work()
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (failure: Throwable) {
+            maintenance.reportUnexpectedFailure(failure, category)
+            null
+        }
 
     /**
      * Pulls the read back over the overlap window when one is due.

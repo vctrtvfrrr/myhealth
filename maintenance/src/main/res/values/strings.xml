@@ -23,6 +23,9 @@
     <string name="maintenance_unsupported_platform">Samsung Health não suportado</string>
     <string name="maintenance_unsupported_platform_action">Esta versão do Samsung Health não atende ao aplicativo. Verifique a versão exigida pelo SDK fixado.</string>
 
+    <string name="maintenance_unexpected_failure">Falha inesperada na sincronização</string>
+    <string name="maintenance_unexpected_failure_action">A sincronização lançou uma exceção que o código não trata, do tipo indicado. Corrija o código e publique uma nova versão; as demais categorias continuam sincronizando até lá.</string>
+
     <string name="maintenance_samsung_health_unreachable">Samsung Health sem resposta há 24 horas</string>
     <string name="maintenance_samsung_health_unreachable_action">Nenhuma sincronização foi concluída no último dia porque o Samsung Health não respondeu. Verifique se o aplicativo continua instalado e autorizado.</string>
 

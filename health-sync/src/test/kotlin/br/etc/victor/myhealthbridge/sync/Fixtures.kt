@@ -244,6 +244,9 @@ class FakeMaintenance : MaintenanceStore, MaintenanceNotifier {
     override suspend fun transient(): List<MaintenanceIncident> =
         incidents.values.filter { it.identity.code.transient }
 
+    override suspend fun incidentsOf(code: MaintenanceCode): List<MaintenanceIncident> =
+        incidents.values.filter { it.identity.code == code }
+
     override suspend fun forget(identities: List<IncidentIdentity>) {
         identities.forEach { incidents.remove(it.key) }
     }

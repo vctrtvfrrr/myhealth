@@ -21,6 +21,9 @@ class InMemoryMaintenanceStore : MaintenanceStore {
     override suspend fun transient(): List<MaintenanceIncident> =
         incidents.value.values.filter { it.identity.code.transient }
 
+    override suspend fun incidentsOf(code: MaintenanceCode): List<MaintenanceIncident> =
+        incidents.value.values.filter { it.identity.code == code }
+
     override suspend fun forget(identities: List<IncidentIdentity>) {
         incidents.value = incidents.value - identities.map { it.key }.toSet()
     }

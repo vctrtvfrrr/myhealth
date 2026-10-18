@@ -87,12 +87,5 @@ class SyncGraph(context: Context) {
      * One run at a time: the hourly schedule and a manual request are separate WorkManager requests,
      * and two of them reading the same cursor would each import what the other already staged.
      */
-    suspend fun sync(run: SyncRun) = runs.withLock {
-        when (run) {
-            SyncRun.INCREMENTAL -> Unit
-            SyncRun.INITIAL_LOAD -> service.startInitialLoad()
-            SyncRun.FULL_RECONCILIATION -> service.reconcile()
-        }
-        service.sync()
-    }
+    suspend fun sync(run: SyncRun) = runs.withLock { service.sync(run) }
 }

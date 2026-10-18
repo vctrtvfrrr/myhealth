@@ -28,6 +28,9 @@ enum class SyncOutcome {
 
     /** The stored cursor could not say where the import stood, so the whole history is read again. */
     CURSOR_UNRECOVERABLE,
+
+    /** The run threw an exception the code does not handle, which only a change to the code fixes. */
+    UNEXPECTED_FAILURE,
 }
 
 /**

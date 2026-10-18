@@ -1,6 +1,7 @@
 package br.etc.victor.myhealthbridge.sync
 
 import br.etc.victor.myhealthbridge.contract.RejectionCode
+import br.etc.victor.myhealthbridge.health.HealthCategory
 import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceCode
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
@@ -44,3 +45,12 @@ internal suspend fun MaintenanceService.reportUnavailable(availability: SamsungH
         else -> MaintenanceCode.SAMSUNG_HEALTH_UNREACHABLE
     },
 )
+
+/**
+ * The synchronization threw something the code does not handle.
+ *
+ * The type is the detail because the code defines it and it tells two defects apart. The message and
+ * the stack trace are left out on purpose: either can be built out of what was being read.
+ */
+internal suspend fun MaintenanceService.reportUnexpectedFailure(failure: Throwable, category: HealthCategory?) =
+    report(MaintenanceCode.UNEXPECTED_FAILURE, category, detail = failure.javaClass.name)

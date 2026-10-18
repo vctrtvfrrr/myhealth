@@ -14,6 +14,8 @@ interface MaintenanceStore {
     /** The open incidents a successful synchronization would end. */
     suspend fun transient(): List<MaintenanceIncident>
 
+    suspend fun incidentsOf(code: MaintenanceCode): List<MaintenanceIncident>
+
     suspend fun forget(identities: List<IncidentIdentity>)
 
     fun observe(): Flow<List<MaintenanceIncident>>
@@ -73,6 +75,18 @@ class MaintenanceService(
 
         notifier.withdraw(identity)
         store.forget(listOf(identity))
+    }
+
+    /**
+     * Ends every incident of [code] in [category] whatever its detail, because a run got through
+     * without meeting any of them. [category] null means the incidents that name no category.
+     */
+    suspend fun resolveEvery(code: MaintenanceCode, category: HealthCategory? = null) {
+        val open = store.incidentsOf(code).filter { it.identity.category == category }
+        if (open.isEmpty()) return
+
+        open.forEach { notifier.withdraw(it.identity) }
+        store.forget(open.map { it.identity })
     }
 
     /**

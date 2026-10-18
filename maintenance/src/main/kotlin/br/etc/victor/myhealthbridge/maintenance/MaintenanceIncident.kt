@@ -60,6 +60,12 @@ enum class MaintenanceCode(
         action = R.string.maintenance_unsupported_platform_action,
     ),
 
+    UNEXPECTED_FAILURE(
+        id = "unexpected_failure",
+        title = R.string.maintenance_unexpected_failure,
+        action = R.string.maintenance_unexpected_failure_action,
+    ),
+
     SAMSUNG_HEALTH_UNREACHABLE(
         id = "samsung_health_unreachable",
         title = R.string.maintenance_samsung_health_unreachable,

@@ -39,6 +39,10 @@ internal class RoomMaintenanceStore(private val dao: MaintenanceDao) : Maintenan
         .incidentsOf(MaintenanceCode.entries.filter { it.transient }.map { it.id })
         .mapNotNull(MaintenanceIncidentEntity::toIncident)
 
+    override suspend fun incidentsOf(code: MaintenanceCode): List<MaintenanceIncident> = dao
+        .incidentsOf(listOf(code.id))
+        .mapNotNull(MaintenanceIncidentEntity::toIncident)
+
     override suspend fun forget(identities: List<IncidentIdentity>) = dao.forget(identities.map { it.key })
 
     override fun observe(): Flow<List<MaintenanceIncident>> =
