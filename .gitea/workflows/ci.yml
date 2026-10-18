@@ -16,8 +16,14 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
+      # The whole history and its tags, because the release version is read from the commits since
+      # the last release tag.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-java@v4
         with:
@@ -44,15 +50,25 @@ jobs:
           curl -fsSL -H "Authorization: Bearer $SAMSUNG_HEALTH_SDK_TOKEN" \
             "$SAMSUNG_HEALTH_SDK_URL" -o android-app/libs/samsung-health-data-api-1.1.0.aar
 
-      # The release APK is signed further down, and only on master, so every other revision verifies
-      # the debug variant.
+      # Empty when the commits since the last release ship no change, and then nothing is released.
+      - name: Decide the release version
+        id: version
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          version="$(bash .gitea/scripts/next-version.sh HEAD)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Release version: ${version:-none}"
+
+      # The release APK is signed further down, and only for a release, so every other revision
+      # verifies the debug variant.
       - run: ./gradlew check :android-app:assembleDebug --no-daemon
 
       # The key never meets a revision that is not already on master: the build it drives is that
       # revision's own code, so any branch reaching this step could copy the key anywhere.
       - name: Build the signed release APK
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: steps.version.outputs.version != ''
         env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
           RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           MYHEALTH_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
           MYHEALTH_RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
@@ -67,9 +83,13 @@ jobs:
           export MYHEALTH_RELEASE_KEYSTORE="$RUNNER_TEMP/myhealth-release-$GITHUB_RUN_ID.jks"
           trap 'rm -f "$MYHEALTH_RELEASE_KEYSTORE"' EXIT
           (umask 077 && printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > "$MYHEALTH_RELEASE_KEYSTORE")
-          ./gradlew :android-app:assembleRelease --no-daemon
+          ./gradlew :android-app:assembleRelease --no-daemon "-Pmyhealth.version=$RELEASE_VERSION"
 
-      - run: ./gradlew :ingestion-api:buildImage --no-daemon
+      - name: Build the image
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ./gradlew :ingestion-api:buildImage --no-daemon "-Pmyhealth.revision=$TAG" ${RELEASE_VERSION:+"-Pmyhealth.version=$RELEASE_VERSION"}
 
       - name: Verify the image runs as uid 1000
         run: test "$(docker run --rm --entrypoint id myhealth-api:local -u)" = "1000"
@@ -79,13 +99,16 @@ jobs:
       - name: Name the image after the commit
         run: docker tag myhealth-api:local "${IMAGE}:${TAG}"
 
-      - name: Publish the APK as a build artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+      # Only hands the APK to the release job, which may run in another workspace; the release is
+      # where it is published.
+      - name: Hand the APK to the release job
+        if: steps.version.outputs.version != ''
         uses: actions/upload-artifact@v7
         with:
           name: myhealth-bridge-${{ github.sha }}
           path: android-app/build/outputs/apk/release/android-app-release.apk
           if-no-files-found: error
+          retention-days: 1
 
   deploy:
     needs: build
@@ -144,3 +167,54 @@ jobs:
           echo "::error::the API never became healthy after the deploy"
           docker logs --tail 50 myhealth-api || true
           exit 1
+
+  # Only once the API is serving does the version exist: a release names an APK and an API that
+  # actually run together.
+  release:
+    needs: [build, deploy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.build.outputs.version != ''
+    runs-on: ubuntu-latest
+    permissions:
+      code: read
+      releases: write
+    env:
+      RELEASE_VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install release tools
+        run: |
+          if ! command -v jq >/dev/null; then
+            apt-get update
+            apt-get install --yes --no-install-recommends jq
+          fi
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: myhealth-bridge-${{ github.sha }}
+          path: release
+
+      - name: Publish the release
+        env:
+          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_APK: release/android-app-release.apk
+          GITEA_API_URL: ${{ gitea.api_url }}
+          GITEA_REPOSITORY: ${{ gitea.repository }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: bash .gitea/scripts/release.sh
+
+      - name: Registry login
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ gitea.actor }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+
+      # After the release, so a version whose tag belongs to another commit never names this image.
+      - name: Name the image after the version
+        run: |
+          docker tag "${IMAGE}:${TAG}" "${IMAGE}:${RELEASE_VERSION}"
+          docker push "${IMAGE}:${RELEASE_VERSION}"

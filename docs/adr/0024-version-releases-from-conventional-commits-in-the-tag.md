@@ -1,0 +1,11 @@
+# Version releases from Conventional Commits in the tag
+
+Every push to master that ships a change is released by the pipeline, with no hand-edited number anywhere. The version is computed from the Conventional Commits since the last `vMAJOR.MINOR.PATCH` tag: `feat` moves the minor version, `fix`, `perf`, `refactor` and `revert` move the patch, and a breaking change moves the major, except before 1.0, where it moves the minor and the 0.x line stays. A push made only of `docs`, `ci`, `test`, `chore`, `style` or `build` is built and deployed but releases nothing, because the device would be handed an update identical to what it runs. A tag pushed by hand releases nothing either: the pipeline is the only path that creates one.
+
+The tag is the only place the version lives. The build receives it as `myhealth.version`, and a build without it is a development build, `0.0.0-dev` with versionCode 1. Committing the bump back to master was the alternative, and it would put bot commits in the history, need a token that writes to master and risk a workflow triggering itself.
+
+The versionCode is derived from the version, `major * 1_000_000 + minor * 1_000 + patch`, rather than from a commit count or the CI run number. Android refuses an update with a lower versionCode and there is no way back from one already installed, so the code has to grow exactly when the version does and be reproducible from the tag alone. A commit count changes with a rewritten history and a run number with a recreated repository; either could hand the device a lower code for a higher version. The cost is that minor and patch must stay below 1000, which the build enforces.
+
+The release is created only after the deploy reports the API healthy, so a release names a signed APK and an API that actually ran together. A failed deploy releases nothing, and the next push computes the same version and carries those commits in its notes. Two pushes close together can compute the same version: the later one fails rather than move the tag, and the push after it computes the next version from that tag.
+
+This narrows ADR 0011: the signed APK is no longer built on every push to master, only on one that releases, and it is published as an asset of the release instead of a build artifact that expires.

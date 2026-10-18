@@ -79,7 +79,7 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 | `./gradlew :ingestion-api:run` | Sobe a API de ingestão em `http://localhost:8039` (porta configurável por `PORT`), exigindo um PostgreSQL alcançável. |
 | `./gradlew :android-app:assembleDebug` | Gera o APK de depuração em `android-app/build/outputs/apk/debug/`. |
 | `./gradlew :android-app:installDebug` | Instala o APK no aparelho ou emulador conectado. |
-| `./gradlew :android-app:assembleRelease` | Gera o APK de release assinado em `android-app/build/outputs/apk/release/`. Exige as variáveis de assinatura. |
+| `./gradlew :android-app:assembleRelease` | Gera o APK de release assinado em `android-app/build/outputs/apk/release/`. Exige as variáveis de assinatura; sem `-Pmyhealth.version=X.Y.Z`, sai como versão de desenvolvimento. |
 | `./gradlew :android-app:verifyReleaseSigning` | Confere se a chave de assinatura está configurada no ambiente. Roda antes de qualquer build de release. |
 | `./gradlew :android-app:installSamsungHealthSdk -Psamsung.health.sdk=<caminho>` | Copia o AAR baixado para `android-app/libs/`. |
 | `./gradlew :android-app:verifySamsungHealthSdk` | Confere presença e checksum do AAR. Roda antes de qualquer compilação do módulo Android. |
@@ -259,7 +259,24 @@ Depois da purga, a API reinicia, migra desde o banco vazio e volta a atender; o 
 
 ### Integração contínua
 
-O workflow `.gitea/workflows/ci.yml` executa `./gradlew check` a cada push e a cada pull request, e falha quando qualquer módulo quebra. Ele tem dois jobs: `build` valida, constrói a imagem e — só em push na `master` — produz o APK de release assinado; `deploy` entrega a API, sob a mesma condição e só depois de o `build` passar inteiro. A imagem recebe o nome do commit ainda no job `build`, para que uma execução concorrente de outro branch não troque a tag `myhealth-api:local` entre os dois jobs.
+O workflow `.gitea/workflows/ci.yml` executa `./gradlew check` a cada push e a cada pull request, e falha quando qualquer módulo quebra. Ele tem três jobs: `build` valida, constrói a imagem e — só em push na `master` que gera release — produz o APK de release assinado; `deploy` entrega a API em todo push na `master`, só depois de o `build` passar inteiro; `release` publica a versão, só depois de a API responder saudável. A imagem recebe o nome do commit ainda no job `build`, para que uma execução concorrente de outro branch não troque a tag `myhealth-api:local` entre os jobs.
+
+### Versões e releases
+
+Todo push na `master` que entrega uma mudança vira release, sem número editado à mão. A versão é calculada por `.gitea/scripts/next-version.sh` a partir dos Conventional Commits desde a última tag `vMAJOR.MINOR.PATCH`:
+
+| Commits desde a última release | Versão seguinte |
+| --- | --- |
+| Algum breaking (`!` no tipo ou rodapé `BREAKING CHANGE:`) | Sobe o major; antes de 1.0, sobe o minor. |
+| Algum `feat` | Sobe o minor. |
+| Algum `fix`, `perf`, `refactor` ou `revert` | Sobe o patch. |
+| Só `docs`, `ci`, `test`, `chore`, `style` ou `build` | Nenhuma: build e deploy rodam, mas nada é lançado. |
+
+A versão existe só na tag, criada pelo CI; tag empurrada à mão não lança nada. O Gradle a recebe por `-Pmyhealth.version=X.Y.Z`, e sem ela o build é de desenvolvimento: `versionName` `0.0.0-dev` e `versionCode` `1`, que nenhuma release instalada aceita como atualização. O `versionCode` é `major * 1.000.000 + minor * 1.000 + patch`, então cresce exatamente quando a versão cresce, e minor e patch precisam ficar abaixo de 1000. Ver ADR `0024`.
+
+O job `release` cria a tag no commit lançado e a release no Gitea, com notas agrupadas em mudanças incompatíveis, funcionalidades, correções e outras mudanças, anexa o APK como `myhealth-bridge-X.Y.Z.apk` e publica a imagem também como `myhealth-api:X.Y.Z`, com os labels `org.opencontainers.image.version` e `org.opencontainers.image.revision`. Um deploy que falha não lança nada, e o push seguinte calcula a mesma versão e leva esses commits nas notas. Se dois pushes seguidos calcularem a mesma versão, o segundo falha em vez de mover a tag, e o push depois dele parte da tag nova. Reexecutar o job para o mesmo commit só completa o que faltou.
+
+A release usa o `secrets.GITEA_TOKEN` automático da execução, com permissão de escrita em releases somente nesse job.
 
 Dados pessoais, credenciais da VPS, tokens, chaves de assinatura e fixtures derivadas de medições reais não devem ser adicionados ao repositório.
 
@@ -267,7 +284,7 @@ Dados pessoais, credenciais da VPS, tokens, chaves de assinatura e fixtures deri
 
 A API é entregue como o Application Stack `myhealth` na VPS CodeLab, pelo contrato existente da action `codelab/deploy-stack`. Não existe mecanismo de entrega paralelo. Ver ADR `0005`.
 
-O job `deploy` publica a imagem no registro do Gitea como `git.codelab.tec.br/vctrtvfrrr/myhealth-api`, com a tag do SHA do commit, e invoca a action. Como build e run compartilham o mesmo daemon Docker da VPS, o deploy reaproveita a imagem local; a publicação no registro vale por durabilidade e rollback. O `compose.yml` na raiz do repositório é o do stack e consome `${IMAGE_TAG}`, exportado pela action.
+O job `deploy` publica a imagem no registro do Gitea como `git.codelab.tec.br/vctrtvfrrr/myhealth-api`, com a tag do SHA do commit, e invoca a action. Uma release acrescenta a tag da versão, que é fixa como a do commit. Como build e run compartilham o mesmo daemon Docker da VPS, o deploy reaproveita a imagem local; a publicação no registro vale por durabilidade e rollback. O `compose.yml` na raiz do repositório é o do stack e consome `${IMAGE_TAG}`, exportado pela action.
 
 Nenhuma tag móvel é publicada. Sem `IMAGE_TAG` o `compose.yml` cai em `latest`, que o CI nunca publica: comandos manuais na VPS — como o `docker compose down` do descomissionamento — continuam renderizando, mas um `up` sem a tag falha por imagem inexistente em vez de subir um commit qualquer.
 
@@ -291,7 +308,7 @@ Os limites de ingestão ficam nos padrões documentados em [Configuração da AP
 
 ### Distribuição do aplicativo
 
-O aplicativo não é publicado na Play Store: o Data Owner instala e atualiza o APK manualmente. Cada push na `master` gera o APK de release assinado e o publica como artefato de build, nomeado `myhealth-bridge-<sha do commit>`. Ver ADR `0011`.
+O aplicativo não é publicado na Play Store: o Data Owner instala e atualiza o APK manualmente. Cada release gera o APK assinado e o anexa à release do Gitea como `myhealth-bridge-X.Y.Z.apk`. Ver ADRs `0011` e `0024`.
 
 A chave só é entregue ao build de uma revisão que já está na `master`. O build é o `build.gradle.kts` daquela revisão: um branch ou pull request que chegasse a esse passo poderia copiar a chave para onde quisesse, e ela é justamente a autoridade que decide o que o aparelho aceita como atualização. Por isso os demais eventos continuam validando o variant de depuração, sem chave alguma.
 
@@ -315,17 +332,17 @@ base64 -w0 myhealth-release.jks
 
 No runner, o arquivo vem do secret `RELEASE_KEYSTORE_BASE64` — a saída do `base64` acima —, é escrito fora do workspace com `umask 077` e removido por `trap`, inclusive quando o build falha; as credenciais vêm dos secrets `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS` e `RELEASE_KEY_PASSWORD`. Perder o keystore custa a identidade do aplicativo: não existe recuperação, e daí em diante toda instalação exigiria desinstalar a anterior.
 
-Para instalar, baixe o artefato da execução do CI correspondente ao commit desejado, na página do workflow no Gitea, e descompacte. Com o aparelho conectado por USB e a depuração USB ativa:
+Para instalar, baixe o APK da release desejada, na página de releases do repositório no Gitea. Com o aparelho conectado por USB e a depuração USB ativa:
 
 ```sh
-adb install -r android-app-release.apk
+adb install -r myhealth-bridge-X.Y.Z.apk
 ```
 
 `-r` reinstala por cima da versão anterior preservando os dados. Sem cabo, copie o APK para o aparelho e abra-o pelo gerenciador de arquivos, autorizando a instalação de fontes desconhecidas.
 
 O APK de depuração é assinado por outra chave, então a primeira instalação de release por cima de uma instalação de depuração é recusada e exige desinstalar antes. Isso vale uma única vez: entre releases a chave é a mesma.
 
-A atualização preserva outbox e estado operacional local porque nem o `applicationId` nem a assinatura mudam. `versionCode` e `versionName` ficam em `android-app/build.gradle.kts` e sobem por edição deliberada; o Android aceita reinstalar o mesmo `versionCode`, mas recusa um menor.
+A atualização preserva outbox e estado operacional local porque nem o `applicationId` nem a assinatura mudam. `versionCode` e `versionName` vêm da versão da release, calculada pelo CI, e nunca são editados à mão; o Android aceita reinstalar o mesmo `versionCode`, mas recusa um menor. Ver [Versões e releases](#versões-e-releases).
 
 #### Reconhecimento pelo Samsung Health
 

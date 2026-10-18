@@ -88,6 +88,24 @@ val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
     }
 }
 
+// Android refuses an update with a lower versionCode, so each version component gets three digits
+// of its own and the code grows exactly when the version does.
+fun versionCodeOf(version: String): Int {
+    val match = Regex("""(\d+)\.(\d+)\.(\d+)""").matchEntire(version)
+        ?: throw GradleException("myhealth.version must be MAJOR.MINOR.PATCH, got $version.")
+    val (major, minor, patch) = match.destructured.toList().map(String::toInt)
+    if (minor >= 1000 || patch >= 1000) {
+        throw GradleException("myhealth.version $version does not fit a versionCode: minor and patch must stay below 1000.")
+    }
+    return major * 1_000_000 + minor * 1_000 + patch
+}
+
+// The version exists only in the tag CI creates for a release. Without it this is a development
+// build, whose versionCode no installed release accepts as an update.
+val releaseVersion = providers.gradleProperty("myhealth.version").orNull
+val appVersionName = releaseVersion ?: "0.0.0-dev"
+val appVersionCode = releaseVersion?.let(::versionCodeOf) ?: 1
+
 android {
     namespace = "br.etc.victor.myhealthbridge"
     compileSdk = 37
@@ -96,8 +114,8 @@ android {
         applicationId = "br.etc.victor.myhealthbridge"
         minSdk = 29
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     signingConfigs {
