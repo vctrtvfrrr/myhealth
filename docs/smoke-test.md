@@ -114,8 +114,8 @@ Uma linha por execução completa. Um desvio que gerou issue a cita pelo nome.
 
 ### 2026-10-17
 
-- **Passo 4:** a sincronização estava parada desde 14/08. A API respondia `401` porque nenhum Ingestion Device tinha sido provisionado em produção, e o token salvo vinha de outra instância. O aplicativo mostrou só que a API "não está configurada ou não aceitou o token", sem incidente nem notificação. Corrigido ao criar o aparelho `galaxy-s25-ultra`; a ausência de incidente para token recusado continua como desvio.
-- **Passo 6:** a conta somente leitura não existe em produção. As consultas rodaram como administrador do PostgreSQL.
+- **Passo 4:** a sincronização estava parada desde 14/08. A API respondia `401` porque nenhum Ingestion Device tinha sido provisionado em produção, e o token salvo vinha de outra instância. O aplicativo mostrou só que a API "não está configurada ou não aceitou o token", sem incidente nem notificação. Corrigido ao criar o aparelho `galaxy-s25-ultra`; a ausência de incidente para token recusado segue em "Relatar token de aparelho recusado como Maintenance Incident" (#24).
+- **Passo 6:** a conta somente leitura não existe em produção. As consultas rodaram como administrador do PostgreSQL. Segue em "Criar a conta somente leitura do read model em produção" (#25).
 - **Passo 3:** o texto da notificação termina com ponto duplicado ("p.m..").
 - **Passo 5:** o trabalho horário rodou sete minutos depois da janela, com a rede do aplicativo em background bloqueada até o sistema liberar o job.
-- A especificação previa o token do aparelho no Android Keystore; ele fica no Room.
+- A especificação previa o token do aparelho no Android Keystore; ele fica no Room. Segue em "Decidir o armazenamento do token do aparelho: Keystore ou Room" (#26).
