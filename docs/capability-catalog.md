@@ -4,11 +4,11 @@ Gerado de `HealthCapabilities` (`health-sync`) e verificado por `CapabilityCatal
 
 Uma entrada por Health Category do Samsung Health Data SDK adotado. Uma categoria que o SDK expõe e o catálogo não declara não é sincronizada e vira Maintenance Incident (`uncataloged_category`). Tamanhos de página e de leitura são escolhas deste repositório, não limites do SDK.
 
-Implementadas: 6 de 25.
+Implementadas: 7 de 25.
 
 | Categoria | Classe | Situação | Permissão | Leituras | Paginação | Mudanças | Dados associados | Identidade | Mapper | Projeção |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `activity_summary` | Observed Snapshot | não implementada | `activity_summary` | `AGGREGATE` | 744 janelas por leitura | não | — | `activity_summary` + hora local | — | — |
+| `activity_summary` | Observed Snapshot | implementada | `activity_summary` | `AGGREGATE` | 744 janelas por leitura | não | — | `activity_summary` + hora local | `samsung-health-activity-summary/1` | `read_model.current_hourly_activity_summary` |
 | `exercise` | Health Record | implementada | `exercise` | `TIME_RANGE`, `CHANGES`, `ASSOCIATED` | 50 registros por página | sim | `sessions`, `sessions.route` | `exercise` + Samsung UID | `samsung-health-exercise/1` | `read_model.current_exercise` |
 | `exercise_location` | só permissão | implementada | `exercise_location` | — | — | não | — | dentro de `exercise` | — | `read_model.current_exercise_location` |
 | `floors_climbed` | Health Record | não implementada | `floors_climbed` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `floors_climbed` + Samsung UID | — | — |

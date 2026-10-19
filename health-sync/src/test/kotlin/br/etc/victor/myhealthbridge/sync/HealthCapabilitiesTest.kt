@@ -20,6 +20,7 @@ class HealthCapabilitiesTest {
 
         assertEquals(
             setOf(
+                HealthCategory.ACTIVITY_SUMMARY,
                 HealthCategory.EXERCISE,
                 HealthCategory.EXERCISE_LOCATION,
                 HealthCategory.STEPS,
@@ -53,6 +54,7 @@ class HealthCapabilitiesTest {
     fun `synchronizes only the implemented Health Records and Observed Snapshots`() {
         assertEquals(
             listOf(
+                HealthCategory.ACTIVITY_SUMMARY,
                 HealthCategory.EXERCISE,
                 HealthCategory.STEPS,
                 HealthCategory.SLEEP,
@@ -119,6 +121,18 @@ class HealthCapabilitiesTest {
         assertEquals(SnapshotWindowUnit.LOCAL_HOUR, capability.window)
         assertEquals(StepsMapper, capability.mapper)
         assertTrue(capability.windowsPerRead > 0)
+    }
+
+    /** The activity totals are aggregates too, kept by local hour so that a day is a sum over them. */
+    @Test
+    fun `declares the activity summary as an hourly observed snapshot read by aggregation`() {
+        val capability = HealthCapabilities.of(HealthCategory.ACTIVITY_SUMMARY) as SnapshotCapability
+
+        assertEquals("activity_summary", capability.snapshotType)
+        assertEquals(setOf(ReadOperation.AGGREGATE), capability.readOperations)
+        assertEquals(SnapshotWindowUnit.LOCAL_HOUR, capability.window)
+        assertEquals(ActivitySummaryMapper, capability.mapper)
+        assertEquals("read_model.current_hourly_activity_summary", capability.projection)
     }
 
     /**

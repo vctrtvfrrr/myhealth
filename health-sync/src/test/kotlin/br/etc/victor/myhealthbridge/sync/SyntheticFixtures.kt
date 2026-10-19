@@ -24,6 +24,7 @@ sealed interface SyntheticFixture {
 object SyntheticFixtures {
 
     private val byCategory: Map<HealthCategory, SyntheticFixture> = mapOf(
+        HealthCategory.ACTIVITY_SUMMARY to SyntheticFixture.Aggregate(activity()),
         HealthCategory.EXERCISE to SyntheticFixture.Record(exerciseRecord()),
         HealthCategory.EXERCISE_LOCATION to SyntheticFixture.Record(
             exerciseRecord(sessions = listOf(session(route = listOf(location())))),

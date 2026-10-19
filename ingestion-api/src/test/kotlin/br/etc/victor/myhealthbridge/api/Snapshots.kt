@@ -3,12 +3,14 @@ package br.etc.victor.myhealthbridge.api
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import java.math.BigDecimal
 
 /**
- * Synthetic step snapshots.
+ * Synthetic step and activity snapshots.
  *
  * Every value is invented: the repository must never carry fixtures derived from real measurements.
  */
@@ -80,6 +82,49 @@ object Snapshots {
         weight?.let { put("weight", it) }
         gender?.let { put("gender", it) }
         nickname?.let { put("nickname", it) }
+    }
+
+    const val ACTIVITY_SUMMARY = "activity_summary"
+    const val ACTIVITY_SUMMARY_MAPPER_VERSION = "samsung-health-activity-summary/1"
+
+    /** One local hour of activity totals, each a `{value, unit}`; a null [content] is an empty window. */
+    fun activitySummary(
+        start: String = "2026-08-10T14:00:00",
+        end: String = "2026-08-10T15:00:00",
+        observedAt: String = "2026-08-10T18:20:00Z",
+        content: JsonObject? = activityTotals(),
+        mapperVersion: String = ACTIVITY_SUMMARY_MAPPER_VERSION,
+    ): JsonObject = buildJsonObject {
+        putJsonObject("window") {
+            put("start", start)
+            put("end", end)
+        }
+        putJsonObject("observedAt") {
+            put("instant", observedAt)
+            put("offset", "-03:00")
+        }
+        put("sourceScope", "platform")
+        put("mapperVersion", mapperVersion)
+        content?.let { put("content", it) }
+    }
+
+    fun activityTotals(
+        activeCaloriesBurned: Quantity? = Quantity("42.5", "kcal"),
+        caloriesBurned: Quantity? = Quantity("118.25", "kcal"),
+        activeTime: Quantity? = Quantity("754.321", "s"),
+        distance: Quantity? = Quantity("1310.7", "m"),
+    ): JsonObject = buildJsonObject {
+        activeCaloriesBurned?.let { put("activeCaloriesBurned", it.json()) }
+        caloriesBurned?.let { put("caloriesBurned", it.json()) }
+        activeTime?.let { put("activeTime", it.json()) }
+        distance?.let { put("distance", it.json()) }
+    }
+
+    class Quantity(private val value: String, private val unit: String) {
+        fun json(): JsonObject = buildJsonObject {
+            put("value", JsonPrimitive(BigDecimal(value)))
+            put("unit", unit)
+        }
     }
 
     fun batch(

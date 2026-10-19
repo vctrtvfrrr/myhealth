@@ -276,7 +276,14 @@ object HealthCapabilities {
     private val RECORD_READS = setOf(ReadOperation.TIME_RANGE, ReadOperation.CHANGES)
 
     val entries: List<CatalogEntry> = listOf(
-        hourlyTotal(HealthCategory.ACTIVITY_SUMMARY, "activity_summary"),
+        SnapshotCapability(
+            category = HealthCategory.ACTIVITY_SUMMARY,
+            snapshotType = "activity_summary",
+            window = SnapshotWindowUnit.LOCAL_HOUR,
+            windowsPerRead = HOURS_PER_READ,
+            mapper = ActivitySummaryMapper,
+            projection = "read_model.current_hourly_activity_summary",
+        ),
         RecordCapability(
             category = HealthCategory.EXERCISE,
             recordType = "exercise",
@@ -379,13 +386,6 @@ object HealthCapabilities {
         readOperations = RECORD_READS,
         pagination = Pagination.Records(MEASUREMENTS_PER_PAGE),
         associatedData = associatedData,
-    )
-
-    private fun hourlyTotal(category: HealthCategory, snapshotType: String) = NotImplemented(
-        category = category,
-        identity = CapabilityIdentity.Snapshot(snapshotType, SnapshotWindowUnit.LOCAL_HOUR),
-        readOperations = setOf(ReadOperation.AGGREGATE),
-        pagination = Pagination.Windows(HOURS_PER_READ),
     )
 
     private fun dailyGoal(category: HealthCategory, snapshotType: String) = NotImplemented(

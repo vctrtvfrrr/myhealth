@@ -5,6 +5,7 @@ import br.etc.victor.myhealthbridge.contract.SourceScope
 import br.etc.victor.myhealthbridge.health.HealthCategory
 import br.etc.victor.myhealthbridge.health.SamsungHealthAvailability
 import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
+import br.etc.victor.myhealthbridge.sync.ActivitySummaryMapper
 import br.etc.victor.myhealthbridge.sync.AggregateWindow
 import br.etc.victor.myhealthbridge.sync.ChangePage
 import br.etc.victor.myhealthbridge.sync.ChangeWindow
@@ -21,6 +22,7 @@ import br.etc.victor.myhealthbridge.sync.SourceRecord
 import br.etc.victor.myhealthbridge.sync.SourceValue
 import com.samsung.android.sdk.health.data.HealthDataService
 import com.samsung.android.sdk.health.data.HealthDataStore
+import com.samsung.android.sdk.health.data.data.AggregateOperation
 import com.samsung.android.sdk.health.data.data.Change
 import com.samsung.android.sdk.health.data.data.ChangeType
 import com.samsung.android.sdk.health.data.data.Field
@@ -59,6 +61,20 @@ internal val exerciseFields: List<Field<*>> = listOf(
     DataType.ExerciseType.EXERCISE_TYPE,
     DataType.ExerciseType.CUSTOM_TITLE,
     DataType.ExerciseType.SESSIONS,
+)
+
+/** One total Samsung Health aggregates over a window, handed over under the [name] its mapper reads. */
+internal class AggregateTotal<T : Any>(
+    val name: String,
+    val operation: AggregateOperation<T, AggregateRequest.LocalTimeBuilder<T>>,
+)
+
+/** The totals of the activity summary this build reads, which a test pins to what the SDK exposes. */
+internal val activitySummaryTotals: List<AggregateTotal<*>> = listOf(
+    AggregateTotal(ActivitySummaryMapper.TOTAL_ACTIVE_CALORIES_BURNED, DataType.ActivitySummaryType.TOTAL_ACTIVE_CALORIES_BURNED),
+    AggregateTotal(ActivitySummaryMapper.TOTAL_CALORIES_BURNED, DataType.ActivitySummaryType.TOTAL_CALORIES_BURNED),
+    AggregateTotal(ActivitySummaryMapper.TOTAL_ACTIVE_TIME, DataType.ActivitySummaryType.TOTAL_ACTIVE_TIME),
+    AggregateTotal(ActivitySummaryMapper.TOTAL_DISTANCE, DataType.ActivitySummaryType.TOTAL_DISTANCE),
 )
 
 /** The fields of a sleep record this build reads, pinned to the SDK the same way. */
@@ -142,10 +158,30 @@ class SamsungRecordSource(
         HealthCategory.STEPS -> outcomes.observing {
             aggregate(capability, window) { DataType.StepsType.TOTAL.requestBuilder }
         }
+        HealthCategory.ACTIVITY_SUMMARY -> outcomes.observing {
+            together(activitySummaryTotals.map { total -> total.name to aggregate(capability, window, total) })
+        }
         else -> SamsungHealthOutcome.Failed(
             SamsungHealthAvailability.Unsupported("uncatalogued_aggregate_${capability.snapshotType}"),
         )
     }
+
+    private suspend fun <T : Any> aggregate(
+        capability: SnapshotCapability,
+        window: AggregateWindow,
+        total: AggregateTotal<T>,
+    ): List<SourceAggregate> = aggregate(capability, window) { total.operation.requestBuilder }
+
+    /**
+     * One aggregate per window holding every total read for it, under its name. A window none of the
+     * totals reported is left out, as the importer expects of a window with nothing in it.
+     */
+    private fun together(totals: List<Pair<String, List<SourceAggregate>>>): List<SourceAggregate> =
+        totals
+            .flatMap { (name, aggregates) -> aggregates.mapNotNull { a -> a.value?.let { a.start to (name to it) } } }
+            .groupBy({ it.first }, { it.second })
+            .toSortedMap()
+            .map { (start, values) -> SourceAggregate(start, SourceValue.Nested(values.toMap())) }
 
     /** The profile is read whole: its request takes no filter, no page and no ordering. */
     override suspend fun readProfile(capability: ProfileCapability): SamsungHealthOutcome<Map<String, SourceValue>?> =

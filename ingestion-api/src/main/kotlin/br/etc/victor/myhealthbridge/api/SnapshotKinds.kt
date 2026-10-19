@@ -36,6 +36,10 @@ object SnapshotKinds {
 
     private val kinds: Map<String, Kind> = mapOf(
         "steps" to Kind(SnapshotWindow.LOCAL_HOUR, mapOf("samsung-health-steps/1" to ::validateSteps)),
+        "activity_summary" to Kind(
+            SnapshotWindow.LOCAL_HOUR,
+            mapOf("samsung-health-activity-summary/1" to ActivitySummaryContent::validate),
+        ),
         "user_profile" to Kind(window = null, mapOf("samsung-health-user-profile/1" to UserProfileContent::validate)),
     )
 

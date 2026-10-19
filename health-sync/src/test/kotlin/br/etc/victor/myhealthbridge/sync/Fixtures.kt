@@ -62,6 +62,21 @@ fun sourceRecord(
 
 fun number(value: String): SourceValue.Number = SourceValue.Number(BigDecimal(value))
 
+/** The four totals of one synthetic hour of activity, as the adapter hands them over. */
+fun activity(
+    activeCaloriesBurned: String = "42.5",
+    caloriesBurned: String = "118.25",
+    activeTime: String = "754.321",
+    distance: String = "1310.7",
+): SourceValue.Nested = SourceValue.Nested(
+    mapOf(
+        ActivitySummaryMapper.TOTAL_ACTIVE_CALORIES_BURNED to number(activeCaloriesBurned),
+        ActivitySummaryMapper.TOTAL_CALORIES_BURNED to number(caloriesBurned),
+        ActivitySummaryMapper.TOTAL_ACTIVE_TIME to number(activeTime),
+        ActivitySummaryMapper.TOTAL_DISTANCE to number(distance),
+    ),
+)
+
 /**
  * A synthetic exercise, as the adapter hands one over.
  *
