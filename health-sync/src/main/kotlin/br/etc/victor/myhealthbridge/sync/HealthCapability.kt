@@ -337,9 +337,9 @@ object HealthCapabilities {
 
         binnedMeasurement(HealthCategory.BLOOD_GLUCOSE, "blood_glucose", BloodGlucoseMapper),
         binnedMeasurement(HealthCategory.BLOOD_OXYGEN, "blood_oxygen", BloodOxygenMapper),
-        measurement(HealthCategory.BLOOD_PRESSURE, "blood_pressure"),
-        measurement(HealthCategory.BODY_COMPOSITION, "body_composition"),
-        measurement(HealthCategory.BODY_TEMPERATURE, "body_temperature"),
+        plainMeasurement(HealthCategory.BLOOD_PRESSURE, "blood_pressure", BloodPressureMapper),
+        plainMeasurement(HealthCategory.BODY_COMPOSITION, "body_composition", BodyCompositionMapper),
+        plainMeasurement(HealthCategory.BODY_TEMPERATURE, "body_temperature", BodyTemperatureMapper),
         RecordCapability(
             category = HealthCategory.HEART_RATE,
             recordType = "heart_rate",
@@ -400,6 +400,16 @@ object HealthCapabilities {
         mapper = mapper,
         projection = "read_model.current_$recordType",
         associatedData = AssociatedData.Nested("binning_data"),
+    )
+
+    /** A measurement of plain fields, with nothing nested in it and nothing associated to read beside it. */
+    private fun plainMeasurement(category: HealthCategory, recordType: String, mapper: RecordMapper) = RecordCapability(
+        category = category,
+        recordType = recordType,
+        readOperations = RECORD_READS,
+        pageSize = MEASUREMENTS_PER_PAGE,
+        mapper = mapper,
+        projection = "read_model.current_$recordType",
     )
 
     private fun dailyGoal(category: HealthCategory, snapshotType: String, mapper: GoalMapper) = SnapshotCapability(

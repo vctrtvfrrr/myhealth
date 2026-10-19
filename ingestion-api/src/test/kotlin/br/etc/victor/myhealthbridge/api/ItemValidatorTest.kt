@@ -174,7 +174,7 @@ class ItemValidatorTest {
 
     @Test
     fun `rejects a record type nobody maps yet`() {
-        val validation = ItemValidator("blood_pressure").validate(Envelopes.heartRate())
+        val validation = ItemValidator("exercise_location").validate(Envelopes.heartRate())
 
         assertEquals(
             listOf(RejectionCode.UNSUPPORTED_RECORD_TYPE),

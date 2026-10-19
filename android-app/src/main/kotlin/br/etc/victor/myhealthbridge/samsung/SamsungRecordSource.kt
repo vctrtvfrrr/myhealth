@@ -129,6 +129,36 @@ internal val bloodGlucoseFields: List<Field<*>> = listOf(
     DataType.BloodGlucoseType.SERIES_DATA,
 )
 
+/** The fields of a blood pressure record this build reads, pinned to the SDK the same way. */
+internal val bloodPressureFields: List<Field<*>> = listOf(
+    DataType.BloodPressureType.SYSTOLIC,
+    DataType.BloodPressureType.DIASTOLIC,
+    DataType.BloodPressureType.MEAN,
+    DataType.BloodPressureType.PULSE_RATE,
+    DataType.BloodPressureType.MEDICATION_TAKEN,
+)
+
+/** The fields of a body composition record this build reads, pinned to the SDK the same way. */
+internal val bodyCompositionFields: List<Field<*>> = listOf(
+    DataType.BodyCompositionType.WEIGHT,
+    DataType.BodyCompositionType.HEIGHT,
+    DataType.BodyCompositionType.BODY_FAT,
+    DataType.BodyCompositionType.SKELETAL_MUSCLE,
+    DataType.BodyCompositionType.MUSCLE_MASS,
+    DataType.BodyCompositionType.BASAL_METABOLIC_RATE,
+    DataType.BodyCompositionType.BODY_FAT_MASS,
+    DataType.BodyCompositionType.FAT_FREE_MASS,
+    DataType.BodyCompositionType.FAT_FREE,
+    DataType.BodyCompositionType.SKELETAL_MUSCLE_MASS,
+    DataType.BodyCompositionType.TOTAL_BODY_WATER,
+    DataType.BodyCompositionType.BODY_MASS_INDEX,
+)
+
+/** The fields of a body temperature record this build reads, pinned to the SDK the same way. */
+internal val bodyTemperatureFields: List<Field<*>> = listOf(
+    DataType.BodyTemperatureType.BODY_TEMPERATURE,
+)
+
 /**
  * Reads Health Records from Samsung Health, one page at a time, and hands them on with no SDK type
  * left in them.
@@ -353,6 +383,9 @@ class SamsungRecordSource(
         HealthCategory.BLOOD_OXYGEN -> DataTypes.BLOOD_OXYGEN.readDataRequestBuilder
         HealthCategory.SKIN_TEMPERATURE -> DataTypes.SKIN_TEMPERATURE.readDataRequestBuilder
         HealthCategory.BLOOD_GLUCOSE -> DataTypes.BLOOD_GLUCOSE.readDataRequestBuilder
+        HealthCategory.BLOOD_PRESSURE -> DataTypes.BLOOD_PRESSURE.readDataRequestBuilder
+        HealthCategory.BODY_COMPOSITION -> DataTypes.BODY_COMPOSITION.readDataRequestBuilder
+        HealthCategory.BODY_TEMPERATURE -> DataTypes.BODY_TEMPERATURE.readDataRequestBuilder
         else -> null
     }
 
@@ -370,6 +403,9 @@ class SamsungRecordSource(
         HealthCategory.BLOOD_OXYGEN -> DataTypes.BLOOD_OXYGEN.changedDataRequestBuilder
         HealthCategory.SKIN_TEMPERATURE -> DataTypes.SKIN_TEMPERATURE.changedDataRequestBuilder
         HealthCategory.BLOOD_GLUCOSE -> DataTypes.BLOOD_GLUCOSE.changedDataRequestBuilder
+        HealthCategory.BLOOD_PRESSURE -> DataTypes.BLOOD_PRESSURE.changedDataRequestBuilder
+        HealthCategory.BODY_COMPOSITION -> DataTypes.BODY_COMPOSITION.changedDataRequestBuilder
+        HealthCategory.BODY_TEMPERATURE -> DataTypes.BODY_TEMPERATURE.changedDataRequestBuilder
         else -> null
     }
 }
@@ -382,6 +418,9 @@ private fun fieldsOf(capability: RecordCapability): List<Field<*>> = when (capab
     HealthCategory.BLOOD_OXYGEN -> bloodOxygenFields
     HealthCategory.SKIN_TEMPERATURE -> skinTemperatureFields
     HealthCategory.BLOOD_GLUCOSE -> bloodGlucoseFields
+    HealthCategory.BLOOD_PRESSURE -> bloodPressureFields
+    HealthCategory.BODY_COMPOSITION -> bodyCompositionFields
+    HealthCategory.BODY_TEMPERATURE -> bodyTemperatureFields
     else -> emptyList()
 }
 

@@ -1,7 +1,9 @@
 package br.etc.victor.myhealthbridge.sync.ui
 
 import br.etc.victor.myhealthbridge.health.HealthCategory
+import br.etc.victor.myhealthbridge.sync.HealthCapabilities
 import br.etc.victor.myhealthbridge.sync.ImportPhase
+import br.etc.victor.myhealthbridge.sync.NotImplemented
 import br.etc.victor.myhealthbridge.sync.OutboxSize
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -24,7 +26,9 @@ class SyncUiStateTest {
         assertEquals(SyncCoverage.SYNCHRONIZED, coverage[HealthCategory.HEART_RATE])
         assertEquals(SyncCoverage.SYNCHRONIZED, coverage[HealthCategory.STEPS])
         assertEquals(SyncCoverage.CARRIED, coverage[HealthCategory.EXERCISE_LOCATION])
-        assertEquals(SyncCoverage.NOT_IMPLEMENTED, coverage[HealthCategory.BLOOD_PRESSURE])
+        HealthCapabilities.entries.filterIsInstance<NotImplemented>().forEach { gap ->
+            assertEquals(SyncCoverage.NOT_IMPLEMENTED, coverage[gap.category], gap.category.name)
+        }
         assertEquals(SyncCoverage.SYNCHRONIZED, coverage[HealthCategory.USER_PROFILE])
     }
 

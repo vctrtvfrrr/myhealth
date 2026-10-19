@@ -72,7 +72,7 @@ class IngestionRejectionTest : IngestionApiTest() {
     @Test
     fun `rejects every item of a batch whose record type nobody maps yet`() {
         val response = api.postBatch(
-            Envelopes.batch(recordType = "blood_pressure", items = listOf(Envelopes.heartRate())),
+            Envelopes.batch(recordType = "exercise_location", items = listOf(Envelopes.heartRate())),
             token,
         )
 

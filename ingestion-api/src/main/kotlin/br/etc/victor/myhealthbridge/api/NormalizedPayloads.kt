@@ -24,7 +24,7 @@ object NormalizedPayloads {
         ("blood_oxygen" to "samsung-health-blood-oxygen/1") to ::validateBloodOxygen,
         ("skin_temperature" to "samsung-health-skin-temperature/1") to ::validateSkinTemperature,
         ("blood_glucose" to "samsung-health-blood-glucose/1") to ::validateBloodGlucose,
-    )
+    ) + VitalSignPayloads.validators
 
     private val recordTypes: Set<String> = validators.keys.mapTo(mutableSetOf()) { it.first }
 
@@ -92,7 +92,7 @@ object NormalizedPayloads {
     }
 
     /** An absent quantity is nothing to reject; a present one has to be a measurement in its unit. */
-    private fun quantity(node: JsonElement?, unit: String, plausible: ClosedRange<BigDecimal>): List<RejectionCode> {
+    internal fun quantity(node: JsonElement?, unit: String, plausible: ClosedRange<BigDecimal>): List<RejectionCode> {
         if (node == null) return emptyList()
         val quantity = node as? JsonObject ?: return listOf(RejectionCode.INVALID_PAYLOAD)
 
@@ -272,14 +272,14 @@ object NormalizedPayloads {
         return text.isNotEmpty() && text.length <= MAX_GLUCOSE_CONSTANT_LENGTH
     }
 
-    private fun JsonObject.optionalFlag(key: String): Boolean {
+    internal fun JsonObject.optionalFlag(key: String): Boolean {
         val node = this[key] ?: return true
         return (node as? JsonPrimitive)?.takeIf { !it.isString }?.content in setOf("true", "false")
     }
 
     private fun JsonObject.requiredInstant(key: String): Boolean = this[key] != null && instant(key)
 
-    private fun JsonObject.optionalWhole(key: String, plausible: ClosedRange<BigDecimal>): Boolean {
+    internal fun JsonObject.optionalWhole(key: String, plausible: ClosedRange<BigDecimal>): Boolean {
         val node = this[key] ?: return true
         val value = (node as? JsonPrimitive)?.takeIf { !it.isString }?.decimalOrNull() ?: return false
         return value.stripTrailingZeros().scale() <= 0 && value in plausible
@@ -289,7 +289,7 @@ object NormalizedPayloads {
     private fun JsonObject.required(key: String, plausible: ClosedRange<BigDecimal>): Boolean =
         this[key] != null && optional(key, plausible)
 
-    private fun JsonObject.optional(key: String, plausible: ClosedRange<BigDecimal>): Boolean {
+    internal fun JsonObject.optional(key: String, plausible: ClosedRange<BigDecimal>): Boolean {
         val node = this[key] ?: return true
         val value = (node as? JsonPrimitive)?.takeIf { !it.isString }?.decimalOrNull()
         return value != null && value in plausible

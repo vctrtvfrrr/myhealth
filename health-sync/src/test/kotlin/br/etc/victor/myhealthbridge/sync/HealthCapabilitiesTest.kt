@@ -29,6 +29,9 @@ class HealthCapabilitiesTest {
                 HealthCategory.SKIN_TEMPERATURE,
                 HealthCategory.BLOOD_GLUCOSE,
                 HealthCategory.BLOOD_OXYGEN,
+                HealthCategory.BLOOD_PRESSURE,
+                HealthCategory.BODY_COMPOSITION,
+                HealthCategory.BODY_TEMPERATURE,
                 HealthCategory.HEART_RATE,
                 HealthCategory.USER_PROFILE,
             ) + GOALS,
@@ -68,6 +71,9 @@ class HealthCapabilitiesTest {
                 HealthCategory.SKIN_TEMPERATURE,
                 HealthCategory.BLOOD_GLUCOSE,
                 HealthCategory.BLOOD_OXYGEN,
+                HealthCategory.BLOOD_PRESSURE,
+                HealthCategory.BODY_COMPOSITION,
+                HealthCategory.BODY_TEMPERATURE,
                 HealthCategory.HEART_RATE,
                 HealthCategory.ACTIVE_CALORIES_BURNED_GOAL,
                 HealthCategory.ACTIVE_TIME_GOAL,
@@ -119,6 +125,26 @@ class HealthCapabilitiesTest {
         assertTrue(capability.supportsChanges)
         assertFalse(capability.hasAssociatedData)
         assertTrue(capability.pageSize > 0)
+    }
+
+    /** Readings of plain fields, with nothing nested in them and nothing associated to read beside them. */
+    @Test
+    fun `declares blood pressure, body composition and body temperature end to end`() {
+        mapOf(
+            HealthCategory.BLOOD_PRESSURE to ("blood_pressure" to BloodPressureMapper),
+            HealthCategory.BODY_COMPOSITION to ("body_composition" to BodyCompositionMapper),
+            HealthCategory.BODY_TEMPERATURE to ("body_temperature" to BodyTemperatureMapper),
+        ).forEach { (category, expected) ->
+            val capability = HealthCapabilities.of(category) as RecordCapability
+
+            assertEquals(expected.first, capability.recordType)
+            assertEquals(expected.second, capability.mapper)
+            assertEquals("read_model.current_${expected.first}", capability.projection)
+            assertTrue(ReadOperation.TIME_RANGE in capability.readOperations)
+            assertTrue(capability.supportsChanges)
+            assertEquals(AssociatedData.None, capability.associatedData)
+            assertTrue(capability.pageSize > 0)
+        }
     }
 
     /**
