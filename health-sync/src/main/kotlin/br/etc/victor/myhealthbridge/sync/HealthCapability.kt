@@ -222,6 +222,31 @@ data class SnapshotCapability(
     override val mapperVersion: String get() = mapper.version
 }
 
+/**
+ * The profile, the one capability read into an Observed Snapshot without a Snapshot Window: Samsung
+ * Health holds one per Data Owner, with no UID and no time, and reads it whole with no filter and no
+ * page. It shares the Outbox and the Sync Cursor of its Health Category like every other capability.
+ */
+data class ProfileCapability(
+    override val category: HealthCategory,
+    /** The snapshot type on the wire, which alone identifies the profile's Observed Snapshot. */
+    val snapshotType: String,
+    val mapper: ProfileMapper,
+    override val projection: String,
+) : HealthCapability {
+    override val wireType: String get() = snapshotType
+
+    override val identity: CapabilityIdentity get() = CapabilityIdentity.Snapshot(snapshotType, window = null)
+
+    override val readOperations: Set<ReadOperation> get() = setOf(ReadOperation.PROFILE)
+
+    override val pagination: Pagination get() = Pagination.Unpaged
+
+    override val associatedData: AssociatedData get() = AssociatedData.None
+
+    override val mapperVersion: String get() = ProfileMapper.VERSION
+}
+
 /** The categories the adopted SDK exposes without an entry in [HealthCapabilities], by the SDK's names. */
 fun interface UncatalogedCategories {
     fun read(): Set<String>
@@ -331,11 +356,11 @@ object HealthCapabilities {
         dailyGoal(HealthCategory.STEPS_GOAL, "steps_goal"),
 
         // The profile has no window: there is one per Data Owner, read whole on every run.
-        NotImplemented(
+        ProfileCapability(
             category = HealthCategory.USER_PROFILE,
-            identity = CapabilityIdentity.Snapshot("user_profile", window = null),
-            readOperations = setOf(ReadOperation.PROFILE),
-            pagination = Pagination.Unpaged,
+            snapshotType = "user_profile",
+            mapper = ProfileMapper,
+            projection = "read_model.user_profile",
         ),
     )
 

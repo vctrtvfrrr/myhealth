@@ -25,7 +25,7 @@ class SyncUiStateTest {
         assertEquals(SyncCoverage.SYNCHRONIZED, coverage[HealthCategory.STEPS])
         assertEquals(SyncCoverage.CARRIED, coverage[HealthCategory.EXERCISE_LOCATION])
         assertEquals(SyncCoverage.NOT_IMPLEMENTED, coverage[HealthCategory.BLOOD_PRESSURE])
-        assertEquals(SyncCoverage.NOT_IMPLEMENTED, coverage[HealthCategory.USER_PROFILE])
+        assertEquals(SyncCoverage.SYNCHRONIZED, coverage[HealthCategory.USER_PROFILE])
     }
 
     /** A gap has no history to walk, so it must not keep asking for an initial load nobody can start. */

@@ -192,7 +192,7 @@ internal fun sourcePayload(record: SourceRecord): JsonObject = buildJsonObject {
     }
 }
 
-private fun jsonOf(fields: Map<String, SourceValue>): JsonObject = buildJsonObject {
+internal fun jsonOf(fields: Map<String, SourceValue>): JsonObject = buildJsonObject {
     fields.forEach { (name, value) ->
         when (value) {
             is SourceValue.Number -> put(name, JsonPrimitive(value.value))

@@ -25,6 +25,7 @@ class HealthCapabilitiesTest {
                 HealthCategory.STEPS,
                 HealthCategory.SLEEP,
                 HealthCategory.HEART_RATE,
+                HealthCategory.USER_PROFILE,
             ),
             implemented,
         )
@@ -51,7 +52,13 @@ class HealthCapabilitiesTest {
     @Test
     fun `synchronizes only the implemented Health Records and Observed Snapshots`() {
         assertEquals(
-            listOf(HealthCategory.EXERCISE, HealthCategory.STEPS, HealthCategory.SLEEP, HealthCategory.HEART_RATE),
+            listOf(
+                HealthCategory.EXERCISE,
+                HealthCategory.STEPS,
+                HealthCategory.SLEEP,
+                HealthCategory.HEART_RATE,
+                HealthCategory.USER_PROFILE,
+            ),
             HealthCapabilities.synchronized.map { it.category },
         )
     }
@@ -112,6 +119,22 @@ class HealthCapabilitiesTest {
         assertEquals(SnapshotWindowUnit.LOCAL_HOUR, capability.window)
         assertEquals(StepsMapper, capability.mapper)
         assertTrue(capability.windowsPerRead > 0)
+    }
+
+    /**
+     * The profile is one per Data Owner and summarizes no stretch of time, so it is read whole, with no
+     * filter and no page, into the one Observed Snapshot without a Snapshot Window. See ADR 0025.
+     */
+    @Test
+    fun `declares the user profile as one observed snapshot without a window, read whole`() {
+        val capability = HealthCapabilities.of(HealthCategory.USER_PROFILE) as ProfileCapability
+
+        assertEquals("user_profile", capability.snapshotType)
+        assertEquals(CapabilityIdentity.Snapshot("user_profile", window = null), capability.identity)
+        assertEquals(setOf(ReadOperation.PROFILE), capability.readOperations)
+        assertEquals(Pagination.Unpaged, capability.pagination)
+        assertEquals(ProfileMapper.VERSION, capability.mapperVersion)
+        assertEquals("read_model.user_profile", capability.projection)
     }
 
     /** One wire name, one meaning: a snapshot type sharing a record type's name would be read as either. */

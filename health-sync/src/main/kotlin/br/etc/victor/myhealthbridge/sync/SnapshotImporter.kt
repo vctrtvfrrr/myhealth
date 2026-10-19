@@ -65,6 +65,28 @@ class SnapshotImporter(
         return ImportResult.Completed
     }
 
+    /**
+     * Reads the whole profile into one observation. It has no window and the source offers no past, so
+     * every run reads it again and its history begins at the first read, which also ends its initial
+     * load.
+     */
+    suspend fun import(capability: ProfileCapability): ImportResult {
+        val cursor = store.cursor(capability.category) ?: return ImportResult.Completed
+        if (cursor.phase == ImportPhase.NOT_STARTED) return ImportResult.Completed
+        if (store.pendingCount() >= policy.maxOutboxItems) return ImportResult.Paused(pageToken = null, staged = 0)
+
+        val readAt = clock.instant()
+        val profile = when (val outcome = source.readProfile(capability)) {
+            is SamsungHealthOutcome.Failed -> return ImportResult.Failed(outcome.availability)
+            is SamsungHealthOutcome.Observed -> outcome.value
+        }
+
+        val observedAt = zoned(readAt, clock.zone.rules.getOffset(readAt))
+        val item = capability.staged(capability.mapper.map(profile, observedAt), readAt)
+        store.acceptPage(listOf(item), cursor.advancedTo(cursor.readFrom, records = 1).withInitialLoadComplete(readAt))
+        return ImportResult.Completed
+    }
+
     /** The initial load stops at the boundary it was given, as a history walk does. */
     private fun readUntil(cursor: SyncCursor, now: LocalDateTime): LocalDateTime = when (cursor.phase) {
         ImportPhase.INITIAL_LOAD -> cursor.initialLoad?.end ?: now

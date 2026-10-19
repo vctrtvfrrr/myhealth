@@ -58,6 +58,9 @@ class UnexpectedFailureTest {
         override suspend fun readAggregates(capability: SnapshotCapability, window: AggregateWindow) =
             failIfAsked(capability) ?: nothing.readAggregates(capability, window)
 
+        override suspend fun readProfile(capability: ProfileCapability) =
+            failIfAsked(capability) ?: nothing.readProfile(capability)
+
         private fun sourceOf(capability: RecordCapability) = if (capability.category == failing) records else nothing
 
         private fun failIfAsked(capability: HealthCapability): Nothing? {

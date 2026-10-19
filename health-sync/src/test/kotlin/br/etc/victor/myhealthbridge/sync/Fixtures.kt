@@ -311,7 +311,17 @@ class FakeRecordSource(
     private val changePages: List<SamsungHealthOutcome<ChangePage>> = emptyList(),
     private val aggregates: (SnapshotCapability, AggregateWindow) -> SamsungHealthOutcome<List<SourceAggregate>> =
         { _, _ -> SamsungHealthOutcome.Observed(emptyList()) },
+    private val profile: (ProfileCapability) -> SamsungHealthOutcome<Map<String, SourceValue>?> =
+        { SamsungHealthOutcome.Observed(null) },
 ) : HealthRecordSource {
+
+    var profileReads: Int = 0
+        private set
+
+    override suspend fun readProfile(capability: ProfileCapability): SamsungHealthOutcome<Map<String, SourceValue>?> {
+        profileReads++
+        return profile(capability)
+    }
 
     val aggregateWindows = mutableListOf<AggregateWindow>()
 
@@ -431,4 +441,24 @@ class InMemoryPermissionHistory : PermissionHistoryStore {
     override suspend fun write(observation: PermissionObservation) {
         this.observation = observation
     }
+}
+
+/**
+ * A synthetic profile, as the adapter hands one over.
+ *
+ * Every value is invented: a profile is personal data, and none in this repository may be the Data
+ * Owner's.
+ */
+fun syntheticProfile(
+    dateOfBirth: String? = "2000-01-01",
+    height: String? = "170.5",
+    weight: String? = "65.0",
+    gender: String? = "GENDER_UNKNOWN",
+    nickname: String? = "Synthetic",
+): Map<String, SourceValue> = buildMap {
+    dateOfBirth?.let { put("date_of_birth", SourceValue.Text(it)) }
+    height?.let { put("height", number(it)) }
+    weight?.let { put("weight", number(it)) }
+    gender?.let { put("gender", SourceValue.Text(it)) }
+    nickname?.let { put("nickname", SourceValue.Text(it)) }
 }

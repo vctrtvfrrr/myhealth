@@ -106,7 +106,7 @@ class SnapshotValidator(private val snapshotType: String) {
     private fun JsonObject.window(codes: MutableSet<RejectionCode>): Window? {
         val node = this["window"]?.takeIf { it != JsonNull }
         if (node == null) {
-            if (kind != null) codes += RejectionCode.INVALID_IDENTITY
+            if (kind?.window != null) codes += RejectionCode.INVALID_IDENTITY
             return null
         }
         val window = (node as? JsonObject)?.let { interval ->
@@ -114,7 +114,7 @@ class SnapshotValidator(private val snapshotType: String) {
             val end = interval.localTime("end")
             if (start == null || end == null || !start.isBefore(end)) null else Window(start, end)
         }
-        if (window == null || (kind != null && !kind.window.fits(window.start, window.end))) {
+        if (window == null || (kind != null && kind.window?.fits(window.start, window.end) != true)) {
             codes += RejectionCode.INVALID_IDENTITY
             return null
         }

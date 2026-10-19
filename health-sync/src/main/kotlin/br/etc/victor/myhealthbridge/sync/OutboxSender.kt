@@ -44,9 +44,9 @@ class OutboxSender(
                     client.send(endpoint, IngestionBatch(recordType = capability.recordType, items = envelopes))
                 } ?: declareInventories(endpoint, capability)
 
-            is SnapshotCapability ->
+            is SnapshotCapability, is ProfileCapability ->
                 deliver(capability, SnapshotObservation.serializer()) { observations ->
-                    client.sendSnapshots(endpoint, SnapshotBatch(snapshotType = capability.snapshotType, items = observations))
+                    client.sendSnapshots(endpoint, SnapshotBatch(snapshotType = capability.wireType, items = observations))
                 } ?: SendResult.Drained
         }
     }

@@ -9,6 +9,9 @@ sealed interface SyntheticFixture {
 
     /** The aggregate of one Snapshot Window. */
     data class Aggregate(val value: SourceValue) : SyntheticFixture
+
+    /** The whole profile, field by field. */
+    data class Profile(val fields: Map<String, SourceValue>) : SyntheticFixture
 }
 
 /**
@@ -28,6 +31,7 @@ object SyntheticFixtures {
         HealthCategory.STEPS to SyntheticFixture.Aggregate(number("1234")),
         HealthCategory.SLEEP to SyntheticFixture.Record(sleepRecord(sessions = listOf(sleepSession(stages = listOf(sleepStage()))))),
         HealthCategory.HEART_RATE to SyntheticFixture.Record(sourceRecord()),
+        HealthCategory.USER_PROFILE to SyntheticFixture.Profile(syntheticProfile()),
     )
 
     fun of(category: HealthCategory): SyntheticFixture? = byCategory[category]

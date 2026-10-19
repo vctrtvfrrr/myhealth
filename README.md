@@ -8,7 +8,7 @@ MyHealth Bridge é um sistema pessoal para copiar os dados de saúde e atividade
 
 O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. As verticais de contrato implementadas são `heart_rate`, `exercise` e `sleep`, exercitadas com envelopes sintéticos.
 
-Cada ingestão também projeta o Current Health Record e o Current Observed Snapshot, e o schema de leitura `read_model` oferece as views `current_heart_rate`, `current_exercise`, `current_exercise_location`, `current_sleep`, `current_sleep_session`, `current_sleep_stage`, `current_observed_snapshot` e `current_hourly_steps` para consulta por uma conta somente leitura.
+Cada ingestão também projeta o Current Health Record e o Current Observed Snapshot, e o schema de leitura `read_model` oferece as views `current_heart_rate`, `current_exercise`, `current_exercise_location`, `current_sleep`, `current_sleep_session`, `current_sleep_stage`, `current_observed_snapshot`, `current_hourly_steps` e `user_profile` para consulta por uma conta somente leitura.
 
 O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas.
 
@@ -232,7 +232,7 @@ A reconstrução é o mesmo enunciado SQL sobre todas as identidades, exposto co
 | --- | --- |
 | `projection rebuild` | Descarta as projeções e as regenera a partir dos envelopes e observações preservados. Mostra a contagem de Current Health Records, prefixada por `projected=`, e a de Current Observed Snapshots, prefixada por `projected_snapshots=`. |
 
-O schema `read_model` é a superfície de consulta. Hoje ele tem oito views:
+O schema `read_model` é a superfície de consulta. Hoje ele tem nove views:
 
 | View | Conteúdo |
 | --- | --- |
@@ -243,6 +243,7 @@ O schema `read_model` é a superfície de consulta. Hoje ele tem oito views:
 | `read_model.current_sleep_session` | As sessões das noites correntes, uma linha por sessão: `samsung_uid` do sono a que pertence, `position` na ordem em que a fonte reportou, `start_at`, `end_at` e `duration_seconds`. |
 | `read_model.current_observed_snapshot` | Todo Current Observed Snapshot, de qualquer tipo: `snapshot_type`, `window_start` e `window_end` em horário local, `observed_at` em UTC com o offset original, `partial` (a observação foi feita antes do fim da janela, em horário local), `empty`, `content` (nulo numa janela vazia), `source_scope` e `mapper_version`. Nada aqui é Health Record. |
 | `read_model.current_hourly_steps` | Os passos de cada hora local em que o Samsung Health contou algum: `window_start`, `window_end`, `steps`, `partial`, observação e `source_scope`. Uma hora observada como vazia sai da view, então o total de um dia é uma soma simples sobre ela. |
+| `read_model.user_profile` | O perfil do Data Owner e o histórico das suas mudanças, uma linha por observação guardada (só uma mudança é guardada): `observed_at` em UTC com o offset original, `current` (a observação de maior `observed_at`), `empty` (o Samsung Health não tinha perfil), `date_of_birth` como texto (formato não documentado pelo Samsung Health), `height_cm`, `weight_kg`, `gender` com a constante da fonte, `nickname`, `source_scope` e `mapper_version`. Um campo nunca preenchido é nulo. São dados pessoais. |
 | `read_model.current_sleep_stage` | Os estágios das sessões correntes, uma linha por estágio: `samsung_uid` do sono, `session_position` da sessão a que pertence, `position` dentro dela, `start_at`, `end_at` e `stage` com a constante que a fonte reportou (`AWAKE`, `LIGHT`, `DEEP`, `REM` ou `UNDEFINED` no SDK fixado). Uma sessão sem estágios não contribui linha alguma. |
 
 Uma Health Record removida na origem sai da view: a remoção é estado corrente, não medição corrente, e continua projetada e preservada. Um exercício removido leva a rota dele junto, e um sono removido leva as sessões e os estágios dele, pela mesma razão. `source_app` ou `source_device` nulo é o unknown explícito da Source Provenance, que é o que a fonte reportou.

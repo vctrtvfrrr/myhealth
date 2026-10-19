@@ -8,6 +8,7 @@ import br.etc.victor.myhealthbridge.health.SamsungHealthOutcome
 import br.etc.victor.myhealthbridge.sync.AggregateWindow
 import br.etc.victor.myhealthbridge.sync.ChangePage
 import br.etc.victor.myhealthbridge.sync.ChangeWindow
+import br.etc.victor.myhealthbridge.sync.ProfileCapability
 import br.etc.victor.myhealthbridge.sync.RecordCapability
 import br.etc.victor.myhealthbridge.sync.HealthRecordSource
 import br.etc.victor.myhealthbridge.sync.ReadWindow
@@ -65,6 +66,15 @@ internal val sleepFields: List<Field<*>> = listOf(
     DataType.SleepType.DURATION,
     DataType.SleepType.SLEEP_SCORE,
     DataType.SleepType.SESSIONS,
+)
+
+/** The fields of the profile this build reads, pinned to the SDK the same way. */
+internal val userProfileFields: List<Field<*>> = listOf(
+    DataType.UserProfileDataType.DATE_OF_BIRTH,
+    DataType.UserProfileDataType.HEIGHT,
+    DataType.UserProfileDataType.WEIGHT,
+    DataType.UserProfileDataType.GENDER,
+    DataType.UserProfileDataType.NICKNAME,
 )
 
 /**
@@ -136,6 +146,21 @@ class SamsungRecordSource(
             SamsungHealthAvailability.Unsupported("uncatalogued_aggregate_${capability.snapshotType}"),
         )
     }
+
+    /** The profile is read whole: its request takes no filter, no page and no ordering. */
+    override suspend fun readProfile(capability: ProfileCapability): SamsungHealthOutcome<Map<String, SourceValue>?> =
+        outcomes.observing {
+            store.readData(DataTypes.USER_PROFILE.readDataRequestBuilder.build())
+                .dataList
+                .firstOrNull()
+                ?.let { profile ->
+                    buildMap {
+                        userProfileFields.forEach { field ->
+                            sourceValueOf(profile.getValue(field))?.let { put(field.name, it) }
+                        }
+                    }
+                }
+        }
 
     /**
      * Collects every page of the aggregate before handing it on, because the importer observes a window

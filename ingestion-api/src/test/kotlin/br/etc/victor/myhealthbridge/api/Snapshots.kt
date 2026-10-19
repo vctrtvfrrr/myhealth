@@ -44,6 +44,44 @@ object Snapshots {
         }
     }
 
+    const val USER_PROFILE = "user_profile"
+    const val USER_PROFILE_MAPPER_VERSION = "samsung-health-user-profile/1"
+
+    /**
+     * The profile, which has no window. Every value is invented: a profile is personal data, and none in
+     * this repository may be the Data Owner's. A null [content] is no profile at all.
+     */
+    fun profile(
+        observedAt: String = "2026-08-10T18:20:00Z",
+        observedOffset: String = "-03:00",
+        content: JsonObject? = profileContent(),
+        mapperVersion: String = USER_PROFILE_MAPPER_VERSION,
+        window: JsonObject? = null,
+    ): JsonObject = buildJsonObject {
+        window?.let { put("window", it) }
+        putJsonObject("observedAt") {
+            put("instant", observedAt)
+            put("offset", observedOffset)
+        }
+        put("sourceScope", "all_sources")
+        put("mapperVersion", mapperVersion)
+        content?.let { put("content", it) }
+    }
+
+    fun profileContent(
+        dateOfBirth: String? = "2000-01-01",
+        height: Double? = 170.5,
+        weight: Double? = 65.0,
+        gender: String? = "GENDER_UNKNOWN",
+        nickname: String? = "Synthetic",
+    ): JsonObject = buildJsonObject {
+        dateOfBirth?.let { put("date_of_birth", it) }
+        height?.let { put("height", it) }
+        weight?.let { put("weight", it) }
+        gender?.let { put("gender", it) }
+        nickname?.let { put("nickname", it) }
+    }
+
     fun batch(
         snapshotType: String = STEPS,
         contractVersion: Int = 3,

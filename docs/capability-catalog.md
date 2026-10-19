@@ -4,7 +4,7 @@ Gerado de `HealthCapabilities` (`health-sync`) e verificado por `CapabilityCatal
 
 Uma entrada por Health Category do Samsung Health Data SDK adotado. Uma categoria que o SDK expõe e o catálogo não declara não é sincronizada e vira Maintenance Incident (`uncataloged_category`). Tamanhos de página e de leitura são escolhas deste repositório, não limites do SDK.
 
-Implementadas: 5 de 25.
+Implementadas: 6 de 25.
 
 | Categoria | Classe | Situação | Permissão | Leituras | Paginação | Mudanças | Dados associados | Identidade | Mapper | Projeção |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -32,4 +32,4 @@ Implementadas: 5 de 25.
 | `active_time_goal` | Observed Snapshot | não implementada | `active_time_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `active_time_goal` + dia local | — | — |
 | `energy_score` | Health Record | não implementada | `energy_score` | `DATE_RANGE`, `CHANGES` | 500 registros por página | sim | — | `energy_score` + Samsung UID | — | — |
 | `steps_goal` | Observed Snapshot | não implementada | `steps_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `steps_goal` + dia local | — | — |
-| `user_profile` | Observed Snapshot | não implementada | `user_profile` | `PROFILE` | — | não | — | `user_profile`, sem janela | — | — |
+| `user_profile` | Observed Snapshot | implementada | `user_profile` | `PROFILE` | — | não | — | `user_profile`, sem janela | `samsung-health-user-profile/1` | `read_model.user_profile` |

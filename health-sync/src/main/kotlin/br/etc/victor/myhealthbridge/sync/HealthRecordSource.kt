@@ -92,4 +92,7 @@ interface HealthRecordSource {
         capability: SnapshotCapability,
         window: AggregateWindow,
     ): SamsungHealthOutcome<List<SourceAggregate>>
+
+    /** The whole profile by the source's own field names, or null when Samsung Health holds none. */
+    suspend fun readProfile(capability: ProfileCapability): SamsungHealthOutcome<Map<String, SourceValue>?>
 }

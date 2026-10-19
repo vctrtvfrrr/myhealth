@@ -93,6 +93,7 @@ select count(*), max(period_start) from read_model.current_heart_rate;
 select count(*), max(period_start) from read_model.current_exercise;
 select count(distinct samsung_uid), count(*) from read_model.current_exercise_location;
 select count(*), max(window_start), sum(steps) from read_model.current_hourly_steps;
+select count(*), count(*) filter (where current), max(observed_at) from read_model.user_profile;
 ```
 
 1. Execute as consultas antes e depois do passo 4.

@@ -30,6 +30,19 @@ class AppSnapshotReadModelTest : IngestionApiTest() {
         )
     }
 
+    /** The literal `ProfileMapperTest` pins in `health-sync`. Every value in it is invented. */
+    @Test
+    fun `a profile snapshot the application mapped becomes the current profile in the read model`() {
+        val response = api.postBatch(MAPPED_PROFILE, token)
+
+        assertEquals(200, response.status, response.body)
+        assertEquals(listOf("accepted"), statuses(response.body))
+        assertEquals(
+            listOf("t|2000-01-01|170.5|65|GENDER_UNKNOWN|Synthetic"),
+            rows("select current, date_of_birth, height_cm, weight_kg, gender, nickname from read_model.user_profile"),
+        )
+    }
+
     private fun rows(sql: String): List<String> = api.query { connection ->
         connection.createStatement().use { statement ->
             statement.executeQuery(sql).use { rows ->
@@ -41,6 +54,9 @@ class AppSnapshotReadModelTest : IngestionApiTest() {
     }
 
     private companion object {
+        const val MAPPED_PROFILE =
+            """{"snapshotType":"user_profile","items":[{"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"all_sources","mapperVersion":"samsung-health-user-profile/1","content":{"date_of_birth":"2000-01-01","height":170.5,"weight":65.0,"gender":"GENDER_UNKNOWN","nickname":"Synthetic"}}],"contractVersion":3}"""
+
         const val MAPPED_STEPS =
             """{"snapshotType":"steps","items":[{"window":{"start":"2026-08-10T14:00:00","end":"2026-08-10T15:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"platform","mapperVersion":"samsung-health-steps/1","content":{"steps":1234}},{"window":{"start":"2026-08-10T15:00:00","end":"2026-08-10T16:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"platform","mapperVersion":"samsung-health-steps/1"}],"contractVersion":3}"""
     }

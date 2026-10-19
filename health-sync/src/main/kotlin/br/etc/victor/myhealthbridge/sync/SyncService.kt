@@ -168,6 +168,8 @@ class SyncService(
             // No changes feed exists for an aggregate: re-reading from the last closed window is all
             // there is, and the overlap above is what reaches back further.
             is SnapshotCapability -> deliverWhileReading(capability) { snapshots.import(capability) }?.let { return it }
+
+            is ProfileCapability -> deliverWhileReading(capability) { snapshots.import(capability) }?.let { return it }
         }
 
         return deliver(capability) ?: SyncOutcome.SUCCEEDED

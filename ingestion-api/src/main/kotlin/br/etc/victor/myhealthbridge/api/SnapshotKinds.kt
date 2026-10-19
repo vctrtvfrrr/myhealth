@@ -28,13 +28,15 @@ enum class SnapshotWindow {
  */
 object SnapshotKinds {
 
+    /** A null [window] is a kind that summarizes no stretch of time, identified by its type alone. */
     class Kind(
-        val window: SnapshotWindow,
+        val window: SnapshotWindow?,
         val contents: Map<String, (JsonObject) -> List<RejectionCode>>,
     )
 
     private val kinds: Map<String, Kind> = mapOf(
         "steps" to Kind(SnapshotWindow.LOCAL_HOUR, mapOf("samsung-health-steps/1" to ::validateSteps)),
+        "user_profile" to Kind(window = null, mapOf("samsung-health-user-profile/1" to UserProfileContent::validate)),
     )
 
     fun of(snapshotType: String): Kind? = kinds[snapshotType]

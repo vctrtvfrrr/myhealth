@@ -47,6 +47,15 @@ internal fun SnapshotCapability.staged(observation: SnapshotObservation, at: Ins
     enqueuedAt = at,
 )
 
+/** The one observation of the profile, which has neither a Samsung UID nor a window to be labeled by. */
+internal fun ProfileCapability.staged(observation: SnapshotObservation, at: Instant): NewOutboxItem = NewOutboxItem(
+    category = category,
+    recordType = snapshotType,
+    samsungUid = snapshotType,
+    envelopeJson = IngestionContract.json.encodeToString(SnapshotObservation.serializer(), observation),
+    enqueuedAt = at,
+)
+
 /** An inventory waiting to be declared, as it is about to be staged. */
 data class NewInventory(
     val category: HealthCategory,

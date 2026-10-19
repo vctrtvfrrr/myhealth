@@ -35,6 +35,11 @@ class CapabilityCoverageTest {
                     assertEquals(entry.mapperVersion, observation.mapperVersion)
                     assertNotNull(observation.content)
                 }
+                is ProfileCapability -> {
+                    val observation = entry.mapper.map((fixture as SyntheticFixture.Profile).fields, readAt)
+                    assertEquals(entry.mapperVersion, observation.mapperVersion)
+                    assertNotNull(observation.content)
+                }
                 is PermissionOnly -> {
                     val carrier = HealthCapabilities.of(entry.carrier) as RecordCapability
                     assertMapsRecord(carrier.mapper, fixture)
