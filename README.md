@@ -275,6 +275,22 @@ Uma Health Record removida na origem sai da view: a remoção é estado corrente
 
 A conta somente leitura é criada por quem administra o PostgreSQL, porque o papel de runtime da API não tem esse privilégio. Depois disso, as permissões vêm de [`docs/sql/read-access.sql`](docs/sql/read-access.sql), executado como o papel de runtime — uma vez, e novamente a cada deploy que acrescente uma view ao `read_model`. Nada é concedido sobre as tabelas de ingestão: a view roda com os privilégios de quem a possui, então a conta alcança os envelopes preservados apenas pelo formato que a view expõe. Ver ADR `0013`.
 
+#### Provisionar a conta de leitura na VPS CodeLab
+
+O papel é `myhealth_read`, na database `myhealth` do container `postgres-postgres-1`. Como administrador do PostgreSQL, crie-o com `CREATE ROLE myhealth_read LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS` e defina uma senha aleatória exclusiva por `\password myhealth_read` no `psql`. Não reutilize a senha de runtime nem conceda associação a outro papel. Aplique o conteúdo de `docs/sql/read-access.sql` na database `myhealth`, como `myhealth` (ou usando `SET ROLE myhealth` na sessão administrativa).
+
+Essa conta foi provisionada em produção em 19/10/2026. As sete consultas do passo 6 do smoke test passaram com autenticação por senha, sem acesso às tabelas de ingestão, privilégios de escrita no `read_model` ou associação a outros papéis. Essa verificação de acesso não substitui uma execução completa do smoke test no aparelho.
+
+A credencial fica no armazenamento privado de senhas do Data Owner, fora do repositório, do `.env` da API e dos secrets do CI. O arquivo `/home/codelab/.config/myhealth/read.pgpass`, usado no provisionamento, foi removido da VPS em 19/10/2026 depois que o Data Owner confirmou ter salvo a senha. O papel e sua senha continuam válidos no PostgreSQL.
+
+Para consultar pela conta de leitura, execute na VPS o comando abaixo e informe a senha no prompt do `psql`, sem colocá-la na linha de comando:
+
+```sh
+docker exec -it postgres-postgres-1 psql -X -W -h 127.0.0.1 -U myhealth_read -d myhealth
+```
+
+Execute as sete consultas do passo 6 de [`docs/smoke-test.md`](docs/smoke-test.md) nessa sessão. Verifique também que o papel não tem acesso às tabelas de ingestão, privilégios de escrita nas views nem associação a outros papéis. Registre apenas o resultado das verificações; não publique os valores de saúde ou a credencial. Depois de uma Full Purge, reaplique os grants: o papel e sua senha permanecem, mas o schema de leitura é recriado.
+
 ### Purga integral
 
 O Data Owner mantém o controle final sobre a cópia remota por uma purga integral: ela apaga tudo o que a API guarda no PostgreSQL, inclusive o `read_model`, os Ingestion Devices e o histórico do Flyway, e a importação recomeça do zero. O procedimento completo, verificado contra banco descartável pelo teste de integração, está em [`docs/purge.md`](docs/purge.md). Ver ADR `0021`.
