@@ -279,7 +279,7 @@ A conta somente leitura é criada por quem administra o PostgreSQL, porque o pap
 
 O papel é `myhealth_read`, na database `myhealth` do container `postgres-postgres-1`. Como administrador do PostgreSQL, crie-o com `CREATE ROLE myhealth_read LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS` e defina uma senha aleatória exclusiva por `\password myhealth_read` no `psql`. Não reutilize a senha de runtime nem conceda associação a outro papel. Aplique o conteúdo de `docs/sql/read-access.sql` na database `myhealth`, como `myhealth` (ou usando `SET ROLE myhealth` na sessão administrativa).
 
-Essa conta foi provisionada em produção em 19/10/2026. As sete consultas do passo 6 do smoke test passaram com autenticação por senha, sem acesso às tabelas de ingestão, privilégios de escrita no `read_model` ou associação a outros papéis. Essa verificação de acesso não substitui uma execução completa do smoke test no aparelho.
+Essa conta foi provisionada em produção em 19/10/2026. As sete consultas que o passo 6 do smoke test tinha então passaram com autenticação por senha, sem acesso às tabelas de ingestão, privilégios de escrita no `read_model` ou associação a outros papéis. Essa verificação de acesso não substitui uma execução completa do smoke test no aparelho.
 
 A credencial fica no armazenamento privado de senhas do Data Owner, fora do repositório, do `.env` da API e dos secrets do CI. O arquivo `/home/codelab/.config/myhealth/read.pgpass`, usado no provisionamento, foi removido da VPS em 19/10/2026 depois que o Data Owner confirmou ter salvo a senha. O papel e sua senha continuam válidos no PostgreSQL.
 
@@ -289,7 +289,7 @@ Para consultar pela conta de leitura, execute na VPS o comando abaixo e informe 
 docker exec -it postgres-postgres-1 psql -X -W -h 127.0.0.1 -U myhealth_read -d myhealth
 ```
 
-Execute as sete consultas do passo 6 de [`docs/smoke-test.md`](docs/smoke-test.md) nessa sessão. Verifique também que o papel não tem acesso às tabelas de ingestão, privilégios de escrita nas views nem associação a outros papéis. Registre apenas o resultado das verificações; não publique os valores de saúde ou a credencial. Depois de uma Full Purge, reaplique os grants: o papel e sua senha permanecem, mas o schema de leitura é recriado.
+Execute nessa sessão as consultas dos passos 6 a 10 de [`docs/smoke-test.md`](docs/smoke-test.md): o passo 6 verifica que o papel não tem acesso às tabelas de ingestão, privilégios de escrita nas views nem associação a outros papéis. Registre apenas o resultado das verificações; não publique os valores de saúde ou a credencial. Depois de uma Full Purge, reaplique os grants: o papel e sua senha permanecem, mas o schema de leitura é recriado.
 
 ### Purga integral
 
