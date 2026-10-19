@@ -12,7 +12,7 @@ Pull requests are not an issue request surface for triage.
 
 ## Wayfinding operations
 
-- **Network:** `tea` reaches Gitea only outside the sandbox. Use the `agent` login (`--login agent`); the `vctrtvfrrr` login's OAuth token does not refresh non-interactively.
+- **Network:** `tea` reaches Gitea only outside the sandbox. Use the `vctrtvfrrr` login (`--login vctrtvfrrr`). If its OAuth token stops refreshing, only the user can fix it, with `tea login oauth-refresh vctrtvfrrr`; never edit the tea config.
 - **Launching on Windows:** never call `tea` directly from an agent's Bash or PowerShell tool: it hangs forever, even for `tea --version`. While initializing, `charm.land/lipgloss/v2/compat` queries the terminal background color (OSC 11); in a console of its own the query gives up after 2 s, but in the console the agent tool hands down it never returns. Start it in a hidden console of its own instead, with a timeout, and read the results from files:
 
   ```powershell
