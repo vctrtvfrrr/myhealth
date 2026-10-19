@@ -4,7 +4,7 @@ Gerado de `HealthCapabilities` (`health-sync`) e verificado por `CapabilityCatal
 
 Uma entrada por Health Category do Samsung Health Data SDK adotado. Uma categoria que o SDK expõe e o catálogo não declara não é sincronizada e vira Maintenance Incident (`uncataloged_category`). Tamanhos de página e de leitura são escolhas deste repositório, não limites do SDK.
 
-Implementadas: 22 de 25.
+Implementadas: 25 de 25.
 
 | Categoria | Classe | Situação | Permissão | Leituras | Paginação | Mudanças | Dados associados | Identidade | Mapper | Projeção |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -18,7 +18,7 @@ Implementadas: 22 de 25.
 | `water_intake` | Health Record | implementada | `water_intake` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `water_intake` + Samsung UID | `samsung-health-water-intake/1` | `read_model.current_water_intake` |
 | `water_intake_goal` | Observed Snapshot | implementada | `water_intake_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `water_intake_goal` + dia local | `samsung-health-water-intake-goal/2` | `read_model.current_daily_goal` |
 | `sleep` | Health Record | implementada | `sleep` | `TIME_RANGE`, `CHANGES` | 100 registros por página | sim | `sessions`, `sessions.stages` | `sleep` + Samsung UID | `samsung-health-sleep/1` | `read_model.current_sleep` |
-| `sleep_apnea` | Health Record | não implementada | `sleep_apnea` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `sleep_apnea` + Samsung UID | — | — |
+| `sleep_apnea` | Health Record | implementada | `sleep_apnea` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `sleep_apnea` + Samsung UID | `samsung-health-sleep-apnea/1` | `read_model.current_sleep_apnea` |
 | `sleep_goal` | Observed Snapshot | implementada | `sleep_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `sleep_goal` + dia local | `samsung-health-sleep-goal/2` | `read_model.current_daily_goal` |
 | `skin_temperature` | Health Record | implementada | `skin_temperature` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | `binning_data` | `skin_temperature` + Samsung UID | `samsung-health-skin-temperature/1` | `read_model.current_skin_temperature` |
 | `blood_glucose` | Health Record | implementada | `blood_glucose` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | `binning_data` | `blood_glucose` + Samsung UID | `samsung-health-blood-glucose/1` | `read_model.current_blood_glucose` |
@@ -27,9 +27,9 @@ Implementadas: 22 de 25.
 | `body_composition` | Health Record | implementada | `body_composition` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `body_composition` + Samsung UID | `samsung-health-body-composition/1` | `read_model.current_body_composition` |
 | `body_temperature` | Health Record | implementada | `body_temperature` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `body_temperature` + Samsung UID | `samsung-health-body-temperature/1` | `read_model.current_body_temperature` |
 | `heart_rate` | Health Record | implementada | `heart_rate` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | `binning_data` | `heart_rate` + Samsung UID | `samsung-health-heart-rate/1` | `read_model.current_heart_rate` |
-| `irregular_heart_rhythm` | Health Record | não implementada | `irregular_heart_rhythm` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `irregular_heart_rhythm` + Samsung UID | — | — |
+| `irregular_heart_rhythm` | Health Record | implementada | `irregular_heart_rhythm` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `irregular_heart_rhythm` + Samsung UID | `samsung-health-irregular-heart-rhythm/1` | `read_model.current_irregular_heart_rhythm` |
 | `active_calories_burned_goal` | Observed Snapshot | implementada | `active_calories_burned_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `active_calories_burned_goal` + dia local | `samsung-health-active-calories-burned-goal/2` | `read_model.current_daily_goal` |
 | `active_time_goal` | Observed Snapshot | implementada | `active_time_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `active_time_goal` + dia local | `samsung-health-active-time-goal/2` | `read_model.current_daily_goal` |
-| `energy_score` | Health Record | não implementada | `energy_score` | `DATE_RANGE`, `CHANGES` | 500 registros por página | sim | — | `energy_score` + Samsung UID | — | — |
+| `energy_score` | Health Record | implementada | `energy_score` | `DATE_RANGE`, `CHANGES` | 500 registros por página | sim | — | `energy_score` + Samsung UID | `samsung-health-energy-score/1` | `read_model.current_energy_score` |
 | `steps_goal` | Observed Snapshot | implementada | `steps_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `steps_goal` + dia local | `samsung-health-steps-goal/2` | `read_model.current_daily_goal` |
 | `user_profile` | Observed Snapshot | implementada | `user_profile` | `PROFILE` | — | não | — | `user_profile`, sem janela | `samsung-health-user-profile/1` | `read_model.user_profile` |

@@ -331,7 +331,7 @@ object HealthCapabilities {
             projection = "read_model.current_sleep",
             associatedData = AssociatedData.Nested("sessions", "sessions.stages"),
         ),
-        measurement(HealthCategory.SLEEP_APNEA, "sleep_apnea"),
+        monitor(HealthCategory.SLEEP_APNEA, "sleep_apnea", SleepApneaMapper),
         dailyGoal(HealthCategory.SLEEP_GOAL, "sleep_goal", GoalMappers.SLEEP),
         binnedMeasurement(HealthCategory.SKIN_TEMPERATURE, "skin_temperature", SkinTemperatureMapper),
 
@@ -349,16 +349,18 @@ object HealthCapabilities {
             projection = "read_model.current_heart_rate",
             associatedData = AssociatedData.Nested("binning_data"),
         ),
-        measurement(HealthCategory.IRREGULAR_HEART_RHYTHM, "irregular_heart_rhythm"),
+        monitor(HealthCategory.IRREGULAR_HEART_RHYTHM, "irregular_heart_rhythm", IrregularHeartRhythmMapper),
 
         dailyGoal(HealthCategory.ACTIVE_CALORIES_BURNED_GOAL, "active_calories_burned_goal", GoalMappers.ACTIVE_CALORIES_BURNED),
         dailyGoal(HealthCategory.ACTIVE_TIME_GOAL, "active_time_goal", GoalMappers.ACTIVE_TIME),
         // One record per local day, which Samsung Health only filters by local date.
-        NotImplemented(
+        RecordCapability(
             category = HealthCategory.ENERGY_SCORE,
-            identity = CapabilityIdentity.SamsungUid("energy_score"),
+            recordType = "energy_score",
             readOperations = setOf(ReadOperation.DATE_RANGE, ReadOperation.CHANGES),
-            pagination = Pagination.Records(MEASUREMENTS_PER_PAGE),
+            pageSize = MEASUREMENTS_PER_PAGE,
+            mapper = EnergyScoreMapper,
+            projection = "read_model.current_energy_score",
         ),
         dailyGoal(HealthCategory.STEPS_GOAL, "steps_goal", GoalMappers.STEPS),
 
@@ -404,6 +406,19 @@ object HealthCapabilities {
 
     /** A measurement of plain fields, with nothing nested in it and nothing associated to read beside it. */
     private fun plainMeasurement(category: HealthCategory, recordType: String, mapper: RecordMapper) = RecordCapability(
+        category = category,
+        recordType = recordType,
+        readOperations = RECORD_READS,
+        pageSize = MEASUREMENTS_PER_PAGE,
+        mapper = mapper,
+        projection = "read_model.current_$recordType",
+    )
+
+    /**
+     * What the Samsung Health Monitor of a Galaxy Watch reports. Without one, or where its features are not
+     * offered, the history is simply empty.
+     */
+    private fun monitor(category: HealthCategory, recordType: String, mapper: RecordMapper) = RecordCapability(
         category = category,
         recordType = recordType,
         readOperations = RECORD_READS,

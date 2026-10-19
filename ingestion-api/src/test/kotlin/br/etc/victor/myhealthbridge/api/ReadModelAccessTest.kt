@@ -52,6 +52,11 @@ class ReadModelAccessTest : IngestionApiTest() {
             ConsumptionEnvelopes.WATER_INTAKE_RECORD_TYPE to ConsumptionEnvelopes.waterIntake(samsungUid = "uid-read-only"),
             ConsumptionEnvelopes.FLOORS_CLIMBED_RECORD_TYPE to ConsumptionEnvelopes.floorsClimbed(samsungUid = "uid-read-only"),
         ).forEach { (recordType, item) -> api.postBatch(Envelopes.batch(recordType = recordType, items = listOf(item)), token) }
+        mapOf(
+            MonitorEnvelopes.IRREGULAR_HEART_RHYTHM_RECORD_TYPE to MonitorEnvelopes.irregularHeartRhythm(samsungUid = "uid-read-only"),
+            MonitorEnvelopes.SLEEP_APNEA_RECORD_TYPE to MonitorEnvelopes.sleepApnea(samsungUid = "uid-read-only"),
+            MonitorEnvelopes.ENERGY_SCORE_RECORD_TYPE to MonitorEnvelopes.energyScore(samsungUid = "uid-read-only"),
+        ).forEach { (recordType, item) -> api.postBatch(Envelopes.batch(recordType = recordType, items = listOf(item)), token) }
         api.postBatch(
             Snapshots.batch(items = listOf(Snapshots.steps(start = "2026-07-01T09:00:00", end = "2026-07-01T10:00:00"))),
             token,
@@ -104,6 +109,9 @@ class ReadModelAccessTest : IngestionApiTest() {
                 1,
                 reader.count("select count(*) from read_model.current_hourly_steps where window_start = '2026-07-01T09:00:00'"),
             )
+            listOf("current_irregular_heart_rhythm", "current_sleep_apnea", "current_energy_score").forEach { view ->
+                assertEquals(1, reader.count("select count(*) from read_model.$view where samsung_uid = 'uid-read-only'"), view)
+            }
 
             listOf(
                 "insert into health_record_identity (record_type, samsung_uid) values ('heart_rate', 'uid-forged')",

@@ -37,6 +37,9 @@ class HealthCapabilitiesTest {
                 HealthCategory.BODY_TEMPERATURE,
                 HealthCategory.HEART_RATE,
                 HealthCategory.USER_PROFILE,
+                HealthCategory.SLEEP_APNEA,
+                HealthCategory.IRREGULAR_HEART_RHYTHM,
+                HealthCategory.ENERGY_SCORE,
             ) + GOALS,
             implemented,
         )
@@ -73,6 +76,7 @@ class HealthCapabilitiesTest {
                 HealthCategory.WATER_INTAKE,
                 HealthCategory.WATER_INTAKE_GOAL,
                 HealthCategory.SLEEP,
+                HealthCategory.SLEEP_APNEA,
                 HealthCategory.SLEEP_GOAL,
                 HealthCategory.SKIN_TEMPERATURE,
                 HealthCategory.BLOOD_GLUCOSE,
@@ -81,8 +85,10 @@ class HealthCapabilitiesTest {
                 HealthCategory.BODY_COMPOSITION,
                 HealthCategory.BODY_TEMPERATURE,
                 HealthCategory.HEART_RATE,
+                HealthCategory.IRREGULAR_HEART_RHYTHM,
                 HealthCategory.ACTIVE_CALORIES_BURNED_GOAL,
                 HealthCategory.ACTIVE_TIME_GOAL,
+                HealthCategory.ENERGY_SCORE,
                 HealthCategory.STEPS_GOAL,
                 HealthCategory.USER_PROFILE,
             ),
@@ -151,6 +157,40 @@ class HealthCapabilitiesTest {
             assertEquals(AssociatedData.None, capability.associatedData)
             assertTrue(capability.pageSize > 0)
         }
+    }
+
+    /**
+     * The watch monitors may report nothing at all on a device without the Samsung Health Monitor, which
+     * is an empty history and not a gap of the catalog.
+     */
+    @Test
+    fun `declares irregular heart rhythm and sleep apnea end to end, read over local time`() {
+        mapOf(
+            HealthCategory.IRREGULAR_HEART_RHYTHM to ("irregular_heart_rhythm" to IrregularHeartRhythmMapper),
+            HealthCategory.SLEEP_APNEA to ("sleep_apnea" to SleepApneaMapper),
+        ).forEach { (category, expected) ->
+            val capability = HealthCapabilities.of(category) as RecordCapability
+
+            assertEquals(expected.first, capability.recordType)
+            assertEquals(expected.second, capability.mapper)
+            assertEquals("read_model.current_${expected.first}", capability.projection)
+            assertEquals(setOf(ReadOperation.TIME_RANGE, ReadOperation.CHANGES), capability.readOperations)
+            assertEquals(AssociatedData.None, capability.associatedData)
+            assertTrue(capability.pageSize > 0)
+        }
+    }
+
+    /** Samsung Health keeps one score per local day and filters it only by local date. */
+    @Test
+    fun `declares the energy score end to end, read over local dates`() {
+        val capability = HealthCapabilities.of(HealthCategory.ENERGY_SCORE) as RecordCapability
+
+        assertEquals("energy_score", capability.recordType)
+        assertEquals(EnergyScoreMapper, capability.mapper)
+        assertEquals("read_model.current_energy_score", capability.projection)
+        assertEquals(setOf(ReadOperation.DATE_RANGE, ReadOperation.CHANGES), capability.readOperations)
+        assertEquals(AssociatedData.None, capability.associatedData)
+        assertTrue(capability.pageSize > 0)
     }
 
     /**

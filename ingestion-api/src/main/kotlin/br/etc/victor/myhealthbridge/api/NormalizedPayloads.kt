@@ -27,6 +27,9 @@ object NormalizedPayloads {
         ("nutrition" to "samsung-health-nutrition/1") to ::validateNutrition,
         ("water_intake" to "samsung-health-water-intake/1") to ::validateWaterIntake,
         ("floors_climbed" to "samsung-health-floors-climbed/1") to ::validateFloorsClimbed,
+        ("irregular_heart_rhythm" to "samsung-health-irregular-heart-rhythm/1") to ::validateIrregularHeartRhythm,
+        ("sleep_apnea" to "samsung-health-sleep-apnea/1") to ::validateSleepApnea,
+        ("energy_score" to "samsung-health-energy-score/1") to ::validateEnergyScore,
     ) + VitalSignPayloads.validators
 
     private val recordTypes: Set<String> = validators.keys.mapTo(mutableSetOf()) { it.first }
@@ -329,6 +332,30 @@ object NormalizedPayloads {
     private fun JsonObject.optionalText(key: String): Boolean {
         val node = this[key] ?: return true
         return (node as? JsonPrimitive)?.isString == true
+    }
+
+    /** Samsung Health documents no scale for it, so the bound only catches what no score could mean. */
+    private val PLAUSIBLE_ENERGY_SCORE = BigDecimal.ZERO..BigDecimal(1_000)
+
+    /**
+     * A notification is a fact by itself, so its status is optional: the source leaves it undefined at
+     * times, and the notification still happened. An unknown constant is accepted the way a sleep stage is.
+     */
+    private fun validateIrregularHeartRhythm(payload: JsonObject): List<RejectionCode> =
+        monitored(payload["irregularHeartRhythm"], "status")
+
+    /** An assessment is a fact by itself, so its result is optional, for the reason a notification's status is. */
+    private fun validateSleepApnea(payload: JsonObject): List<RejectionCode> = monitored(payload["sleepApnea"], "result")
+
+    private fun monitored(node: JsonElement?, constant: String): List<RejectionCode> {
+        val monitored = node as? JsonObject ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+        return if (monitored.optionalConstant(constant)) emptyList() else listOf(RejectionCode.INVALID_PAYLOAD)
+    }
+
+    /** The score is the whole record, so it is required, the way a heart rate is; it states no unit. */
+    private fun validateEnergyScore(payload: JsonObject): List<RejectionCode> {
+        val energyScore = payload["energyScore"] as? JsonObject ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+        return if (energyScore.required("score", PLAUSIBLE_ENERGY_SCORE)) emptyList() else listOf(RejectionCode.INVALID_PAYLOAD)
     }
 
     private fun series(node: JsonElement?, valid: (JsonObject) -> Boolean): Boolean {

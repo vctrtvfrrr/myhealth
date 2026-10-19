@@ -55,6 +55,9 @@ object SyntheticFixtures {
         HealthCategory.STEPS_GOAL to SyntheticFixture.Aggregate(number("6000")),
         HealthCategory.WATER_INTAKE_GOAL to SyntheticFixture.Aggregate(number("2500.0")),
         HealthCategory.USER_PROFILE to SyntheticFixture.Profile(syntheticProfile()),
+        HealthCategory.IRREGULAR_HEART_RHYTHM to SyntheticFixture.Record(irregularHeartRhythmRecord()),
+        HealthCategory.SLEEP_APNEA to SyntheticFixture.Record(sleepApneaRecord()),
+        HealthCategory.ENERGY_SCORE to SyntheticFixture.Record(energyScoreRecord()),
     )
 
     fun of(category: HealthCategory): SyntheticFixture? = byCategory[category]

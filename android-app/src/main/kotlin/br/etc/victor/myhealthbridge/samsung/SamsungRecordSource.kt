@@ -188,6 +188,15 @@ internal val waterIntakeFields: List<Field<*>> = listOf(DataType.WaterIntakeType
 /** The fields of a floors climbed record this build reads, pinned to the SDK the same way. */
 internal val floorsClimbedFields: List<Field<*>> = listOf(DataType.FloorsClimbedType.FLOOR)
 
+/** The fields of an irregular heart rhythm notification this build reads, pinned to the SDK the same way. */
+internal val irregularHeartRhythmFields: List<Field<*>> = listOf(DataType.IrregularHeartRhythmNotificationType.STATUS)
+
+/** The fields of a sleep apnea assessment this build reads, pinned to the SDK the same way. */
+internal val sleepApneaFields: List<Field<*>> = listOf(DataType.SleepApneaType.DETECTED_SIGN)
+
+/** The fields of an energy score this build reads, pinned to the SDK the same way. */
+internal val energyScoreFields: List<Field<*>> = listOf(DataType.EnergyScoreType.ENERGY_SCORE)
+
 /**
  * Reads Health Records from Samsung Health, one page at a time, and hands them on with no SDK type
  * left in them.
@@ -385,6 +394,15 @@ class SamsungRecordSource(
         capability: RecordCapability,
         window: ReadWindow,
         pageToken: String?,
+    ): ReadDataRequest<HealthDataPoint>? = when (capability.category) {
+        HealthCategory.ENERGY_SCORE -> localDateRequestOf(DataTypes.ENERGY_SCORE.readDataRequestBuilder, capability, window, pageToken)
+        else -> localTimeRequestOf(capability, window, pageToken)
+    }
+
+    private fun localTimeRequestOf(
+        capability: RecordCapability,
+        window: ReadWindow,
+        pageToken: String?,
     ): ReadDataRequest<HealthDataPoint>? = readBuilderOf(capability)
         ?.setLocalTimeFilter(LocalTimeFilter.of(window.from, window.to, true, true))
         ?.setOrdering(Ordering.ASC)
@@ -418,6 +436,8 @@ class SamsungRecordSource(
         HealthCategory.NUTRITION -> DataTypes.NUTRITION.readDataRequestBuilder
         HealthCategory.WATER_INTAKE -> DataTypes.WATER_INTAKE.readDataRequestBuilder
         HealthCategory.FLOORS_CLIMBED -> DataTypes.FLOORS_CLIMBED.readDataRequestBuilder
+        HealthCategory.SLEEP_APNEA -> DataTypes.SLEEP_APNEA.readDataRequestBuilder
+        HealthCategory.IRREGULAR_HEART_RHYTHM -> DataTypes.IRREGULAR_HEART_RHYTHM_NOTIFICATION.readDataRequestBuilder
         else -> null
     }
 
@@ -441,6 +461,9 @@ class SamsungRecordSource(
         HealthCategory.NUTRITION -> DataTypes.NUTRITION.changedDataRequestBuilder
         HealthCategory.WATER_INTAKE -> DataTypes.WATER_INTAKE.changedDataRequestBuilder
         HealthCategory.FLOORS_CLIMBED -> DataTypes.FLOORS_CLIMBED.changedDataRequestBuilder
+        HealthCategory.SLEEP_APNEA -> DataTypes.SLEEP_APNEA.changedDataRequestBuilder
+        HealthCategory.IRREGULAR_HEART_RHYTHM -> DataTypes.IRREGULAR_HEART_RHYTHM_NOTIFICATION.changedDataRequestBuilder
+        HealthCategory.ENERGY_SCORE -> DataTypes.ENERGY_SCORE.changedDataRequestBuilder
         else -> null
     }
 }
@@ -459,8 +482,31 @@ private fun fieldsOf(capability: RecordCapability): List<Field<*>> = when (capab
     HealthCategory.NUTRITION -> nutritionFields
     HealthCategory.WATER_INTAKE -> waterIntakeFields
     HealthCategory.FLOORS_CLIMBED -> floorsClimbedFields
+    HealthCategory.SLEEP_APNEA -> sleepApneaFields
+    HealthCategory.IRREGULAR_HEART_RHYTHM -> irregularHeartRhythmFields
+    HealthCategory.ENERGY_SCORE -> energyScoreFields
     else -> emptyList()
 }
+
+/**
+ * A read of a category Samsung Health only filters by local date, over every local day [window] touches.
+ *
+ * The SDK reads the dates as the starts of the first and last days, both included. That is where a record
+ * kept one per local day starts, so a window starting within a day still reads that day's record: reading
+ * one before the window costs nothing, since a Record Inventory may name it, while leaving one inside it
+ * out would be read as a removal. See ADR 0022.
+ */
+internal fun localDateRequestOf(
+    builder: ReadDataRequest.LocalDateBuilder<HealthDataPoint>,
+    capability: RecordCapability,
+    window: ReadWindow,
+    pageToken: String?,
+): ReadDataRequest<HealthDataPoint> = builder
+    .setLocalDateFilter(LocalDateFilter.of(window.from.toLocalDate(), window.to.toLocalDate(), true, true))
+    .setOrdering(Ordering.ASC)
+    .setPageSize(capability.pageSize)
+    .also { request -> pageToken?.let(request::setPageToken) }
+    .build()
 
 /**
  * A removal that does not name what was removed is dropped rather than guessed at, the way an unknown

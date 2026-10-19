@@ -330,6 +330,43 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
         assertEquals("3", climb.getValue("floors"))
     }
 
+    @Test
+    fun `notifications, assessments and scores the application mapped become queryable`() {
+        listOf(
+            "irregular_heart_rhythm" to MAPPED_IRREGULAR_HEART_RHYTHM,
+            "sleep_apnea" to MAPPED_SLEEP_APNEA,
+            "energy_score" to MAPPED_ENERGY_SCORE,
+        ).forEach { (recordType, item) ->
+            val response = api.postBatch("""{"contractVersion":1,"recordType":"$recordType","items":[$item]}""", token)
+            assertEquals(listOf("accepted"), statuses(response.body), recordType)
+        }
+
+        val notification = row(
+            """
+            select status, detected_at, detected_at_offset, mapper_version
+            from read_model.current_irregular_heart_rhythm where samsung_uid = ?
+            """.trimIndent(),
+            "uid-golden-irregular-heart-rhythm",
+        )
+        assertEquals("DETECTED", notification.getValue("status"))
+        assertEquals("-03:00", notification.getValue("detected_at_offset"))
+        assertEquals("samsung-health-irregular-heart-rhythm/1", notification.getValue("mapper_version"))
+
+        val assessment = row(
+            "select result, period_end_offset from read_model.current_sleep_apnea where samsung_uid = ?",
+            "uid-golden-sleep-apnea",
+        )
+        assertEquals(null, assessment["result"])
+        assertEquals("-03:00", assessment.getValue("period_end_offset"))
+
+        val score = row(
+            "select local_date::text, score::text from read_model.current_energy_score where samsung_uid = ?",
+            "uid-golden-energy-score",
+        )
+        assertEquals("2026-08-10", score.getValue("local_date"))
+        assertEquals("82", score.getValue("score"))
+    }
+
     private fun column(sql: String, samsungUid: String): List<String?> = api.query { connection ->
         connection.prepareStatement(sql).use { statement ->
             statement.setString(1, samsungUid)
@@ -403,5 +440,11 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
         const val MAPPED_WATER_INTAKE = """{"samsungUid":"uid-golden-water-intake","observedAt":{"instant":"2026-08-10T12:31:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-water-intake/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T12:30:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T12:30:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"amount":250.0},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"waterIntake":{"amount":{"value":250.0,"unit":"mL"}}}}}"""
 
         const val MAPPED_FLOORS_CLIMBED = """{"samsungUid":"uid-golden-floors-climbed","observedAt":{"instant":"2026-08-10T09:11:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-floors-climbed/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T09:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T09:10:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"floor":3.0},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"floorsClimbed":{"floors":3.0}}}}"""
+
+        const val MAPPED_IRREGULAR_HEART_RHYTHM = """{"samsungUid":"uid-golden-irregular-heart-rhythm","observedAt":{"instant":"2026-08-10T04:25:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-irregular-heart-rhythm/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T04:20:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T04:20:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"status":"DETECTED"},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"irregularHeartRhythm":{"status":"DETECTED"}}}}"""
+
+        const val MAPPED_SLEEP_APNEA = """{"samsungUid":"uid-golden-sleep-apnea","observedAt":{"instant":"2026-08-10T09:45:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-sleep-apnea/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T02:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T09:30:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"result":"UNDEFINED"},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"sleepApnea":{}}}}"""
+
+        const val MAPPED_ENERGY_SCORE = """{"samsungUid":"uid-golden-energy-score","observedAt":{"instant":"2026-08-10T10:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-energy-score/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T03:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T03:00:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"total_score":82.0},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"energyScore":{"score":82.0}}}}"""
     }
 }
