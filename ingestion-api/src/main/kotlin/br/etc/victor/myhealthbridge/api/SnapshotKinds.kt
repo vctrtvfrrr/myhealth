@@ -14,6 +14,11 @@ enum class SnapshotWindow {
         override fun fits(start: LocalDateTime, end: LocalDateTime): Boolean =
             start == start.truncatedTo(ChronoUnit.HOURS) && Duration.between(start, end) == Duration.ofHours(1)
     },
+
+    LOCAL_DAY {
+        override fun fits(start: LocalDateTime, end: LocalDateTime): Boolean =
+            start == start.truncatedTo(ChronoUnit.DAYS) && end == start.plusDays(1)
+    },
     ;
 
     abstract fun fits(start: LocalDateTime, end: LocalDateTime): Boolean
@@ -41,7 +46,7 @@ object SnapshotKinds {
             mapOf("samsung-health-activity-summary/1" to ActivitySummaryContent::validate),
         ),
         "user_profile" to Kind(window = null, mapOf("samsung-health-user-profile/1" to UserProfileContent::validate)),
-    )
+    ) + DailyGoals.kinds
 
     fun of(snapshotType: String): Kind? = kinds[snapshotType]
 

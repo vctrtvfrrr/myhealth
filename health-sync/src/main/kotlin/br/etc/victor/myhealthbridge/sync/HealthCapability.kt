@@ -313,9 +313,9 @@ object HealthCapabilities {
         ),
 
         measurement(HealthCategory.NUTRITION, "nutrition"),
-        dailyGoal(HealthCategory.NUTRITION_GOAL, "nutrition_goal"),
+        dailyGoal(HealthCategory.NUTRITION_GOAL, "nutrition_goal", GoalMappers.NUTRITION),
         measurement(HealthCategory.WATER_INTAKE, "water_intake"),
-        dailyGoal(HealthCategory.WATER_INTAKE_GOAL, "water_intake_goal"),
+        dailyGoal(HealthCategory.WATER_INTAKE_GOAL, "water_intake_goal", GoalMappers.WATER_INTAKE),
 
         RecordCapability(
             category = HealthCategory.SLEEP,
@@ -332,7 +332,7 @@ object HealthCapabilities {
             associatedData = AssociatedData.Nested("sessions", "sessions.stages"),
         ),
         measurement(HealthCategory.SLEEP_APNEA, "sleep_apnea"),
-        dailyGoal(HealthCategory.SLEEP_GOAL, "sleep_goal"),
+        dailyGoal(HealthCategory.SLEEP_GOAL, "sleep_goal", GoalMappers.SLEEP),
         measurement(HealthCategory.SKIN_TEMPERATURE, "skin_temperature", AssociatedData.Nested("binning_data")),
 
         measurement(HealthCategory.BLOOD_GLUCOSE, "blood_glucose", AssociatedData.Nested("binning_data")),
@@ -351,8 +351,8 @@ object HealthCapabilities {
         ),
         measurement(HealthCategory.IRREGULAR_HEART_RHYTHM, "irregular_heart_rhythm"),
 
-        dailyGoal(HealthCategory.ACTIVE_CALORIES_BURNED_GOAL, "active_calories_burned_goal"),
-        dailyGoal(HealthCategory.ACTIVE_TIME_GOAL, "active_time_goal"),
+        dailyGoal(HealthCategory.ACTIVE_CALORIES_BURNED_GOAL, "active_calories_burned_goal", GoalMappers.ACTIVE_CALORIES_BURNED),
+        dailyGoal(HealthCategory.ACTIVE_TIME_GOAL, "active_time_goal", GoalMappers.ACTIVE_TIME),
         // One record per local day, which Samsung Health only filters by local date.
         NotImplemented(
             category = HealthCategory.ENERGY_SCORE,
@@ -360,7 +360,7 @@ object HealthCapabilities {
             readOperations = setOf(ReadOperation.DATE_RANGE, ReadOperation.CHANGES),
             pagination = Pagination.Records(MEASUREMENTS_PER_PAGE),
         ),
-        dailyGoal(HealthCategory.STEPS_GOAL, "steps_goal"),
+        dailyGoal(HealthCategory.STEPS_GOAL, "steps_goal", GoalMappers.STEPS),
 
         // The profile has no window: there is one per Data Owner, read whole on every run.
         ProfileCapability(
@@ -388,10 +388,12 @@ object HealthCapabilities {
         associatedData = associatedData,
     )
 
-    private fun dailyGoal(category: HealthCategory, snapshotType: String) = NotImplemented(
+    private fun dailyGoal(category: HealthCategory, snapshotType: String, mapper: GoalMapper) = SnapshotCapability(
         category = category,
-        identity = CapabilityIdentity.Snapshot(snapshotType, SnapshotWindowUnit.LOCAL_DAY),
-        readOperations = setOf(ReadOperation.AGGREGATE),
-        pagination = Pagination.Windows(DAYS_PER_READ),
+        snapshotType = snapshotType,
+        window = SnapshotWindowUnit.LOCAL_DAY,
+        windowsPerRead = DAYS_PER_READ,
+        mapper = mapper,
+        projection = "read_model.current_daily_goal",
     )
 }

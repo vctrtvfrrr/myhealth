@@ -62,6 +62,19 @@ class AppSnapshotReadModelTest : IngestionApiTest() {
         )
     }
 
+    /** Pinned on the other side by `GoalMapperTest` in `health-sync`. */
+    @Test
+    fun `a batch of step goals the application mapped becomes queryable through the read model`() {
+        val response = api.postBatch(MAPPED_STEPS_GOAL, token)
+
+        assertEquals(200, response.status, response.body)
+        assertEquals(listOf("accepted", "accepted"), statuses(response.body))
+        assertEquals(
+            listOf("steps_goal|2026-08-10|6000|t|t"),
+            rows("select goal, day, steps, changed, partial from read_model.current_daily_goal"),
+        )
+    }
+
     private fun rows(sql: String): List<String> = api.query { connection ->
         connection.createStatement().use { statement ->
             statement.executeQuery(sql).use { rows ->
@@ -73,6 +86,9 @@ class AppSnapshotReadModelTest : IngestionApiTest() {
     }
 
     private companion object {
+        const val MAPPED_STEPS_GOAL =
+            """{"snapshotType":"steps_goal","items":[{"window":{"start":"2026-08-10T00:00:00","end":"2026-08-11T00:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"all_sources","mapperVersion":"samsung-health-steps-goal/1","content":{"steps":6000}},{"window":{"start":"2026-08-11T00:00:00","end":"2026-08-12T00:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"all_sources","mapperVersion":"samsung-health-steps-goal/1"}],"contractVersion":3}"""
+
         const val MAPPED_PROFILE =
             """{"snapshotType":"user_profile","items":[{"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"all_sources","mapperVersion":"samsung-health-user-profile/1","content":{"date_of_birth":"2000-01-01","height":170.5,"weight":65.0,"gender":"GENDER_UNKNOWN","nickname":"Synthetic"}}],"contractVersion":3}"""
 

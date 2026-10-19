@@ -14,6 +14,7 @@ import br.etc.victor.myhealthbridge.sync.RecordCapability
 import br.etc.victor.myhealthbridge.sync.HealthRecordSource
 import br.etc.victor.myhealthbridge.sync.ReadWindow
 import br.etc.victor.myhealthbridge.sync.RecordPage
+import br.etc.victor.myhealthbridge.sync.SleepGoalMapper
 import br.etc.victor.myhealthbridge.sync.SnapshotCapability
 import br.etc.victor.myhealthbridge.sync.SnapshotWindowUnit
 import br.etc.victor.myhealthbridge.sync.SourceAggregate
@@ -39,6 +40,9 @@ import com.samsung.android.sdk.health.data.request.ChangedDataRequest
 import com.samsung.android.sdk.health.data.request.DataType
 import com.samsung.android.sdk.health.data.request.DataTypes
 import com.samsung.android.sdk.health.data.request.InstantTimeFilter
+import com.samsung.android.sdk.health.data.request.LocalDateFilter
+import com.samsung.android.sdk.health.data.request.LocalDateGroup
+import com.samsung.android.sdk.health.data.request.LocalDateGroupUnit
 import com.samsung.android.sdk.health.data.request.LocalTimeFilter
 import com.samsung.android.sdk.health.data.request.LocalTimeGroup
 import com.samsung.android.sdk.health.data.request.LocalTimeGroupUnit
@@ -47,6 +51,7 @@ import com.samsung.android.sdk.health.data.request.ReadDataRequest
 import java.math.BigDecimal
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalTime
 
 /** The fields of a heart rate record this build reads, which a test pins to what the SDK exposes. */
 internal val heartRateFields: List<Field<*>> = listOf(
@@ -161,6 +166,22 @@ class SamsungRecordSource(
         HealthCategory.ACTIVITY_SUMMARY -> outcomes.observing {
             together(activitySummaryTotals.map { total -> total.name to aggregate(capability, window, total) })
         }
+        HealthCategory.ACTIVE_CALORIES_BURNED_GOAL -> outcomes.observing {
+            dailyGoal(window) { DataType.ActiveCaloriesBurnedGoalType.LAST.requestBuilder }
+        }
+        HealthCategory.ACTIVE_TIME_GOAL -> outcomes.observing {
+            dailyGoal(window) { DataType.ActiveTimeGoalType.LAST.requestBuilder }
+        }
+        HealthCategory.NUTRITION_GOAL -> outcomes.observing {
+            dailyGoal(window) { DataType.NutritionGoalType.LAST_CALORIES.requestBuilder }
+        }
+        HealthCategory.SLEEP_GOAL -> outcomes.observing { sleepGoal(window) }
+        HealthCategory.STEPS_GOAL -> outcomes.observing {
+            dailyGoal(window) { DataType.StepsGoalType.LAST.requestBuilder }
+        }
+        HealthCategory.WATER_INTAKE_GOAL -> outcomes.observing {
+            dailyGoal(window) { DataType.WaterIntakeGoalType.LAST.requestBuilder }
+        }
         else -> SamsungHealthOutcome.Failed(
             SamsungHealthAvailability.Unsupported("uncatalogued_aggregate_${capability.snapshotType}"),
         )
@@ -226,6 +247,47 @@ class SamsungRecordSource(
             response.dataList.forEach { add(SourceAggregate(it.getStartLocalDateTime(), sourceValueOf(it.value))) }
             pageToken = response.pageToken
         } while (pageToken != null)
+    }
+
+    /**
+     * The goal in force on each local day of [window], which Samsung Health only aggregates by local date
+     * and over every source. Every page is collected for the same reason as [aggregate].
+     */
+    private suspend fun <T : Any> dailyGoal(
+        window: AggregateWindow,
+        builder: () -> AggregateRequest.AllSourceLocalDateBuilder<T>,
+    ): List<SourceAggregate> = buildList {
+        var pageToken: String? = null
+        do {
+            val request = builder()
+                .setLocalDateFilterWithGroup(
+                    LocalDateFilter.of(window.from.toLocalDate(), window.until.toLocalDate(), true, false),
+                    LocalDateGroup.of(LocalDateGroupUnit.DAILY, 1),
+                )
+                .setOrdering(Ordering.ASC)
+                .also { request -> pageToken?.let(request::setPageToken) }
+                .build()
+            val response = store.aggregateData(request)
+            response.dataList.forEach {
+                add(SourceAggregate(it.getStartLocalDateTime().toLocalDate().atStartOfDay(), sourceValueOf(it.value)))
+            }
+            pageToken = response.pageToken
+        } while (pageToken != null)
+    }
+
+    /** The bed and wake up times Samsung Health aggregates apart, joined into the goal of each day. */
+    private suspend fun sleepGoal(window: AggregateWindow): List<SourceAggregate> {
+        val bedTimes = dailyGoal(window) { DataType.SleepGoalType.LAST_BED_TIME.requestBuilder }
+        val wakeUpTimes = dailyGoal(window) { DataType.SleepGoalType.LAST_WAKE_UP_TIME.requestBuilder }
+        val bedTime = bedTimes.associate { it.start to it.value }
+        val wakeUpTime = wakeUpTimes.associate { it.start to it.value }
+        return (bedTime.keys + wakeUpTime.keys).sorted().map { day ->
+            val goal = listOfNotNull(
+                bedTime[day]?.let { SleepGoalMapper.BED_TIME to it },
+                wakeUpTime[day]?.let { SleepGoalMapper.WAKE_UP_TIME to it },
+            ).toMap()
+            SourceAggregate(day, goal.takeIf { it.isNotEmpty() }?.let(SourceValue::Nested))
+        }
     }
 
     /** Null for a capability this build declares but cannot yet build a read for. */
@@ -326,6 +388,7 @@ private fun sourceValueOf(value: Any?): SourceValue? = when (value) {
     is Enum<*> -> SourceValue.Text(value.name)
     is String -> SourceValue.Text(value)
     is Instant -> SourceValue.Text(value.toString())
+    is LocalTime -> SourceValue.Text(value.toString())
     is Duration -> SourceValue.Number(BigDecimal.valueOf(value.toMillis(), 3))
     is SwimmingLog -> SourceValue.Nested(swimmingLogEntries.entryOf(value))
     is List<*> -> SourceValue.Series(value.mapNotNull(::entryOf))

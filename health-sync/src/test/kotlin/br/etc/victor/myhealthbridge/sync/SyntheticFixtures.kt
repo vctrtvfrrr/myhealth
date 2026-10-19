@@ -32,6 +32,19 @@ object SyntheticFixtures {
         HealthCategory.STEPS to SyntheticFixture.Aggregate(number("1234")),
         HealthCategory.SLEEP to SyntheticFixture.Record(sleepRecord(sessions = listOf(sleepSession(stages = listOf(sleepStage()))))),
         HealthCategory.HEART_RATE to SyntheticFixture.Record(sourceRecord()),
+        HealthCategory.ACTIVE_CALORIES_BURNED_GOAL to SyntheticFixture.Aggregate(number("450")),
+        HealthCategory.ACTIVE_TIME_GOAL to SyntheticFixture.Aggregate(number("5400.000")),
+        HealthCategory.NUTRITION_GOAL to SyntheticFixture.Aggregate(number("2100.0")),
+        HealthCategory.SLEEP_GOAL to SyntheticFixture.Aggregate(
+            SourceValue.Nested(
+                mapOf(
+                    SleepGoalMapper.BED_TIME to SourceValue.Text("23:15"),
+                    SleepGoalMapper.WAKE_UP_TIME to SourceValue.Text("06:45"),
+                ),
+            ),
+        ),
+        HealthCategory.STEPS_GOAL to SyntheticFixture.Aggregate(number("6000")),
+        HealthCategory.WATER_INTAKE_GOAL to SyntheticFixture.Aggregate(number("2500.0")),
         HealthCategory.USER_PROFILE to SyntheticFixture.Profile(syntheticProfile()),
     )
 

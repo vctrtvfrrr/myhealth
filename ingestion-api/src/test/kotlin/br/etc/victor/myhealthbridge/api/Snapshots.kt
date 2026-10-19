@@ -10,7 +10,7 @@ import kotlinx.serialization.json.putJsonObject
 import java.math.BigDecimal
 
 /**
- * Synthetic step and activity snapshots.
+ * Synthetic step, activity, profile and goal snapshots.
  *
  * Every value is invented: the repository must never carry fixtures derived from real measurements.
  */
@@ -18,6 +18,8 @@ object Snapshots {
 
     const val STEPS = "steps"
     const val STEPS_MAPPER_VERSION = "samsung-health-steps/1"
+    const val STEPS_GOAL = "steps_goal"
+    const val STEPS_GOAL_MAPPER_VERSION = "samsung-health-steps-goal/1"
 
     /** One local hour of steps; a null [steps] is a window with nothing in it. */
     fun steps(
@@ -125,6 +127,27 @@ object Snapshots {
             put("value", JsonPrimitive(BigDecimal(value)))
             put("unit", unit)
         }
+    }
+
+    /** The goal of one local day; a null [content] is a day with no goal in it. */
+    fun goal(
+        day: String = "2026-08-10",
+        nextDay: String = "2026-08-11",
+        observedAt: String = "2026-08-11T12:00:00Z",
+        mapperVersion: String = STEPS_GOAL_MAPPER_VERSION,
+        content: JsonObject? = buildJsonObject { put("steps", 6000) },
+    ): JsonObject = buildJsonObject {
+        putJsonObject("window") {
+            put("start", "${day}T00:00:00")
+            put("end", "${nextDay}T00:00:00")
+        }
+        putJsonObject("observedAt") {
+            put("instant", observedAt)
+            put("offset", "-03:00")
+        }
+        put("sourceScope", "all_sources")
+        put("mapperVersion", mapperVersion)
+        content?.let { put("content", it) }
     }
 
     fun batch(

@@ -1,5 +1,6 @@
 package br.etc.victor.myhealthbridge.sync
 
+import br.etc.victor.myhealthbridge.contract.SourceScope
 import br.etc.victor.myhealthbridge.health.HealthCategory
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -27,7 +28,7 @@ class HealthCapabilitiesTest {
                 HealthCategory.SLEEP,
                 HealthCategory.HEART_RATE,
                 HealthCategory.USER_PROFILE,
-            ),
+            ) + GOALS,
             implemented,
         )
     }
@@ -57,8 +58,14 @@ class HealthCapabilitiesTest {
                 HealthCategory.ACTIVITY_SUMMARY,
                 HealthCategory.EXERCISE,
                 HealthCategory.STEPS,
+                HealthCategory.NUTRITION_GOAL,
+                HealthCategory.WATER_INTAKE_GOAL,
                 HealthCategory.SLEEP,
+                HealthCategory.SLEEP_GOAL,
                 HealthCategory.HEART_RATE,
+                HealthCategory.ACTIVE_CALORIES_BURNED_GOAL,
+                HealthCategory.ACTIVE_TIME_GOAL,
+                HealthCategory.STEPS_GOAL,
                 HealthCategory.USER_PROFILE,
             ),
             HealthCapabilities.synchronized.map { it.category },
@@ -151,6 +158,34 @@ class HealthCapabilitiesTest {
         assertEquals("read_model.user_profile", capability.projection)
     }
 
+    /**
+     * Samsung Health keeps the goal in force on each past local day and exposes it only as the last value
+     * of that day, so every goal is read day by day into Observed Snapshots. See ADR 0025.
+     */
+    @Test
+    fun `declares every goal as a daily observed snapshot read by aggregation`() {
+        val goals = GOALS.map { HealthCapabilities.of(it) as SnapshotCapability }
+
+        assertEquals(
+            listOf(
+                "active_calories_burned_goal",
+                "active_time_goal",
+                "nutrition_goal",
+                "sleep_goal",
+                "steps_goal",
+                "water_intake_goal",
+            ),
+            goals.map { it.snapshotType },
+        )
+        goals.forEach { goal ->
+            assertEquals(setOf(ReadOperation.AGGREGATE), goal.readOperations)
+            assertEquals(SnapshotWindowUnit.LOCAL_DAY, goal.window)
+            assertEquals(SourceScope.ALL_SOURCES, goal.mapper.sourceScope)
+            assertEquals("read_model.current_daily_goal", goal.projection)
+            assertTrue(goal.windowsPerRead > 0)
+        }
+    }
+
     /** One wire name, one meaning: a snapshot type sharing a record type's name would be read as either. */
     @Test
     fun `names every capability on the wire distinctly`() {
@@ -174,5 +209,16 @@ class HealthCapabilitiesTest {
         val categories = HealthCapabilities.entries.map { it.category }
 
         assertEquals(categories.size, categories.toSet().size)
+    }
+
+    private companion object {
+        val GOALS = listOf(
+            HealthCategory.ACTIVE_CALORIES_BURNED_GOAL,
+            HealthCategory.ACTIVE_TIME_GOAL,
+            HealthCategory.NUTRITION_GOAL,
+            HealthCategory.SLEEP_GOAL,
+            HealthCategory.STEPS_GOAL,
+            HealthCategory.WATER_INTAKE_GOAL,
+        )
     }
 }
