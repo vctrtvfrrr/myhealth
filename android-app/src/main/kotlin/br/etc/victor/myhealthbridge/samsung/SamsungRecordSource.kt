@@ -502,7 +502,7 @@ internal fun localDateRequestOf(
     window: ReadWindow,
     pageToken: String?,
 ): ReadDataRequest<HealthDataPoint> = builder
-    .setLocalDateFilter(LocalDateFilter.of(window.from.toLocalDate(), window.to.toLocalDate(), true, true))
+    .setLocalDateFilter(LocalDateFilter.of(window.from.toLocalDate(), window.to.toLocalDate().plusDays(1), true, true))
     .setOrdering(Ordering.ASC)
     .setPageSize(capability.pageSize)
     .also { request -> pageToken?.let(request::setPageToken) }
