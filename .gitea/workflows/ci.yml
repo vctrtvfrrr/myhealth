@@ -161,7 +161,8 @@ jobs:
           name: myhealth-bridge-${{ github.sha }}
           path: android-app/build/outputs/apk/release/android-app-release.apk
           if-no-files-found: error
-          retention-days: 1
+          # Gitea truncates the time left to whole days, so a single day would expire on upload.
+          retention-days: 2
 
   # The API goes out only once the whole suite passed, the application's included.
   deploy:
@@ -241,15 +242,26 @@ jobs:
 
       - name: Install release tools
         run: |
-          if ! command -v jq >/dev/null; then
+          if ! command -v jq >/dev/null || ! command -v unzip >/dev/null; then
             apt-get update
-            apt-get install --yes --no-install-recommends jq
+            apt-get install --yes --no-install-recommends jq unzip
           fi
 
-      - uses: actions/download-artifact@v7
-        with:
-          name: myhealth-bridge-${{ github.sha }}
-          path: release
+      # Through the Gitea API: download-artifact refuses any server other than github.com as GHES.
+      - name: Fetch the APK from the android job
+        env:
+          ARTIFACT_NAME: myhealth-bridge-${{ github.sha }}
+          ACTIONS_URL: ${{ gitea.api_url }}/repos/${{ gitea.repository }}/actions
+          RUN_ID: ${{ gitea.run_id }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+        run: |
+          auth_header="Authorization: token $GITEA_TOKEN"
+          artifacts="$(curl --fail-with-body --silent --show-error --header "$auth_header" \
+            "$ACTIONS_URL/runs/$RUN_ID/artifacts?name=$ARTIFACT_NAME")"
+          id="$(jq -er --arg name "$ARTIFACT_NAME" '.artifacts[] | select(.name == $name) | .id' <<<"$artifacts")"
+          curl --fail --silent --show-error --location --header "$auth_header" \
+            --output "$RUNNER_TEMP/apk.zip" "$ACTIONS_URL/artifacts/$id/zip"
+          unzip -o "$RUNNER_TEMP/apk.zip" -d release
 
       - name: Publish the release
         env:
