@@ -47,6 +47,8 @@ O aplicativo Android funciona como buffer: registros permanecem em uma outbox lo
 - Notificações Android para incompatibilidades e situações que exijam manutenção.
 - Views SQL básicas para consultas manuais e futuros consumidores.
 
+A superfície com que a linha 1.x se compromete são as 25 de 25 Health Capabilities do [catálogo de capacidades](docs/capability-catalog.md). O Supported Contract Range da 1.x continua de `1` a `3`, com `3` recomendada: declarar a 1.0 não muda o contrato. Ver ADR `0026`.
+
 Não fazem parte da primeira versão: escrita no Samsung Health, captura de sensores em tempo real, dashboards, análise clínica, suporte a múltiplos usuários, API de consulta ou distribuição pela Play Store.
 
 ## Documentação
