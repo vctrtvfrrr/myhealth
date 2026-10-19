@@ -58,6 +58,7 @@ class StepsSyncTest {
             maintenance = channel,
             policy = policy,
             clock = clock,
+            uncataloged = nothingUncataloged,
         )
     }
 

@@ -168,6 +168,9 @@ fun foreignItem(uid: String): NewOutboxItem = NewOutboxItem(
     enqueuedAt = Instant.parse("2026-08-11T12:00:00Z"),
 )
 
+/** An SDK exposing nothing the capability catalog lacks, as the build's own tests guarantee. */
+val nothingUncataloged: UncatalogedCategories = UncatalogedCategories { emptySet() }
+
 val heartRate: RecordCapability = HealthCapabilities.of(HealthCategory.HEART_RATE) as RecordCapability
 
 /** An in-memory outbox and cursor set, keeping the page and its cursor as one write. */

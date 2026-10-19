@@ -201,6 +201,7 @@ class SamsungRecordSource(
 
     private fun groupUnitOf(unit: SnapshotWindowUnit): LocalTimeGroupUnit = when (unit) {
         SnapshotWindowUnit.LOCAL_HOUR -> LocalTimeGroupUnit.HOURLY
+        SnapshotWindowUnit.LOCAL_DAY -> LocalTimeGroupUnit.DAILY
     }
 
     private fun changesBuilderOf(

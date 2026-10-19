@@ -24,7 +24,7 @@ class SamsungHealthDataGateway(
     private val outcomes = SamsungOutcomes(foregroundActivity)
 
     override suspend fun grantedReadCategories(): SamsungHealthOutcome<Set<HealthCategory>> = outcomes.observing {
-        store.getGrantedPermissions(readPermissions(HealthCategory.entries))
+        store.getGrantedPermissions(catalogReadPermissions())
             .mapNotNullTo(mutableSetOf()) { categoriesByDataTypeName[it.dataType.name] }
     }
 

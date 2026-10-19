@@ -85,7 +85,7 @@ The application's current understanding of read access for a Health Category: no
 _Avoid_: SDK permission status, consent status
 
 **Health Capability**:
-A cataloged declaration of how a Health Category is synchronized: the record or snapshot type it becomes on the wire, the read operations it supports, how much one read covers, the mapper that renders it and whether the API projects it. A category read by aggregation becomes Observed Snapshots rather than Health Records. A Health Category without one is cataloged for permissions and not synchronized.
+The capability catalog's declaration of how a Health Category is read: its permission, read operations, pagination, change support, associated data, identity, mapper and projection. Every Health Category of the adopted SDK has exactly one, implemented or not implemented, and is a Health Record, an Observed Snapshot or permission-only. Only implemented capabilities are synchronized; a category the SDK exposes without one is never synchronized and is reported as a Maintenance Incident.
 _Avoid_: Data type support, sync config
 
 **Sync Cursor**:

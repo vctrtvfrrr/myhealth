@@ -8,6 +8,7 @@ import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
 import br.etc.victor.myhealthbridge.maintenance.data.maintenanceStore
 import br.etc.victor.myhealthbridge.samsung.SamsungHealthDataGateway
 import br.etc.victor.myhealthbridge.samsung.SamsungRecordSource
+import br.etc.victor.myhealthbridge.samsung.SamsungUncatalogedCategories
 import br.etc.victor.myhealthbridge.sync.ChangeImporter
 import br.etc.victor.myhealthbridge.sync.HistoryImporter
 import br.etc.victor.myhealthbridge.sync.HttpIngestionClient
@@ -89,6 +90,7 @@ class SyncGraph(context: Context) {
         maintenance = maintenance,
         policy = policy,
         clock = Clock.systemUTC(),
+        uncataloged = SamsungUncatalogedCategories,
     )
 
     /**

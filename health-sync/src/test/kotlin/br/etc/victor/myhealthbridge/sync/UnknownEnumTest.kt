@@ -37,7 +37,7 @@ class UnknownEnumTest {
         readOperations = setOf(ReadOperation.TIME_RANGE),
         pageSize = 100,
         mapper = SleepStageMapper,
-        projected = false,
+        projection = "read_model.none",
     )
 
     private fun record(fields: Map<String, SourceValue>) = sourceRecord(fields = fields)

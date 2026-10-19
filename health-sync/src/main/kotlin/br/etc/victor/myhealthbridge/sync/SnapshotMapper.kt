@@ -28,6 +28,12 @@ enum class SnapshotWindowUnit {
 
         override fun advance(start: LocalDateTime, windows: Long): LocalDateTime = start.plusHours(windows)
     },
+
+    LOCAL_DAY {
+        override fun floor(time: LocalDateTime): LocalDateTime = time.truncatedTo(ChronoUnit.DAYS)
+
+        override fun advance(start: LocalDateTime, windows: Long): LocalDateTime = start.plusDays(windows)
+    },
     ;
 
     /** The start of the window [time] falls in. */

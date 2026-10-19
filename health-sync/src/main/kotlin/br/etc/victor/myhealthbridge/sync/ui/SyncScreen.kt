@@ -176,8 +176,9 @@ private fun CategoryCard(state: CategorySyncState) {
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(stringResource(state.category.label), style = MaterialTheme.typography.bodyLarge)
-                Text(stringResource(phaseLabel(state.phase)), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(statusLabel(state)), style = MaterialTheme.typography.bodySmall)
             }
+            if (state.coverage != SyncCoverage.SYNCHRONIZED) return@Column
             state.initialLoadProgress?.let { progress ->
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
             }
@@ -208,6 +209,12 @@ private fun CategoryCard(state: CategorySyncState) {
             }
         }
     }
+}
+
+private fun statusLabel(state: CategorySyncState): Int = when (state.coverage) {
+    SyncCoverage.SYNCHRONIZED -> phaseLabel(state.phase)
+    SyncCoverage.CARRIED -> R.string.sync_coverage_carried
+    SyncCoverage.NOT_IMPLEMENTED -> R.string.sync_coverage_not_implemented
 }
 
 private fun phaseLabel(phase: ImportPhase): Int = when (phase) {

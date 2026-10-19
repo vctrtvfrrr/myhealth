@@ -26,6 +26,8 @@
     <string name="maintenance_unsupported_platform">Samsung Health não suportado</string>
     <string name="maintenance_unsupported_platform_action">Esta versão do Samsung Health não atende ao aplicativo. Verifique a versão exigida pelo SDK fixado.</string>
 
+    <string name="maintenance_uncataloged_category">Categoria do SDK fora do catálogo</string>
+    <string name="maintenance_uncataloged_category_action">O Samsung Health Data SDK deste build expõe a categoria indicada, que o catálogo de capacidades não declara, e ela não está sendo sincronizada. Declare-a no catálogo, como implementada ou não, e publique uma nova versão.</string>
     <string name="maintenance_unexpected_failure">Falha inesperada na sincronização</string>
     <string name="maintenance_unexpected_failure_action">A sincronização lançou uma exceção que o código não trata, do tipo indicado. Corrija o código e publique uma nova versão; as demais categorias continuam sincronizando até lá.</string>
 

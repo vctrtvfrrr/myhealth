@@ -86,6 +86,7 @@ class UnexpectedFailureTest {
             maintenance = channel,
             policy = policy,
             clock = clock,
+            uncataloged = nothingUncataloged,
         )
     }
 

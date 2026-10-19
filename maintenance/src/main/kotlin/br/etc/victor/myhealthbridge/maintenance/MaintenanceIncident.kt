@@ -72,6 +72,12 @@ enum class MaintenanceCode(
         action = R.string.maintenance_unexpected_failure_action,
     ),
 
+    UNCATALOGED_CATEGORY(
+        id = "uncataloged_category",
+        title = R.string.maintenance_uncataloged_category,
+        action = R.string.maintenance_uncataloged_category_action,
+    ),
+
     SAMSUNG_HEALTH_UNREACHABLE(
         id = "samsung_health_unreachable",
         title = R.string.maintenance_samsung_health_unreachable,

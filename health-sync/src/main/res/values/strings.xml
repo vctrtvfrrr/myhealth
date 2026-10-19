@@ -22,6 +22,8 @@
     <string name="sync_reconcile_explanation">Lê novamente todo o histórico acessível de cada categoria. Nada é duplicado: a API reconhece o que já guardou.</string>
 
     <string name="sync_categories_section">Categorias</string>
+    <string name="sync_coverage_carried">Sincronizada junto com outra categoria</string>
+    <string name="sync_coverage_not_implemented">Não implementada nesta versão</string>
     <string name="sync_phase_not_started">Carga inicial não iniciada</string>
     <string name="sync_phase_initial_load">Carga inicial em andamento</string>
     <string name="sync_phase_incremental">Carga inicial concluída</string>

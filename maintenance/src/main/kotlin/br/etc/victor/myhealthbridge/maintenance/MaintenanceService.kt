@@ -90,6 +90,18 @@ class MaintenanceService(
     }
 
     /**
+     * Ends every incident of [code] that names no category, except those whose detail is in [standing],
+     * because a run observed that only those conditions remain.
+     */
+    suspend fun resolveEveryDetailBut(code: MaintenanceCode, standing: Set<String>) {
+        val gone = store.incidentsOf(code).filter { it.identity.category == null && it.identity.detail !in standing }
+        if (gone.isEmpty()) return
+
+        gone.forEach { notifier.withdraw(it.identity) }
+        store.forget(gone.map { it.identity })
+    }
+
+    /**
      * Ends every transient incident, which is what a successful synchronization means.
      *
      * Forgetting them rather than marking them resolved is deliberate: the grace period is measured

@@ -56,6 +56,7 @@ class SyncMaintenanceTest {
         client: FakeIngestionClient = FakeIngestionClient { batch ->
             SendOutcome.Delivered(batch.items.indices.map { ItemResult(it, ItemStatus.ACCEPTED) })
         },
+        uncataloged: UncatalogedCategories = UncatalogedCategories { emptySet() },
     ): SyncService {
         val policy = SyncPolicy()
         val channel = maintenanceService(maintenance, clock)
@@ -69,11 +70,52 @@ class SyncMaintenanceTest {
             maintenance = channel,
             policy = policy,
             clock = clock,
+            uncataloged = uncataloged,
         )
     }
 
     private fun rejectingClient(vararg codes: RejectionCode) = FakeIngestionClient { batch ->
         SendOutcome.Delivered(batch.items.indices.map { ItemResult(it, ItemStatus.REJECTED, codes.toList()) })
+    }
+
+    /**
+     * An SDK that exposes a category the catalog lacks is a build nobody reviewed: the category is not
+     * read, and the gap is reported instead of left silent. See ADR 0010.
+     */
+    @Test
+    fun `reports each category the SDK exposes outside the catalog, and synchronizes the cataloged ones`() = runTest {
+        val service = service(uncataloged = { setOf("blood_alcohol", "stress") })
+        service.startInitialLoad()
+
+        service.sync()
+
+        assertEquals(
+            setOf(
+                IncidentIdentity(MaintenanceCode.UNCATALOGED_CATEGORY, detail = "blood_alcohol"),
+                IncidentIdentity(MaintenanceCode.UNCATALOGED_CATEGORY, detail = "stress"),
+            ),
+            maintenance.reported.toSet(),
+        )
+        assertEquals(SyncOutcome.SUCCEEDED, store.cursor(HealthCategory.HEART_RATE)?.lastOutcome)
+    }
+
+    @Test
+    fun `withdraws an uncataloged category once a build catalogs it`() = runTest {
+        var exposed = setOf("blood_alcohol", "stress")
+        val service = service(uncataloged = { exposed })
+        service.sync()
+
+        exposed = setOf("stress")
+        service.sync()
+
+        assertEquals(
+            listOf(IncidentIdentity(MaintenanceCode.UNCATALOGED_CATEGORY, detail = "stress")),
+            maintenance.reported,
+        )
+        assertEquals(
+            listOf(IncidentIdentity(MaintenanceCode.UNCATALOGED_CATEGORY, detail = "blood_alcohol")),
+            maintenance.withdrawn,
+        )
     }
 
     @Test

@@ -15,8 +15,9 @@ enum class HealthCategoryGroup(@param:StringRes val label: Int) {
  * The cataloged Samsung Health capabilities this application can read.
  *
  * The catalog is deliberate and versioned here: upgrading the SDK never adds a category on its own,
- * and a capability the SDK exposes without an entry below is unimplemented, never authorized.
- * Declaration order is display order.
+ * and a capability the SDK exposes without an entry below is unimplemented, never authorized. What
+ * this build covers of each one is declared by the capability catalog in `health-sync`, which holds
+ * exactly one entry per category. Declaration order is display order.
  */
 enum class HealthCategory(
     val id: String,

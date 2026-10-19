@@ -1,10 +1,13 @@
 package br.etc.victor.myhealthbridge.samsung
 
 import br.etc.victor.myhealthbridge.health.HealthCategory
+import br.etc.victor.myhealthbridge.sync.HealthCapabilities
+import br.etc.victor.myhealthbridge.sync.UncatalogedCategories
 import com.samsung.android.sdk.health.data.permission.AccessType
 import com.samsung.android.sdk.health.data.permission.Permission
 import com.samsung.android.sdk.health.data.request.DataType
 import com.samsung.android.sdk.health.data.request.DataTypes
+import java.lang.reflect.Modifier
 
 internal val HealthCategory.dataType: DataType
     get() = when (this) {
@@ -38,5 +41,17 @@ internal val HealthCategory.dataType: DataType
 internal fun readPermissions(categories: Iterable<HealthCategory>): Set<Permission> =
     categories.mapTo(mutableSetOf()) { Permission.of(it.dataType, AccessType.READ) }
 
+/** What a permission check asks about: the permission of every entry of the capability catalog. */
+internal fun catalogReadPermissions(): Set<Permission> = readPermissions(HealthCapabilities.entries.map { it.permission })
+
 internal val categoriesByDataTypeName: Map<String, HealthCategory> =
     HealthCategory.entries.associateBy { it.dataType.name }
+
+/** Read from the SDK's own declarations, so that an upgraded artifact cannot add one unnoticed. */
+internal fun exposedDataTypeNames(): Set<String> = DataTypes::class.java.declaredFields
+    .filter { Modifier.isStatic(it.modifiers) && DataType::class.java.isAssignableFrom(it.type) }
+    .mapTo(mutableSetOf()) { (it.get(null) as DataType).name }
+
+object SamsungUncatalogedCategories : UncatalogedCategories {
+    override fun read(): Set<String> = exposedDataTypeNames() - categoriesByDataTypeName.keys
+}

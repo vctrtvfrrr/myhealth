@@ -49,4 +49,8 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    // The capability catalog is checked against the read model views the API's migrations create.
+    systemProperty("repositoryRoot", rootDir.absolutePath)
+    inputs.dir(rootDir.resolve("ingestion-api/src/main/resources/db/migration"))
+    inputs.files(rootDir.resolve("docs/capability-catalog.md"))
 }

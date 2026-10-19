@@ -10,6 +10,53 @@ import org.junit.jupiter.api.Test
 class HealthCapabilitiesTest {
 
     @Test
+    fun `catalogs every Health Category of the adopted SDK once, in display order`() {
+        assertEquals(HealthCategory.entries, HealthCapabilities.entries.map { it.category })
+    }
+
+    @Test
+    fun `marks what this build covers as implemented and nothing else`() {
+        val implemented = HealthCapabilities.entries.filter { it.implemented }.map { it.category }.toSet()
+
+        assertEquals(
+            setOf(
+                HealthCategory.EXERCISE,
+                HealthCategory.EXERCISE_LOCATION,
+                HealthCategory.STEPS,
+                HealthCategory.SLEEP,
+                HealthCategory.HEART_RATE,
+            ),
+            implemented,
+        )
+    }
+
+    /** The classification ticket #29 settled from what the SDK's own types expose. */
+    @Test
+    fun `classifies every category as a Health Record, an Observed Snapshot or a permission only`() {
+        val kinds = HealthCapabilities.entries.groupingBy { it.kind }.eachCount()
+
+        assertEquals(
+            mapOf(
+                CoverageKind.HEALTH_RECORD to 15,
+                CoverageKind.OBSERVED_SNAPSHOT to 9,
+                CoverageKind.PERMISSION_ONLY to 1,
+            ),
+            kinds,
+        )
+        assertEquals(CoverageKind.PERMISSION_ONLY, HealthCapabilities.of(HealthCategory.EXERCISE_LOCATION).kind)
+        assertEquals(CoverageKind.OBSERVED_SNAPSHOT, HealthCapabilities.of(HealthCategory.USER_PROFILE).kind)
+        assertEquals(CoverageKind.HEALTH_RECORD, HealthCapabilities.of(HealthCategory.ENERGY_SCORE).kind)
+    }
+
+    @Test
+    fun `synchronizes only the implemented Health Records and Observed Snapshots`() {
+        assertEquals(
+            listOf(HealthCategory.EXERCISE, HealthCategory.STEPS, HealthCategory.SLEEP, HealthCategory.HEART_RATE),
+            HealthCapabilities.synchronized.map { it.category },
+        )
+    }
+
+    @Test
     fun `declares heart rate end to end`() {
         val capability = HealthCapabilities.of(HealthCategory.HEART_RATE) as RecordCapability
 
@@ -20,7 +67,6 @@ class HealthCapabilitiesTest {
         assertTrue(capability.supportsChanges)
         assertFalse(capability.hasAssociatedData)
         assertTrue(capability.pageSize > 0)
-        assertTrue(capability.projected)
     }
 
     @Test
@@ -34,7 +80,6 @@ class HealthCapabilitiesTest {
         assertTrue(capability.supportsChanges)
         assertTrue(capability.hasAssociatedData)
         assertTrue(capability.pageSize > 0)
-        assertTrue(capability.projected)
     }
 
     /**
@@ -52,7 +97,6 @@ class HealthCapabilitiesTest {
         assertTrue(capability.supportsChanges)
         assertFalse(capability.hasAssociatedData)
         assertTrue(capability.pageSize > 0)
-        assertTrue(capability.projected)
     }
 
     /**
@@ -68,21 +112,24 @@ class HealthCapabilitiesTest {
         assertEquals(SnapshotWindowUnit.LOCAL_HOUR, capability.window)
         assertEquals(StepsMapper, capability.mapper)
         assertTrue(capability.windowsPerRead > 0)
-        assertTrue(capability.projected)
     }
 
     /** One wire name, one meaning: a snapshot type sharing a record type's name would be read as either. */
     @Test
     fun `names every capability on the wire distinctly`() {
-        val wireTypes = HealthCapabilities.entries.map { it.wireType }
+        val wireTypes = HealthCapabilities.entries.mapNotNull { it.identity.wireType }
 
         assertEquals(wireTypes.size, wireTypes.toSet().size)
     }
 
-    /** The route is read as part of the exercise, so it is never a capability of its own. */
+    /** The route is read as part of the exercise, so it is never synchronized on its own. */
     @Test
-    fun `catalogs no capability for the exercise location`() {
-        assertNull(HealthCapabilities.of(HealthCategory.EXERCISE_LOCATION))
+    fun `covers the exercise location through the exercise that carries the route`() {
+        val entry = HealthCapabilities.of(HealthCategory.EXERCISE_LOCATION) as PermissionOnly
+
+        assertEquals(HealthCategory.EXERCISE, entry.carrier)
+        assertEquals(emptySet<ReadOperation>(), entry.readOperations)
+        assertNull(entry.identity.wireType)
     }
 
     @Test

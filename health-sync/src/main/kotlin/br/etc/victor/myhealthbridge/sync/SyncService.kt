@@ -43,6 +43,7 @@ class SyncService(
     private val maintenance: MaintenanceService,
     private val policy: SyncPolicy,
     private val clock: Clock,
+    private val uncataloged: UncatalogedCategories,
 ) {
 
     /**
@@ -67,7 +68,7 @@ class SyncService(
         val now = LocalDateTime.now(clock)
         val at = clock.instant()
 
-        HealthCapabilities.entries.forEach { capability ->
+        HealthCapabilities.synchronized.forEach { capability ->
             if (states[capability.category] != PermissionState.GRANTED) return@forEach
             val cursor = cursorOf(capability.category)
             if (!restart(cursor)) return@forEach
@@ -89,9 +90,20 @@ class SyncService(
                 SyncRun.INITIAL_LOAD -> startInitialLoad()
                 SyncRun.FULL_RECONCILIATION -> reconcile()
             }
+            reportUncatalogedCategories()
             syncEveryCapability()
         }
         if (completed != null) maintenance.resolveEvery(MaintenanceCode.UNEXPECTED_FAILURE)
+    }
+
+    /**
+     * A category the SDK exposes outside the catalog is never read, so the only trace of it is the
+     * incident: one per category, ended by the build that catalogs it.
+     */
+    private suspend fun reportUncatalogedCategories() {
+        val exposed = uncataloged.read()
+        maintenance.resolveEveryDetailBut(MaintenanceCode.UNCATALOGED_CATEGORY, exposed)
+        exposed.forEach { maintenance.report(MaintenanceCode.UNCATALOGED_CATEGORY, detail = it) }
     }
 
     private suspend fun syncEveryCapability() {
@@ -107,7 +119,7 @@ class SyncService(
             is CheckResult.Unavailable -> maintenance.reportUnavailable(check.availability)
         }
 
-        HealthCapabilities.entries.forEach { capability ->
+        HealthCapabilities.synchronized.forEach { capability ->
             val outcome = reportingUnexpectedFailure(capability.category) { run(capability, check) }
                 ?: SyncOutcome.UNEXPECTED_FAILURE
             if (outcome == SyncOutcome.SUCCEEDED) {

@@ -45,6 +45,7 @@ class SyncServiceTest {
             maintenance = channel,
             policy = policy,
             clock = clock,
+            uncataloged = nothingUncataloged,
         )
     }
 
