@@ -7,8 +7,8 @@ on:
       - master
   pull_request:
 
-# Master stays serialized, because each push there computes its version from the previous release.
-# Anywhere else only the newest revision matters.
+# Only the newest revision of a branch matters. Gitea does not hold a master push back while the
+# previous one runs, so the release job confirms its version against the tags of its own moment.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
@@ -43,7 +43,9 @@ jobs:
             ${{ runner.os }}-gradle-api-
 
       - name: Test the release scripts
-        run: bash .gitea/scripts/next-version.test.sh
+        run: |
+          bash .gitea/scripts/next-version.test.sh
+          bash .gitea/scripts/confirm-version.test.sh
 
       - name: Decide the release version
         id: version
@@ -235,15 +237,26 @@ jobs:
     permissions:
       code: read
       releases: write
-    env:
-      RELEASE_VERSION: ${{ needs.android.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           persist-credentials: false
 
+      # The version was decided before an earlier push still running could release its own; one
+      # whose changes that release already covers releases nothing.
+      - name: Confirm the release version
+        id: version
+        env:
+          BUILT_VERSION: ${{ needs.android.outputs.version }}
+        run: |
+          version="$(bash .gitea/scripts/confirm-version.sh "$BUILT_VERSION" HEAD)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Release version: ${version:-none}"
+
       - name: Install release tools
+        if: steps.version.outputs.version != ''
         run: |
           if ! command -v jq >/dev/null || ! command -v unzip >/dev/null; then
             apt-get update
@@ -252,6 +265,7 @@ jobs:
 
       # Through the Gitea API: download-artifact refuses any server other than github.com as GHES.
       - name: Fetch the APK from the android job
+        if: steps.version.outputs.version != ''
         env:
           ARTIFACT_NAME: myhealth-bridge-${{ github.sha }}
           ACTIONS_URL: ${{ gitea.api_url }}/repos/${{ gitea.repository }}/actions
@@ -267,6 +281,7 @@ jobs:
           unzip -o "$RUNNER_TEMP/apk.zip" -d release
 
       - name: Publish the release
+        if: steps.version.outputs.version != ''
         env:
           RELEASE_COMMIT: ${{ github.sha }}
           RELEASE_APK: release/android-app-release.apk
@@ -276,6 +291,7 @@ jobs:
         run: bash .gitea/scripts/release.sh
 
       - name: Registry login
+        if: steps.version.outputs.version != ''
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -284,6 +300,7 @@ jobs:
 
       # After the release, so a version whose tag belongs to another commit never names this image.
       - name: Name the image after the version
+        if: steps.version.outputs.version != ''
         run: |
           docker tag "${IMAGE}:${TAG}" "${IMAGE}:${RELEASE_VERSION}"
           docker push "${IMAGE}:${RELEASE_VERSION}"
