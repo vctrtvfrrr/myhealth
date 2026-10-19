@@ -7,7 +7,6 @@ import br.etc.victor.myhealthbridge.health.PermissionState
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceCode
 import br.etc.victor.myhealthbridge.maintenance.MaintenanceService
 import java.time.Clock
-import java.time.LocalDateTime
 import kotlin.coroutines.cancellation.CancellationException
 
 /** What a synchronization run is asked to do before it delivers, beyond reading on. */
@@ -65,7 +64,7 @@ class SyncService(
 
     private suspend fun walkAccessibleHistory(restart: (SyncCursor) -> Boolean) {
         val states = grantedStates() ?: return
-        val now = LocalDateTime.now(clock)
+        val now = importer.localNow()
         val at = clock.instant()
 
         HealthCapabilities.synchronized.forEach { capability ->
@@ -235,7 +234,7 @@ class SyncService(
         // condition disappear: a process death between the two would bury a lost position under a
         // cursor that says nothing was ever lost, and nothing would report it again.
         maintenance.report(MaintenanceCode.UNRECOVERABLE_CURSOR, capability.category)
-        store.writeCursor(cursor.startingInitialLoad(LocalDateTime.now(clock), clock.instant()))
+        store.writeCursor(cursor.startingInitialLoad(importer.localNow(), clock.instant()))
         return true
     }
 

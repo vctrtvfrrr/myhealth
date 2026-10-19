@@ -48,6 +48,9 @@ class HistoryImporter(
     private val clock: Clock,
 ) {
 
+    /** The phone's local time, the one Samsung Health filters on and every read window is measured in. */
+    fun localNow(): LocalDateTime = LocalDateTime.now(clock)
+
     /** [resumeFrom] continues a walk this importer paused, which the cursor alone cannot express. */
     suspend fun import(capability: RecordCapability, resumeFrom: String? = null): ImportResult {
         var cursor = store.cursor(capability.category) ?: return ImportResult.Completed
