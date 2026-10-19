@@ -19,7 +19,7 @@ object Snapshots {
     const val STEPS = "steps"
     const val STEPS_MAPPER_VERSION = "samsung-health-steps/1"
     const val STEPS_GOAL = "steps_goal"
-    const val STEPS_GOAL_MAPPER_VERSION = "samsung-health-steps-goal/1"
+    const val STEPS_GOAL_MAPPER_VERSION = "samsung-health-steps-goal/2"
 
     /** One local hour of steps; a null [steps] is a window with nothing in it. */
     fun steps(

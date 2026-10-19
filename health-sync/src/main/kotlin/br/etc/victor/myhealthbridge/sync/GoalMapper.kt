@@ -33,39 +33,61 @@ abstract class GoalMapper(override val version: String) : SnapshotMapper {
     protected abstract fun JsonObjectBuilder.putGoal(aggregate: SourceValue)
 }
 
-/** A goal Samsung Health holds as one number, preserved under the name it gives that number. */
-class SingleValueGoalMapper(version: String, private val field: String) : GoalMapper(version) {
+/** A goal Samsung Health holds as one count, preserved as the number it is. */
+class CountGoalMapper(version: String, private val name: String) : GoalMapper(version) {
 
     override fun JsonObjectBuilder.putGoal(aggregate: SourceValue) {
-        if (aggregate is SourceValue.Number) put(field, JsonPrimitive(aggregate.value))
+        if (aggregate is SourceValue.Number) put(name, JsonPrimitive(aggregate.value))
+    }
+}
+
+/**
+ * A goal Samsung Health holds as one quantity, preserved as a `{value, unit}` the way an hour of activity
+ * is. Samsung Health documents none of the units: [unit] is the one it uses everywhere else.
+ */
+class QuantityGoalMapper(version: String, private val name: String, private val unit: String) : GoalMapper(version) {
+
+    override fun JsonObjectBuilder.putGoal(aggregate: SourceValue) {
+        if (aggregate !is SourceValue.Number) return
+        put(
+            name,
+            buildJsonObject {
+                put("value", JsonPrimitive(aggregate.value))
+                put("unit", JsonPrimitive(unit))
+            },
+        )
     }
 }
 
 /** The sleep goal: the local times to go to bed and to wake up, which Samsung Health aggregates apart. */
-object SleepGoalMapper : GoalMapper("samsung-health-sleep-goal/1") {
+object SleepGoalMapper : GoalMapper("samsung-health-sleep-goal/2") {
 
+    /** The names the adapter hands each time over under, inside a [SourceValue.Nested]. */
     const val BED_TIME = "bed_time"
     const val WAKE_UP_TIME = "wake_up_time"
 
+    private val names = mapOf(BED_TIME to "bedTime", WAKE_UP_TIME to "wakeUpTime")
+
     override fun JsonObjectBuilder.putGoal(aggregate: SourceValue) {
         if (aggregate !is SourceValue.Nested) return
-        listOf(BED_TIME, WAKE_UP_TIME).forEach { field ->
-            (aggregate.fields[field] as? SourceValue.Text)?.let { put(field, JsonPrimitive(it.value)) }
+        names.forEach { (field, name) ->
+            (aggregate.fields[field] as? SourceValue.Text)?.let { put(name, JsonPrimitive(it.value)) }
         }
     }
 }
 
 object GoalMappers {
-    val ACTIVE_CALORIES_BURNED = SingleValueGoalMapper("samsung-health-active-calories-burned-goal/1", "calories")
+    val ACTIVE_CALORIES_BURNED =
+        QuantityGoalMapper("samsung-health-active-calories-burned-goal/2", "activeCaloriesBurned", "kcal")
 
-    /** In seconds, as every duration is preserved. */
-    val ACTIVE_TIME = SingleValueGoalMapper("samsung-health-active-time-goal/1", "active_time")
+    /** Already in seconds, as the adapter preserves every duration. */
+    val ACTIVE_TIME = QuantityGoalMapper("samsung-health-active-time-goal/2", "activeTime", "s")
 
-    val NUTRITION = SingleValueGoalMapper("samsung-health-nutrition-goal/1", "calories")
+    val NUTRITION = QuantityGoalMapper("samsung-health-nutrition-goal/2", "calories", "kcal")
 
     val SLEEP: GoalMapper = SleepGoalMapper
 
-    val STEPS = SingleValueGoalMapper("samsung-health-steps-goal/1", "steps")
+    val STEPS = CountGoalMapper("samsung-health-steps-goal/2", "steps")
 
-    val WATER_INTAKE = SingleValueGoalMapper("samsung-health-water-intake-goal/1", "amount")
+    val WATER_INTAKE = QuantityGoalMapper("samsung-health-water-intake-goal/2", "amount", "mL")
 }

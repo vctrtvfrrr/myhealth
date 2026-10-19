@@ -29,12 +29,13 @@ class GoalMapperTest {
         assertEquals(LocalInterval("2026-08-10T00:00:00", "2026-08-11T00:00:00"), observation.window)
         assertEquals(readAt, observation.observedAt)
         assertEquals(SourceScope.ALL_SOURCES, observation.sourceScope)
-        assertEquals("samsung-health-steps-goal/1", observation.mapperVersion)
+        assertEquals("samsung-health-steps-goal/2", observation.mapperVersion)
         assertEquals(JsonObject(mapOf("steps" to JsonPrimitive(6000.toBigDecimal()))), observation.content)
     }
 
+    /** Samsung Health documents none of the units, so the content states them, as an hour of activity does. */
     @Test
-    fun `names each single valued goal as Samsung Health names its value`() {
+    fun `renders each goal of one quantity with its unit`() {
         val rendered = listOf(
             GoalMappers.ACTIVE_CALORIES_BURNED to number("450"),
             GoalMappers.ACTIVE_TIME to number("5400.000"),
@@ -44,10 +45,10 @@ class GoalMapperTest {
 
         assertEquals(
             listOf(
-                "samsung-health-active-calories-burned-goal/1" to content("calories" to "450"),
-                "samsung-health-active-time-goal/1" to content("active_time" to "5400.000"),
-                "samsung-health-nutrition-goal/1" to content("calories" to "2100.0"),
-                "samsung-health-water-intake-goal/1" to content("amount" to "2500.0"),
+                "samsung-health-active-calories-burned-goal/2" to quantity("activeCaloriesBurned", "450", "kcal"),
+                "samsung-health-active-time-goal/2" to quantity("activeTime", "5400.000", "s"),
+                "samsung-health-nutrition-goal/2" to quantity("calories", "2100.0", "kcal"),
+                "samsung-health-water-intake-goal/2" to quantity("amount", "2500.0", "mL"),
             ),
             rendered,
         )
@@ -59,10 +60,10 @@ class GoalMapperTest {
 
         val observation = GoalMappers.SLEEP.map(day, goal, readAt)
 
-        assertEquals("samsung-health-sleep-goal/1", observation.mapperVersion)
+        assertEquals("samsung-health-sleep-goal/2", observation.mapperVersion)
         assertEquals(SourceScope.ALL_SOURCES, observation.sourceScope)
         assertEquals(
-            JsonObject(mapOf("bed_time" to JsonPrimitive("23:15"), "wake_up_time" to JsonPrimitive("06:45"))),
+            JsonObject(mapOf("bedTime" to JsonPrimitive("23:15"), "wakeUpTime" to JsonPrimitive("06:45"))),
             observation.content,
         )
     }
@@ -103,10 +104,12 @@ class GoalMapperTest {
         assertEquals(GOLDEN, IngestionContract.json.encodeToString(SnapshotBatch.serializer(), batch))
     }
 
-    private fun content(pair: Pair<String, String>) = JsonObject(mapOf(pair.first to JsonPrimitive(pair.second.toBigDecimal())))
+    private fun quantity(name: String, value: String, unit: String) = JsonObject(
+        mapOf(name to JsonObject(mapOf("value" to JsonPrimitive(value.toBigDecimal()), "unit" to JsonPrimitive(unit)))),
+    )
 
     private companion object {
         const val GOLDEN =
-            """{"snapshotType":"steps_goal","items":[{"window":{"start":"2026-08-10T00:00:00","end":"2026-08-11T00:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"all_sources","mapperVersion":"samsung-health-steps-goal/1","content":{"steps":6000}},{"window":{"start":"2026-08-11T00:00:00","end":"2026-08-12T00:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"all_sources","mapperVersion":"samsung-health-steps-goal/1"}],"contractVersion":3}"""
+            """{"snapshotType":"steps_goal","items":[{"window":{"start":"2026-08-10T00:00:00","end":"2026-08-11T00:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"all_sources","mapperVersion":"samsung-health-steps-goal/2","content":{"steps":6000}},{"window":{"start":"2026-08-11T00:00:00","end":"2026-08-12T00:00:00"},"observedAt":{"instant":"2026-08-10T18:20:00Z","offset":"-03:00"},"sourceScope":"all_sources","mapperVersion":"samsung-health-steps-goal/2"}],"contractVersion":3}"""
     }
 }

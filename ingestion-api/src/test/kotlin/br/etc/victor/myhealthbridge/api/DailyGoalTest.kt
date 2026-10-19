@@ -4,6 +4,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -16,32 +17,33 @@ import org.junit.jupiter.api.Test
 class DailyGoalTest : IngestionApiTest() {
 
     @Test
-    fun `types the goal of each kind on its local day`() {
-        send("active_calories_burned_goal", goal("samsung-health-active-calories-burned-goal/1") { put("calories", 450) })
-        send("active_time_goal", goal("samsung-health-active-time-goal/1") { put("active_time", 5400.5) })
-        send("nutrition_goal", goal("samsung-health-nutrition-goal/1") { put("calories", 2100) })
+    fun `types the goal of each kind on its local day, in the unit it was sent in`() {
+        send("active_calories_burned_goal", goal(ACTIVE_CALORIES_V2) { quantity("activeCaloriesBurned", 450, "kcal") })
+        send("active_time_goal", goal("samsung-health-active-time-goal/2") { quantity("activeTime", 5400.5, "s") })
+        send("nutrition_goal", goal("samsung-health-nutrition-goal/2") { quantity("calories", 2100, "kcal") })
         send(
             "sleep_goal",
-            goal("samsung-health-sleep-goal/1") {
-                put("bed_time", "23:15")
-                put("wake_up_time", "06:45:30")
+            goal("samsung-health-sleep-goal/2") {
+                put("bedTime", "23:15")
+                put("wakeUpTime", "06:45:30")
             },
         )
         send(Snapshots.STEPS_GOAL, goal(Snapshots.STEPS_GOAL_MAPPER_VERSION) { put("steps", 6000) })
-        send("water_intake_goal", goal("samsung-health-water-intake-goal/1") { put("amount", 2500) })
+        send("water_intake_goal", goal("samsung-health-water-intake-goal/2") { quantity("amount", 2500, "mL") })
 
         assertEquals(
             listOf(
-                "active_calories_burned_goal|2026-07-10|null|450|null|null|null|null|f",
-                "active_time_goal|2026-07-10|null|null|01:30:00.5|null|null|null|f",
-                "nutrition_goal|2026-07-10|null|2100|null|null|null|null|f",
-                "sleep_goal|2026-07-10|null|null|null|null|23:15:00|06:45:30|f",
-                "steps_goal|2026-07-10|6000|null|null|null|null|null|f",
-                "water_intake_goal|2026-07-10|null|null|null|2500|null|null|f",
+                "active_calories_burned_goal|2026-07-10|null|450|null|null|null|null|null|f",
+                "active_time_goal|2026-07-10|null|null|5400.5|null|null|null|null|f",
+                "nutrition_goal|2026-07-10|null|null|null|2100|null|null|null|f",
+                "sleep_goal|2026-07-10|null|null|null|null|null|23:15:00|06:45:30|f",
+                "steps_goal|2026-07-10|6000|null|null|null|null|null|null|f",
+                "water_intake_goal|2026-07-10|null|null|null|null|2500|null|null|f",
             ),
             rows(
                 """
-                select goal, day, steps, calories, active_time, amount, bed_time, wake_up_time, partial
+                select goal, day, steps, active_calories_burned_kilocalories, active_time_seconds,
+                    calories_kilocalories, amount_milliliters, bed_time, wake_up_time, partial
                 from read_model.current_daily_goal where day = '2026-07-10' order by goal
                 """,
             ),
@@ -68,6 +70,55 @@ class DailyGoalTest : IngestionApiTest() {
         assertEquals(
             listOf("2026-06-01|6000", "2026-06-03|8000", "2026-06-05|8000"),
             rows("select day, steps from read_model.current_daily_goal where changed and goal = 'steps_goal' and day < '2026-06-07' order by day"),
+        )
+    }
+
+    /**
+     * The first application to send goals sent them without their units. What it sent is still the goal of
+     * its day, so the day the units arrived is no change of goal.
+     */
+    @Test
+    fun `reads a goal sent before it carried its unit as the same goal`() {
+        send(
+            "active_calories_burned_goal",
+            Snapshots.goal(
+                day = "2026-05-01",
+                nextDay = "2026-05-02",
+                mapperVersion = "samsung-health-active-calories-burned-goal/1",
+                content = buildJsonObject { put("calories", 450) },
+            ),
+            Snapshots.goal(
+                day = "2026-05-02",
+                nextDay = "2026-05-03",
+                mapperVersion = ACTIVE_CALORIES_V2,
+                content = buildJsonObject { quantity("activeCaloriesBurned", 450, "kcal") },
+            ),
+        )
+        send(
+            "sleep_goal",
+            Snapshots.goal(
+                day = "2026-05-01",
+                nextDay = "2026-05-02",
+                mapperVersion = "samsung-health-sleep-goal/1",
+                content = buildJsonObject {
+                    put("bed_time", "23:15")
+                    put("wake_up_time", "06:45")
+                },
+            ),
+        )
+
+        assertEquals(
+            listOf("active_calories_burned_goal|2026-05-01|450|t", "active_calories_burned_goal|2026-05-02|450|f"),
+            rows(
+                """
+                select goal, day, active_calories_burned_kilocalories, changed from read_model.current_daily_goal
+                where goal = 'active_calories_burned_goal' and day < '2026-06-01' order by day
+                """,
+            ),
+        )
+        assertEquals(
+            listOf("23:15:00|06:45:00"),
+            rows("select bed_time, wake_up_time from read_model.current_daily_goal where goal = 'sleep_goal' and day = '2026-05-01'"),
         )
     }
 
@@ -112,10 +163,10 @@ class DailyGoalTest : IngestionApiTest() {
             Snapshots.batch(
                 snapshotType = "sleep_goal",
                 items = listOf(
-                    goal("samsung-health-sleep-goal/1") { put("bed_time", "23:15") },
-                    goal("samsung-health-sleep-goal/1") {
-                        put("bed_time", "25:00")
-                        put("wake_up_time", "06:45")
+                    goal("samsung-health-sleep-goal/2") { put("bedTime", "23:15") },
+                    goal("samsung-health-sleep-goal/2") {
+                        put("bedTime", "25:00")
+                        put("wakeUpTime", "06:45")
                     },
                 ),
             ),
@@ -124,7 +175,17 @@ class DailyGoalTest : IngestionApiTest() {
         val amounts = api.postBatch(
             Snapshots.batch(
                 snapshotType = "water_intake_goal",
-                items = listOf(goal("samsung-health-water-intake-goal/1") { put("amount", "2500") }),
+                items = listOf(
+                    goal("samsung-health-water-intake-goal/2") { put("amount", 2500) },
+                    goal("samsung-health-water-intake-goal/2") {
+                        putJsonObject("amount") {
+                            put("value", "2500")
+                            put("unit", "mL")
+                        }
+                    },
+                    goal("samsung-health-water-intake-goal/2") { quantity("amount", 2500, "L") },
+                    goal("samsung-health-water-intake-goal/2") { quantity("amount", -1, "mL") },
+                ),
             ),
             token,
         )
@@ -141,10 +202,20 @@ class DailyGoalTest : IngestionApiTest() {
             codes(response.body),
         )
         assertEquals(listOf(listOf("invalid_payload"), listOf("invalid_payload")), codes(sleep.body))
-        assertEquals(listOf(listOf("invalid_payload")), codes(amounts.body))
+        assertEquals(
+            listOf(listOf("invalid_payload"), listOf("invalid_payload"), listOf("invalid_unit"), listOf("invalid_payload")),
+            codes(amounts.body),
+        )
     }
 
     private fun steps(goal: Long): JsonObject = buildJsonObject { put("steps", goal) }
+
+    private fun JsonObjectBuilder.quantity(name: String, value: Number, unit: String) {
+        putJsonObject(name) {
+            put("value", value)
+            put("unit", unit)
+        }
+    }
 
     private fun goal(mapperVersion: String, content: JsonObjectBuilder.() -> Unit) = Snapshots.goal(
         day = "2026-07-10",
@@ -168,5 +239,9 @@ class DailyGoalTest : IngestionApiTest() {
                 }
             }
         }
+    }
+
+    private companion object {
+        const val ACTIVE_CALORIES_V2 = "samsung-health-active-calories-burned-goal/2"
     }
 }
