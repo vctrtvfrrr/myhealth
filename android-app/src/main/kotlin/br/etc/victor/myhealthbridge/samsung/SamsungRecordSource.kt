@@ -159,6 +159,35 @@ internal val bodyTemperatureFields: List<Field<*>> = listOf(
     DataType.BodyTemperatureType.BODY_TEMPERATURE,
 )
 
+/** The fields of a nutrition record this build reads, pinned to the SDK the same way. */
+internal val nutritionFields: List<Field<*>> = listOf(
+    DataType.NutritionType.MEAL_TYPE,
+    DataType.NutritionType.TITLE,
+    DataType.NutritionType.CALORIES,
+    DataType.NutritionType.TOTAL_FAT,
+    DataType.NutritionType.SATURATED_FAT,
+    DataType.NutritionType.POLYSATURATED_FAT,
+    DataType.NutritionType.MONOSATURATED_FAT,
+    DataType.NutritionType.TRANS_FAT,
+    DataType.NutritionType.CARBOHYDRATE,
+    DataType.NutritionType.DIETARY_FIBER,
+    DataType.NutritionType.SUGAR,
+    DataType.NutritionType.PROTEIN,
+    DataType.NutritionType.CHOLESTEROL,
+    DataType.NutritionType.SODIUM,
+    DataType.NutritionType.POTASSIUM,
+    DataType.NutritionType.VITAMIN_A,
+    DataType.NutritionType.VITAMIN_C,
+    DataType.NutritionType.CALCIUM,
+    DataType.NutritionType.IRON,
+)
+
+/** The fields of a water intake record this build reads, pinned to the SDK the same way. */
+internal val waterIntakeFields: List<Field<*>> = listOf(DataType.WaterIntakeType.AMOUNT)
+
+/** The fields of a floors climbed record this build reads, pinned to the SDK the same way. */
+internal val floorsClimbedFields: List<Field<*>> = listOf(DataType.FloorsClimbedType.FLOOR)
+
 /**
  * Reads Health Records from Samsung Health, one page at a time, and hands them on with no SDK type
  * left in them.
@@ -386,6 +415,9 @@ class SamsungRecordSource(
         HealthCategory.BLOOD_PRESSURE -> DataTypes.BLOOD_PRESSURE.readDataRequestBuilder
         HealthCategory.BODY_COMPOSITION -> DataTypes.BODY_COMPOSITION.readDataRequestBuilder
         HealthCategory.BODY_TEMPERATURE -> DataTypes.BODY_TEMPERATURE.readDataRequestBuilder
+        HealthCategory.NUTRITION -> DataTypes.NUTRITION.readDataRequestBuilder
+        HealthCategory.WATER_INTAKE -> DataTypes.WATER_INTAKE.readDataRequestBuilder
+        HealthCategory.FLOORS_CLIMBED -> DataTypes.FLOORS_CLIMBED.readDataRequestBuilder
         else -> null
     }
 
@@ -406,6 +438,9 @@ class SamsungRecordSource(
         HealthCategory.BLOOD_PRESSURE -> DataTypes.BLOOD_PRESSURE.changedDataRequestBuilder
         HealthCategory.BODY_COMPOSITION -> DataTypes.BODY_COMPOSITION.changedDataRequestBuilder
         HealthCategory.BODY_TEMPERATURE -> DataTypes.BODY_TEMPERATURE.changedDataRequestBuilder
+        HealthCategory.NUTRITION -> DataTypes.NUTRITION.changedDataRequestBuilder
+        HealthCategory.WATER_INTAKE -> DataTypes.WATER_INTAKE.changedDataRequestBuilder
+        HealthCategory.FLOORS_CLIMBED -> DataTypes.FLOORS_CLIMBED.changedDataRequestBuilder
         else -> null
     }
 }
@@ -421,6 +456,9 @@ private fun fieldsOf(capability: RecordCapability): List<Field<*>> = when (capab
     HealthCategory.BLOOD_PRESSURE -> bloodPressureFields
     HealthCategory.BODY_COMPOSITION -> bodyCompositionFields
     HealthCategory.BODY_TEMPERATURE -> bodyTemperatureFields
+    HealthCategory.NUTRITION -> nutritionFields
+    HealthCategory.WATER_INTAKE -> waterIntakeFields
+    HealthCategory.FLOORS_CLIMBED -> floorsClimbedFields
     else -> emptyList()
 }
 

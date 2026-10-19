@@ -24,6 +24,9 @@ object NormalizedPayloads {
         ("blood_oxygen" to "samsung-health-blood-oxygen/1") to ::validateBloodOxygen,
         ("skin_temperature" to "samsung-health-skin-temperature/1") to ::validateSkinTemperature,
         ("blood_glucose" to "samsung-health-blood-glucose/1") to ::validateBloodGlucose,
+        ("nutrition" to "samsung-health-nutrition/1") to ::validateNutrition,
+        ("water_intake" to "samsung-health-water-intake/1") to ::validateWaterIntake,
+        ("floors_climbed" to "samsung-health-floors-climbed/1") to ::validateFloorsClimbed,
     ) + VitalSignPayloads.validators
 
     private val recordTypes: Set<String> = validators.keys.mapTo(mutableSetOf()) { it.first }
@@ -258,6 +261,74 @@ object NormalizedPayloads {
         if (!context || !series) codes += RejectionCode.INVALID_PAYLOAD
 
         return codes.distinct()
+    }
+
+    /** A meal of a hundred kilograms of anything is beyond what any logged meal could mean, in every unit. */
+    private val PLAUSIBLE_GRAMS = BigDecimal.ZERO..BigDecimal(100_000)
+    private val PLAUSIBLE_MILLIGRAMS = BigDecimal.ZERO..BigDecimal(100_000_000)
+    private val PLAUSIBLE_MICROGRAMS = BigDecimal.ZERO..BigDecimal(100_000_000_000)
+
+    /** Beyond anything a person can plausibly drink at once, for the reason the heart rate range is. */
+    private val PLAUSIBLE_MILLILITERS = BigDecimal.ZERO..BigDecimal(100_000)
+
+    /** Samsung Health documents no unit for it, so the bound only catches what no climb could mean. */
+    private val PLAUSIBLE_FLOORS = BigDecimal.ZERO..BigDecimal(10_000)
+
+    private const val GRAMS = "g"
+    private const val MILLIGRAMS = "mg"
+    private const val MICROGRAMS = "ug"
+    private const val MILLILITERS = "mL"
+
+    /** Each nutrient a meal may carry, with the unit Samsung Health documents for it and its plausible range. */
+    private val NUTRIENTS: Map<String, Pair<String, ClosedRange<BigDecimal>>> = mapOf(
+        "calories" to (KILOCALORIES to PLAUSIBLE_KILOCALORIES),
+        "totalFat" to (GRAMS to PLAUSIBLE_GRAMS),
+        "saturatedFat" to (GRAMS to PLAUSIBLE_GRAMS),
+        "polysaturatedFat" to (GRAMS to PLAUSIBLE_GRAMS),
+        "monosaturatedFat" to (GRAMS to PLAUSIBLE_GRAMS),
+        "transFat" to (GRAMS to PLAUSIBLE_GRAMS),
+        "carbohydrate" to (GRAMS to PLAUSIBLE_GRAMS),
+        "dietaryFiber" to (GRAMS to PLAUSIBLE_GRAMS),
+        "sugar" to (GRAMS to PLAUSIBLE_GRAMS),
+        "protein" to (GRAMS to PLAUSIBLE_GRAMS),
+        "cholesterol" to (MILLIGRAMS to PLAUSIBLE_MILLIGRAMS),
+        "sodium" to (MILLIGRAMS to PLAUSIBLE_MILLIGRAMS),
+        "potassium" to (MILLIGRAMS to PLAUSIBLE_MILLIGRAMS),
+        "vitaminA" to (MICROGRAMS to PLAUSIBLE_MICROGRAMS),
+        "vitaminC" to (MILLIGRAMS to PLAUSIBLE_MILLIGRAMS),
+        "calcium" to (MILLIGRAMS to PLAUSIBLE_MILLIGRAMS),
+        "iron" to (MILLIGRAMS to PLAUSIBLE_MILLIGRAMS),
+    )
+
+    /**
+     * A meal requires nothing beyond its own normalization: Samsung Health reports a nutrient only when it
+     * was logged. The meal type is carried under the constant the source names it with, so an unknown one
+     * is accepted the way a sleep stage is; the title is free text.
+     */
+    private fun validateNutrition(payload: JsonObject): List<RejectionCode> {
+        val meal = payload["nutrition"] as? JsonObject ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+
+        val codes = mutableListOf<RejectionCode>()
+        NUTRIENTS.forEach { (key, expected) -> codes += quantity(meal[key], expected.first, expected.second) }
+        if (!meal.optionalConstant("mealType") || !meal.optionalText("title")) codes += RejectionCode.INVALID_PAYLOAD
+
+        return codes.distinct()
+    }
+
+    private fun validateWaterIntake(payload: JsonObject): List<RejectionCode> {
+        val intake = payload["waterIntake"] as? JsonObject ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+        val amount = intake["amount"] ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+        return quantity(amount, MILLILITERS, PLAUSIBLE_MILLILITERS)
+    }
+
+    private fun validateFloorsClimbed(payload: JsonObject): List<RejectionCode> {
+        val climbed = payload["floorsClimbed"] as? JsonObject ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+        return if (climbed.required("floors", PLAUSIBLE_FLOORS)) emptyList() else listOf(RejectionCode.INVALID_PAYLOAD)
+    }
+
+    private fun JsonObject.optionalText(key: String): Boolean {
+        val node = this[key] ?: return true
+        return (node as? JsonPrimitive)?.isString == true
     }
 
     private fun series(node: JsonElement?, valid: (JsonObject) -> Boolean): Boolean {

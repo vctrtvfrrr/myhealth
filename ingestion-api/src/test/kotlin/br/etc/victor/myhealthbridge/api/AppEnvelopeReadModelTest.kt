@@ -289,6 +289,47 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
         )
     }
 
+    @Test
+    fun `meals, water and climbs the application mapped become queryable`() {
+        listOf("nutrition" to MAPPED_NUTRITION, "water_intake" to MAPPED_WATER_INTAKE, "floors_climbed" to MAPPED_FLOORS_CLIMBED)
+            .forEach { (recordType, item) ->
+                val response = api.postBatch("""{"contractVersion":1,"recordType":"$recordType","items":[$item]}""", token)
+                assertEquals(listOf("accepted"), statuses(response.body), recordType)
+            }
+
+        val meal = row(
+            """
+            select meal_type, title, calories_kcal::text, total_fat_g::text, protein_g::text, sodium_mg::text, vitamin_a_ug::text,
+                sugar_g::text, period_start_offset, mapper_version
+            from read_model.current_nutrition where samsung_uid = ?
+            """.trimIndent(),
+            "uid-golden-nutrition",
+        )
+        assertEquals("LUNCH", meal.getValue("meal_type"))
+        assertEquals("Synthetic lunch", meal.getValue("title"))
+        assertEquals("640", meal.getValue("calories_kcal"))
+        assertEquals("21", meal.getValue("total_fat_g"))
+        assertEquals("32.5", meal.getValue("protein_g"))
+        assertEquals("780", meal.getValue("sodium_mg"))
+        assertEquals("120", meal.getValue("vitamin_a_ug"))
+        assertEquals(null, meal["sugar_g"])
+        assertEquals("-03:00", meal.getValue("period_start_offset"))
+        assertEquals("samsung-health-nutrition/1", meal.getValue("mapper_version"))
+
+        val water = row(
+            "select amount_ml::text, source_app from read_model.current_water_intake where samsung_uid = ?",
+            "uid-golden-water-intake",
+        )
+        assertEquals("250", water.getValue("amount_ml"))
+        assertEquals("com.example.shealth", water.getValue("source_app"))
+
+        val climb = row(
+            "select floors::text from read_model.current_floors_climbed where samsung_uid = ?",
+            "uid-golden-floors-climbed",
+        )
+        assertEquals("3", climb.getValue("floors"))
+    }
+
     private fun column(sql: String, samsungUid: String): List<String?> = api.query { connection ->
         connection.prepareStatement(sql).use { statement ->
             statement.setString(1, samsungUid)
@@ -356,5 +397,11 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
         const val MAPPED_SKIN_TEMPERATURE = """{"samsungUid":"uid-golden-skin-temperature","observedAt":{"instant":"2026-08-10T03:15:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-skin-temperature/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T03:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T03:10:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"temperature":33.5,"min":33.1,"max":33.9,"binning_data":[{"skin_temperature":33.5,"min":33.1,"max":33.9,"start_time":"2026-08-10T03:00:00Z","end_time":"2026-08-10T03:10:00Z"}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"skinTemperature":{"temperature":{"value":33.5,"unit":"Cel"},"min":{"value":33.1,"unit":"Cel"},"max":{"value":33.9,"unit":"Cel"},"series":[{"start":"2026-08-10T03:00:00Z","end":"2026-08-10T03:10:00Z","temperatureCelsius":33.5,"minCelsius":33.1,"maxCelsius":33.9}]}}}}"""
 
         const val MAPPED_BLOOD_GLUCOSE = """{"samsungUid":"uid-golden-blood-glucose","observedAt":{"instant":"2026-08-10T11:05:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-blood-glucose/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T11:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T11:00:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"glucose":5.4,"measurement_type":"PLASMA","sample_source_type":"UNDEFINED","meal_type":"AFTER_LUNCH","meal_time":"2026-08-10T10:00:00Z","insulin_injected":4.0,"medication":true,"binning_data":[{"glucose":5.4,"timestamp":"2026-08-10T11:00:00Z"},{"glucose":5.9,"timestamp":"2026-08-10T11:05:00Z"}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"bloodGlucose":{"glucose":{"value":5.4,"unit":"mmol/L"},"measurementType":"PLASMA","mealStatus":"AFTER_LUNCH","mealTime":"2026-08-10T10:00:00Z","insulinInjected":4.0,"medicationTaken":true,"series":[{"at":"2026-08-10T11:00:00Z","glucoseMmolPerLiter":5.4},{"at":"2026-08-10T11:05:00Z","glucoseMmolPerLiter":5.9}]}}}}"""
+
+        const val MAPPED_NUTRITION = """{"samsungUid":"uid-golden-nutrition","observedAt":{"instant":"2026-08-10T15:02:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-nutrition/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T15:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T15:00:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"meal_type":"LUNCH","title":"Synthetic lunch","calories":640.0,"total_fat":21.0,"protein":32.5,"sodium":780.0,"vitamin_a":120.0},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"nutrition":{"mealType":"LUNCH","title":"Synthetic lunch","calories":{"value":640.0,"unit":"kcal"},"totalFat":{"value":21.0,"unit":"g"},"protein":{"value":32.5,"unit":"g"},"sodium":{"value":780.0,"unit":"mg"},"vitaminA":{"value":120.0,"unit":"ug"}}}}}"""
+
+        const val MAPPED_WATER_INTAKE = """{"samsungUid":"uid-golden-water-intake","observedAt":{"instant":"2026-08-10T12:31:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-water-intake/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T12:30:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T12:30:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"amount":250.0},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"waterIntake":{"amount":{"value":250.0,"unit":"mL"}}}}}"""
+
+        const val MAPPED_FLOORS_CLIMBED = """{"samsungUid":"uid-golden-floors-climbed","observedAt":{"instant":"2026-08-10T09:11:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-floors-climbed/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T09:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T09:10:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"floor":3.0},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"floorsClimbed":{"floors":3.0}}}}"""
     }
 }

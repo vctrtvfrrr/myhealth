@@ -29,7 +29,10 @@ object SyntheticFixtures {
         HealthCategory.EXERCISE_LOCATION to SyntheticFixture.Record(
             exerciseRecord(sessions = listOf(session(route = listOf(location())))),
         ),
+        HealthCategory.FLOORS_CLIMBED to SyntheticFixture.Record(floorsClimbedRecord()),
         HealthCategory.STEPS to SyntheticFixture.Aggregate(number("1234")),
+        HealthCategory.NUTRITION to SyntheticFixture.Record(nutritionRecord()),
+        HealthCategory.WATER_INTAKE to SyntheticFixture.Record(waterIntakeRecord()),
         HealthCategory.SLEEP to SyntheticFixture.Record(sleepRecord(sessions = listOf(sleepSession(stages = listOf(sleepStage()))))),
         HealthCategory.SKIN_TEMPERATURE to SyntheticFixture.Record(skinTemperatureRecord()),
         HealthCategory.BLOOD_GLUCOSE to SyntheticFixture.Record(bloodGlucoseRecord(bins = listOf(glucoseBin()))),

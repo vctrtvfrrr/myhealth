@@ -6,9 +6,9 @@ MyHealth Bridge é um sistema pessoal para copiar os dados de saúde e atividade
 
 ## Estado do projeto
 
-O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. As verticais de contrato implementadas são `heart_rate`, `exercise`, `sleep`, `blood_oxygen`, `skin_temperature`, `blood_glucose`, `blood_pressure`, `body_composition` e `body_temperature`, exercitadas com envelopes sintéticos.
+O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. As verticais de contrato implementadas são `heart_rate`, `exercise`, `sleep`, `blood_oxygen`, `skin_temperature`, `blood_glucose`, `blood_pressure`, `body_composition`, `body_temperature`, `nutrition`, `water_intake` e `floors_climbed`, exercitadas com envelopes sintéticos.
 
-Cada ingestão também projeta o Current Health Record e o Current Observed Snapshot, e o schema de leitura `read_model` oferece as views `current_heart_rate`, `current_exercise`, `current_exercise_location`, `current_sleep`, `current_sleep_session`, `current_sleep_stage`, `current_blood_oxygen`, `current_blood_oxygen_series`, `current_skin_temperature`, `current_skin_temperature_series`, `current_blood_glucose`, `current_blood_glucose_series`, `current_blood_pressure`, `current_body_composition`, `current_body_temperature`, `current_observed_snapshot`, `current_hourly_steps`, `current_hourly_activity_summary`, `user_profile` e `current_daily_goal` para consulta por uma conta somente leitura.
+Cada ingestão também projeta o Current Health Record e o Current Observed Snapshot, e o schema de leitura `read_model` oferece as views `current_heart_rate`, `current_exercise`, `current_exercise_location`, `current_sleep`, `current_sleep_session`, `current_sleep_stage`, `current_blood_oxygen`, `current_blood_oxygen_series`, `current_skin_temperature`, `current_skin_temperature_series`, `current_blood_glucose`, `current_blood_glucose_series`, `current_blood_pressure`, `current_body_composition`, `current_body_temperature`, `current_nutrition`, `current_water_intake`, `current_floors_climbed`, `current_observed_snapshot`, `current_hourly_steps`, `current_hourly_activity_summary`, `user_profile` e `current_daily_goal` para consulta por uma conta somente leitura.
 
 O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas.
 
@@ -21,6 +21,8 @@ O sono segue o mesmo critério: as sessões de cada noite e os estágios de cada
 A oxigenação do sangue, a temperatura da pele e a glicose seguem o mesmo critério, e trazem a série `binning_data` de que cada medição foi agregada. Um ponto da série não tem identidade própria: viaja no envelope da medição e é projetado como linha própria, como os estágios do sono. As medições que o Samsung Health associa a uma noite chegam por aqui como quaisquer outras; a noite a que pertencem é o sono cujo período as contém.
 
 A pressão arterial, a composição corporal e a temperatura corporal seguem o mesmo critério e são registros de campos simples, sem nada aninhado. Cada medida vai na unidade que o Samsung Health documenta para ela; o pulso da pressão arterial e o índice de massa corporal não têm unidade documentada, e nenhuma é atribuída a eles.
+
+A nutrição, a água e os andares subidos seguem o mesmo critério da frequência cardíaca: são registros de campos simples, sem nada que viaje dentro deles. Uma refeição traz o tipo, o título, as calorias e cada nutriente registrado na unidade que o Samsung Health documenta; a água traz a quantidade em mL; os andares trazem a contagem sem unidade, porque o Samsung Health não documenta uma.
 
 Alterações feitas depois no Samsung Health se refletem no Current Health Record, e um Source Removal muda o estado corrente sem apagar Observed Record Version alguma. Além do cursor, cada execução lê o Source Change Feed da categoria, uma vez por dia relê os sete dias anteriores, e o Data Owner pode acionar uma reconciliação integral que relê todo o histórico acessível.
 
@@ -236,7 +238,7 @@ A reconstrução é o mesmo enunciado SQL sobre todas as identidades, exposto co
 | --- | --- |
 | `projection rebuild` | Descarta as projeções e as regenera a partir dos envelopes e observações preservados. Mostra a contagem de Current Health Records, prefixada por `projected=`, e a de Current Observed Snapshots, prefixada por `projected_snapshots=`. |
 
-O schema `read_model` é a superfície de consulta. Hoje ele tem vinte views:
+O schema `read_model` é a superfície de consulta. Hoje ele tem vinte e três views:
 
 | View | Conteúdo |
 | --- | --- |
@@ -260,6 +262,9 @@ O schema `read_model` é a superfície de consulta. Hoje ele tem vinte views:
 | `read_model.current_blood_pressure` | Leituras de pressão arterial correntes: identidade, `systolic_mmhg`, `diastolic_mmhg` e `mean_mmhg` em mmHg, `pulse_rate` (sem unidade, porque o Samsung Health não documenta uma), `medication_taken`, período e observação em UTC com o zone offset original, proveniência e `mapper_version`. |
 | `read_model.current_body_composition` | Medições de composição corporal correntes: identidade, `weight_kg` (o único campo obrigatório), `height_cm`, `body_fat_percent`, `skeletal_muscle_percent`, `muscle_mass_percent` (percentual, como o Samsung Health documenta), `basal_metabolic_rate_kcal_per_day`, `body_fat_mass_kg`, `fat_free_mass_kg`, `fat_free_percent`, `skeletal_muscle_mass_kg`, `total_body_water_liters` e `body_mass_index` (calculado pelo Samsung Health, sem unidade), período, observação, proveniência e `mapper_version`. Uma medida não reportada é nula. |
 | `read_model.current_body_temperature` | Leituras de temperatura corporal correntes: identidade, `temperature_celsius` em °C, período, observação, proveniência e `mapper_version`. |
+| `read_model.current_nutrition` | Refeições registradas correntes: identidade, `meal_type` com a constante que a fonte reportou (nulo quando ela reportou `UNDEFINED`), `title`, `calories_kcal` e cada nutriente na unidade que o Samsung Health documenta, indicada no nome da coluna (`total_fat_g`, `saturated_fat_g`, `polysaturated_fat_g`, `monosaturated_fat_g`, `trans_fat_g`, `carbohydrate_g`, `dietary_fiber_g`, `sugar_g`, `protein_g`, `cholesterol_mg`, `sodium_mg`, `potassium_mg`, `vitamin_a_ug`, `vitamin_c_mg`, `calcium_mg`, `iron_mg`), período, observação, proveniência e `mapper_version`. Um nutriente não registrado é nulo, nunca zero. |
+| `read_model.current_water_intake` | Registros de água correntes: identidade, `amount_ml`, período, observação, proveniência e `mapper_version`. |
+| `read_model.current_floors_climbed` | Andares subidos correntes: identidade, `floors` (sem unidade, porque o Samsung Health não documenta uma), período, observação, proveniência e `mapper_version`. |
 
 Uma Health Record removida na origem sai da view: a remoção é estado corrente, não medição corrente, e continua projetada e preservada. Um exercício removido leva a rota dele junto, um sono removido leva as sessões e os estágios dele, e uma medição removida leva a série dela, pela mesma razão. Uma medição sem série não contribui linha alguma para a view da série. `source_app` ou `source_device` nulo é o unknown explícito da Source Provenance, que é o que a fonte reportou.
 

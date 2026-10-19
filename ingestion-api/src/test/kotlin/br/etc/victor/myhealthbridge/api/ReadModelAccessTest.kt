@@ -47,6 +47,11 @@ class ReadModelAccessTest : IngestionApiTest() {
                 series = listOf(BinnedEnvelopes.glucoseReading()),
             ),
         ).forEach { (recordType, item) -> api.postBatch(Envelopes.batch(recordType = recordType, items = listOf(item)), token) }
+        listOf(
+            ConsumptionEnvelopes.NUTRITION_RECORD_TYPE to ConsumptionEnvelopes.nutrition(samsungUid = "uid-read-only"),
+            ConsumptionEnvelopes.WATER_INTAKE_RECORD_TYPE to ConsumptionEnvelopes.waterIntake(samsungUid = "uid-read-only"),
+            ConsumptionEnvelopes.FLOORS_CLIMBED_RECORD_TYPE to ConsumptionEnvelopes.floorsClimbed(samsungUid = "uid-read-only"),
+        ).forEach { (recordType, item) -> api.postBatch(Envelopes.batch(recordType = recordType, items = listOf(item)), token) }
         api.postBatch(
             Snapshots.batch(items = listOf(Snapshots.steps(start = "2026-07-01T09:00:00", end = "2026-07-01T10:00:00"))),
             token,
@@ -78,6 +83,9 @@ class ReadModelAccessTest : IngestionApiTest() {
                 "current_skin_temperature_series",
                 "current_blood_glucose",
                 "current_blood_glucose_series",
+                "current_nutrition",
+                "current_water_intake",
+                "current_floors_climbed",
             ).forEach { view ->
                 assertEquals(
                     1,

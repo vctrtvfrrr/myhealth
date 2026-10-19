@@ -24,7 +24,10 @@ class HealthCapabilitiesTest {
                 HealthCategory.ACTIVITY_SUMMARY,
                 HealthCategory.EXERCISE,
                 HealthCategory.EXERCISE_LOCATION,
+                HealthCategory.FLOORS_CLIMBED,
                 HealthCategory.STEPS,
+                HealthCategory.NUTRITION,
+                HealthCategory.WATER_INTAKE,
                 HealthCategory.SLEEP,
                 HealthCategory.SKIN_TEMPERATURE,
                 HealthCategory.BLOOD_GLUCOSE,
@@ -63,8 +66,11 @@ class HealthCapabilitiesTest {
             listOf(
                 HealthCategory.ACTIVITY_SUMMARY,
                 HealthCategory.EXERCISE,
+                HealthCategory.FLOORS_CLIMBED,
                 HealthCategory.STEPS,
+                HealthCategory.NUTRITION,
                 HealthCategory.NUTRITION_GOAL,
+                HealthCategory.WATER_INTAKE,
                 HealthCategory.WATER_INTAKE_GOAL,
                 HealthCategory.SLEEP,
                 HealthCategory.SLEEP_GOAL,
@@ -168,6 +174,26 @@ class HealthCapabilitiesTest {
             assertTrue(capability.supportsChanges)
             assertFalse(capability.hasAssociatedData)
             assertEquals(AssociatedData.Nested("binning_data"), capability.associatedData)
+            assertTrue(capability.pageSize > 0)
+        }
+    }
+
+    @Test
+    fun `declares nutrition, water intake and floors climbed end to end, each a record of plain fields`() {
+        mapOf(
+            HealthCategory.NUTRITION to ("nutrition" to NutritionMapper),
+            HealthCategory.WATER_INTAKE to ("water_intake" to WaterIntakeMapper),
+            HealthCategory.FLOORS_CLIMBED to ("floors_climbed" to FloorsClimbedMapper),
+        ).forEach { (category, expected) ->
+            val capability = HealthCapabilities.of(category) as RecordCapability
+
+            assertEquals(expected.first, capability.recordType)
+            assertEquals(expected.second, capability.mapper)
+            assertEquals("read_model.current_${expected.first}", capability.projection)
+            assertTrue(ReadOperation.TIME_RANGE in capability.readOperations)
+            assertTrue(capability.supportsChanges)
+            assertFalse(capability.hasAssociatedData)
+            assertEquals(AssociatedData.None, capability.associatedData)
             assertTrue(capability.pageSize > 0)
         }
     }

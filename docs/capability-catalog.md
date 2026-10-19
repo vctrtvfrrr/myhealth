@@ -4,18 +4,18 @@ Gerado de `HealthCapabilities` (`health-sync`) e verificado por `CapabilityCatal
 
 Uma entrada por Health Category do Samsung Health Data SDK adotado. Uma categoria que o SDK expõe e o catálogo não declara não é sincronizada e vira Maintenance Incident (`uncataloged_category`). Tamanhos de página e de leitura são escolhas deste repositório, não limites do SDK.
 
-Implementadas: 19 de 25.
+Implementadas: 22 de 25.
 
 | Categoria | Classe | Situação | Permissão | Leituras | Paginação | Mudanças | Dados associados | Identidade | Mapper | Projeção |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `activity_summary` | Observed Snapshot | implementada | `activity_summary` | `AGGREGATE` | 744 janelas por leitura | não | — | `activity_summary` + hora local | `samsung-health-activity-summary/1` | `read_model.current_hourly_activity_summary` |
 | `exercise` | Health Record | implementada | `exercise` | `TIME_RANGE`, `CHANGES`, `ASSOCIATED` | 50 registros por página | sim | `sessions`, `sessions.route` | `exercise` + Samsung UID | `samsung-health-exercise/1` | `read_model.current_exercise` |
 | `exercise_location` | só permissão | implementada | `exercise_location` | — | — | não | — | dentro de `exercise` | — | `read_model.current_exercise_location` |
-| `floors_climbed` | Health Record | não implementada | `floors_climbed` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `floors_climbed` + Samsung UID | — | — |
+| `floors_climbed` | Health Record | implementada | `floors_climbed` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `floors_climbed` + Samsung UID | `samsung-health-floors-climbed/1` | `read_model.current_floors_climbed` |
 | `steps` | Observed Snapshot | implementada | `steps` | `AGGREGATE` | 744 janelas por leitura | não | — | `steps` + hora local | `samsung-health-steps/1` | `read_model.current_hourly_steps` |
-| `nutrition` | Health Record | não implementada | `nutrition` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `nutrition` + Samsung UID | — | — |
+| `nutrition` | Health Record | implementada | `nutrition` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `nutrition` + Samsung UID | `samsung-health-nutrition/1` | `read_model.current_nutrition` |
 | `nutrition_goal` | Observed Snapshot | implementada | `nutrition_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `nutrition_goal` + dia local | `samsung-health-nutrition-goal/2` | `read_model.current_daily_goal` |
-| `water_intake` | Health Record | não implementada | `water_intake` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `water_intake` + Samsung UID | — | — |
+| `water_intake` | Health Record | implementada | `water_intake` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `water_intake` + Samsung UID | `samsung-health-water-intake/1` | `read_model.current_water_intake` |
 | `water_intake_goal` | Observed Snapshot | implementada | `water_intake_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `water_intake_goal` + dia local | `samsung-health-water-intake-goal/2` | `read_model.current_daily_goal` |
 | `sleep` | Health Record | implementada | `sleep` | `TIME_RANGE`, `CHANGES` | 100 registros por página | sim | `sessions`, `sessions.stages` | `sleep` + Samsung UID | `samsung-health-sleep/1` | `read_model.current_sleep` |
 | `sleep_apnea` | Health Record | não implementada | `sleep_apnea` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `sleep_apnea` + Samsung UID | — | — |

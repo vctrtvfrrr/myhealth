@@ -302,7 +302,7 @@ object HealthCapabilities {
             carrier = HealthCategory.EXERCISE,
             projection = "read_model.current_exercise_location",
         ),
-        measurement(HealthCategory.FLOORS_CLIMBED, "floors_climbed"),
+        plainMeasurement(HealthCategory.FLOORS_CLIMBED, "floors_climbed", FloorsClimbedMapper),
         SnapshotCapability(
             category = HealthCategory.STEPS,
             snapshotType = "steps",
@@ -312,9 +312,9 @@ object HealthCapabilities {
             projection = "read_model.current_hourly_steps",
         ),
 
-        measurement(HealthCategory.NUTRITION, "nutrition"),
+        plainMeasurement(HealthCategory.NUTRITION, "nutrition", NutritionMapper),
         dailyGoal(HealthCategory.NUTRITION_GOAL, "nutrition_goal", GoalMappers.NUTRITION),
-        measurement(HealthCategory.WATER_INTAKE, "water_intake"),
+        plainMeasurement(HealthCategory.WATER_INTAKE, "water_intake", WaterIntakeMapper),
         dailyGoal(HealthCategory.WATER_INTAKE_GOAL, "water_intake_goal", GoalMappers.WATER_INTAKE),
 
         RecordCapability(
