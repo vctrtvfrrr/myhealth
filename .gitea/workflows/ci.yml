@@ -47,20 +47,18 @@ jobs:
         if: github.event_name == 'push'
         run: echo "version=$(bash .gitea/scripts/next-version.sh HEAD)" >> "$GITHUB_OUTPUT"
 
+      # Built straight under the name of its commit: every run shares one Docker daemon, and a tag
+      # shared between runs is moved by whichever builds last, which once deployed a pull request.
       - name: Test and build the image
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           ./gradlew :contract:check :ingestion-api:check :ingestion-api:buildImage \
-            "-Pmyhealth.revision=$TAG" ${RELEASE_VERSION:+"-Pmyhealth.version=$RELEASE_VERSION"}
+            "-Pmyhealth.image=${IMAGE}:${TAG}" "-Pmyhealth.revision=$TAG" \
+            ${RELEASE_VERSION:+"-Pmyhealth.version=$RELEASE_VERSION"}
 
       - name: Verify the image runs as uid 1000
-        run: test "$(docker run --rm --entrypoint id myhealth-api:local -u)" = "1000"
-
-      # Named here, and not in the deploy job, so a concurrent branch build cannot move the
-      # myhealth-api:local tag between the two jobs.
-      - name: Name the image after the commit
-        run: docker tag myhealth-api:local "${IMAGE}:${TAG}"
+        run: test "$(docker run --rm --entrypoint id "${IMAGE}:${TAG}" -u)" = "1000"
 
   android:
     runs-on: ubuntu-latest

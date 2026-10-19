@@ -76,7 +76,7 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 | `./gradlew build` | Compila e testa os cinco módulos, incluindo os testes de integração. |
 | `./gradlew test` | Executa apenas os testes que não exigem Docker. |
 | `./gradlew integrationTest` | Executa apenas os testes de integração, que sobem containers. |
-| `./gradlew :ingestion-api:buildImage` | Constrói a imagem `myhealth-api:local` a partir da distribuição do Gradle. |
+| `./gradlew :ingestion-api:buildImage` | Constrói a imagem `myhealth-api:local` a partir da distribuição do Gradle; `-Pmyhealth.image=<nome:tag>` troca o nome. |
 | `./gradlew devUp` | Reconstrói a imagem e sobe PostgreSQL e a API em containers para desenvolvimento local. |
 | `./gradlew :ingestion-api:run` | Sobe a API de ingestão em `http://localhost:8039` (porta configurável por `PORT`), exigindo um PostgreSQL alcançável. |
 | `./gradlew :android-app:assembleDebug` | Gera o APK de depuração em `android-app/build/outputs/apk/debug/`. |
@@ -278,7 +278,7 @@ O workflow `.gitea/workflows/ci.yml` roda em todo pull request e em todo push na
 
 | Job | Quando | O que faz |
 | --- | --- | --- |
-| `api` | Sempre | Testes do `contract` e da API, inclusive os de integração, e a imagem, já nomeada pelo commit para que outra execução não troque `myhealth-api:local` entre os jobs. |
+| `api` | Sempre | Testes do `contract` e da API, inclusive os de integração, e a imagem, construída direto com o nome do commit: as execuções dividem o mesmo Docker, e uma tag compartilhada entre elas fica com a imagem de quem construiu por último. |
 | `android` | Sempre, em paralelo ao `api` | Testes unitários e lint do variant debug dos módulos Android e o APK de depuração; numa release, também o APK assinado. |
 | `deploy` | Push na `master`, depois de `api` e `android` | Entrega a API. Espera a suíte inteira, inclusive a do aplicativo. |
 | `release` | Push na `master` que gera release, depois do `deploy` | Publica a versão. |

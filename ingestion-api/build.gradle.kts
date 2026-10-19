@@ -61,12 +61,13 @@ tasks.register<Exec>("buildImage") {
     description = "Builds the ingestion API image from the distribution produced by installDist."
     dependsOn(tasks.installDist)
     workingDir = projectDir
+    val image = providers.gradleProperty("myhealth.image").getOrElse("myhealth-api:local")
     val labels = mapOf(
         "org.opencontainers.image.version" to providers.gradleProperty("myhealth.version").orNull,
         "org.opencontainers.image.revision" to providers.gradleProperty("myhealth.revision").orNull,
     ).filterValues { it != null }
     commandLine(
-        listOf("docker", "build", "--tag", "myhealth-api:local") +
+        listOf("docker", "build", "--tag", image) +
             labels.flatMap { (name, value) -> listOf("--label", "$name=$value") } +
             ".",
     )
