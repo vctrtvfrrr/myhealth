@@ -27,11 +27,9 @@ $releasable || exit 0
 IFS=. read -r major minor patch <<<"${previous:-v0.0.0}"
 major="${major#v}"
 
-# Before 1.0 a breaking change does not leave the 0.x line: it moves the minor version, as a
-# feature does.
-if $breaking && ((major > 0)); then
+if $breaking; then
     echo "$((major + 1)).0.0"
-elif $breaking || $feature; then
+elif $feature; then
     echo "$major.$((minor + 1)).0"
 else
     echo "$major.$minor.$((patch + 1))"

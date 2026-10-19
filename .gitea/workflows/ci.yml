@@ -42,6 +42,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-api-
 
+      - name: Test the release scripts
+        run: bash .gitea/scripts/next-version.test.sh
+
       - name: Decide the release version
         id: version
         if: github.event_name == 'push'

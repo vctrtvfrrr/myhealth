@@ -322,12 +322,14 @@ Todo push na `master` que entrega uma mudança vira release, sem número editado
 
 | Commits desde a última release | Versão seguinte |
 | --- | --- |
-| Algum breaking (`!` no tipo ou rodapé `BREAKING CHANGE:`) | Sobe o major; antes de 1.0, sobe o minor. |
+| Algum breaking (`!` no tipo ou rodapé `BREAKING CHANGE:`) | Sobe o major, também na linha 0.x: de 0.6.0 vai para 1.0.0, com `versionCode` `1000000`. |
 | Algum `feat` | Sobe o minor. |
 | Algum `fix`, `perf`, `refactor` ou `revert` | Sobe o patch. |
 | Só `docs`, `ci`, `test`, `chore`, `style` ou `build` | Nenhuma: build e deploy rodam, mas nada é lançado. |
 
-A versão existe só na tag, criada pelo CI; tag empurrada à mão não lança nada. O Gradle a recebe por `-Pmyhealth.version=X.Y.Z`, e sem ela o build é de desenvolvimento: `versionName` `0.0.0-dev` e `versionCode` `1`, que nenhuma release instalada aceita como atualização. O `versionCode` é `major * 1.000.000 + minor * 1.000 + patch`, então cresce exatamente quando a versão cresce, e minor e patch precisam ficar abaixo de 1000. Ver ADR `0024`.
+A versão existe só na tag, criada pelo CI; tag empurrada à mão não lança nada. O Gradle a recebe por `-Pmyhealth.version=X.Y.Z`, e sem ela o build é de desenvolvimento: `versionName` `0.0.0-dev` e `versionCode` `1`, que nenhuma release instalada aceita como atualização. O `versionCode` é `major * 1.000.000 + minor * 1.000 + patch`, então cresce exatamente quando a versão cresce, e minor e patch precisam ficar abaixo de 1000. Ver ADRs `0024` e `0026`.
+
+O `.gitea/scripts/next-version.test.sh` exercita o cálculo em repositórios descartáveis, com breaking em 0.x e em 1.x, `feat`, `fix` e commits que não entregam mudança, e roda no job `api`: `bash .gitea/scripts/next-version.test.sh`.
 
 O job `release` cria a tag no commit lançado e a release no Gitea, com notas agrupadas em mudanças incompatíveis, funcionalidades, correções e outras mudanças, anexa o APK como `myhealth-bridge-X.Y.Z.apk` e publica a imagem também como `myhealth-api:X.Y.Z`, com os labels `org.opencontainers.image.version` e `org.opencontainers.image.revision`. Um deploy que falha não lança nada, e o push seguinte calcula a mesma versão e leva esses commits nas notas. Se dois pushes seguidos calcularem a mesma versão, o segundo falha em vez de mover a tag, e o push depois dele parte da tag nova. Reexecutar o job para o mesmo commit só completa o que faltou.
 
