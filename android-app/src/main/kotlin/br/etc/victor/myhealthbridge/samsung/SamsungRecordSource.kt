@@ -28,10 +28,13 @@ import com.samsung.android.sdk.health.data.data.Change
 import com.samsung.android.sdk.health.data.data.ChangeType
 import com.samsung.android.sdk.health.data.data.Field
 import com.samsung.android.sdk.health.data.data.HealthDataPoint
+import com.samsung.android.sdk.health.data.data.entries.BloodGlucose
 import com.samsung.android.sdk.health.data.data.entries.ExerciseLocation
 import com.samsung.android.sdk.health.data.data.entries.ExerciseLog
 import com.samsung.android.sdk.health.data.data.entries.ExerciseSession
 import com.samsung.android.sdk.health.data.data.entries.HeartRate
+import com.samsung.android.sdk.health.data.data.entries.OxygenSaturation
+import com.samsung.android.sdk.health.data.data.entries.SkinTemperature
 import com.samsung.android.sdk.health.data.data.entries.SleepSession
 import com.samsung.android.sdk.health.data.data.entries.SwimmingLog
 import com.samsung.android.sdk.health.data.request.AggregateRequest
@@ -96,6 +99,34 @@ internal val userProfileFields: List<Field<*>> = listOf(
     DataType.UserProfileDataType.WEIGHT,
     DataType.UserProfileDataType.GENDER,
     DataType.UserProfileDataType.NICKNAME,
+)
+
+/** The fields of a blood oxygen record this build reads, pinned to the SDK the same way. */
+internal val bloodOxygenFields: List<Field<*>> = listOf(
+    DataType.BloodOxygenType.OXYGEN_SATURATION,
+    DataType.BloodOxygenType.MIN_OXYGEN_SATURATION,
+    DataType.BloodOxygenType.MAX_OXYGEN_SATURATION,
+    DataType.BloodOxygenType.SERIES_DATA,
+)
+
+/** The fields of a skin temperature record this build reads, pinned to the SDK the same way. */
+internal val skinTemperatureFields: List<Field<*>> = listOf(
+    DataType.SkinTemperatureType.SKIN_TEMPERATURE,
+    DataType.SkinTemperatureType.MIN_SKIN_TEMPERATURE,
+    DataType.SkinTemperatureType.MAX_SKIN_TEMPERATURE,
+    DataType.SkinTemperatureType.SERIES_DATA,
+)
+
+/** The fields of a blood glucose record this build reads, pinned to the SDK the same way. */
+internal val bloodGlucoseFields: List<Field<*>> = listOf(
+    DataType.BloodGlucoseType.GLUCOSE_LEVEL,
+    DataType.BloodGlucoseType.MEASUREMENT_TYPE,
+    DataType.BloodGlucoseType.SAMPLE_SOURCE_TYPE,
+    DataType.BloodGlucoseType.MEAL_STATUS,
+    DataType.BloodGlucoseType.MEAL_TIME,
+    DataType.BloodGlucoseType.INSULIN_INJECTED,
+    DataType.BloodGlucoseType.MEDICATION_TAKEN,
+    DataType.BloodGlucoseType.SERIES_DATA,
 )
 
 /**
@@ -319,6 +350,9 @@ class SamsungRecordSource(
         HealthCategory.HEART_RATE -> DataTypes.HEART_RATE.readDataRequestBuilder
         HealthCategory.EXERCISE -> DataTypes.EXERCISE.readDataRequestBuilder
         HealthCategory.SLEEP -> DataTypes.SLEEP.readDataRequestBuilder
+        HealthCategory.BLOOD_OXYGEN -> DataTypes.BLOOD_OXYGEN.readDataRequestBuilder
+        HealthCategory.SKIN_TEMPERATURE -> DataTypes.SKIN_TEMPERATURE.readDataRequestBuilder
+        HealthCategory.BLOOD_GLUCOSE -> DataTypes.BLOOD_GLUCOSE.readDataRequestBuilder
         else -> null
     }
 
@@ -333,6 +367,9 @@ class SamsungRecordSource(
         HealthCategory.HEART_RATE -> DataTypes.HEART_RATE.changedDataRequestBuilder
         HealthCategory.EXERCISE -> DataTypes.EXERCISE.changedDataRequestBuilder
         HealthCategory.SLEEP -> DataTypes.SLEEP.changedDataRequestBuilder
+        HealthCategory.BLOOD_OXYGEN -> DataTypes.BLOOD_OXYGEN.changedDataRequestBuilder
+        HealthCategory.SKIN_TEMPERATURE -> DataTypes.SKIN_TEMPERATURE.changedDataRequestBuilder
+        HealthCategory.BLOOD_GLUCOSE -> DataTypes.BLOOD_GLUCOSE.changedDataRequestBuilder
         else -> null
     }
 }
@@ -342,6 +379,9 @@ private fun fieldsOf(capability: RecordCapability): List<Field<*>> = when (capab
     HealthCategory.HEART_RATE -> heartRateFields
     HealthCategory.EXERCISE -> exerciseFields
     HealthCategory.SLEEP -> sleepFields
+    HealthCategory.BLOOD_OXYGEN -> bloodOxygenFields
+    HealthCategory.SKIN_TEMPERATURE -> skinTemperatureFields
+    HealthCategory.BLOOD_GLUCOSE -> bloodGlucoseFields
     else -> emptyList()
 }
 
@@ -404,6 +444,9 @@ private fun entryOf(element: Any?): Map<String, SourceValue>? = when (element) {
     is SwimmingLog.SwimmingInterval -> swimmingIntervalEntries.entryOf(element)
     is SleepSession -> sleepSessionEntries.entryOf(element)
     is SleepSession.SleepStage -> sleepStageEntries.entryOf(element)
+    is OxygenSaturation -> oxygenSaturationEntries.entryOf(element)
+    is SkinTemperature -> skinTemperatureEntries.entryOf(element)
+    is BloodGlucose -> bloodGlucoseEntries.entryOf(element)
     else -> null
 }
 
@@ -508,4 +551,25 @@ internal val sleepStageEntries: Entries<SleepSession.SleepStage> = listOf(
     "start_time" to SleepSession.SleepStage::startTime,
     "end_time" to SleepSession.SleepStage::endTime,
     "stage" to SleepSession.SleepStage::stage,
+)
+
+internal val oxygenSaturationEntries: Entries<OxygenSaturation> = listOf(
+    "oxygen_saturation" to OxygenSaturation::oxygenSaturation,
+    "min" to OxygenSaturation::min,
+    "max" to OxygenSaturation::max,
+    "start_time" to OxygenSaturation::startTime,
+    "end_time" to OxygenSaturation::endTime,
+)
+
+internal val skinTemperatureEntries: Entries<SkinTemperature> = listOf(
+    "skin_temperature" to SkinTemperature::skinTemperature,
+    "min" to SkinTemperature::min,
+    "max" to SkinTemperature::max,
+    "start_time" to SkinTemperature::startTime,
+    "end_time" to SkinTemperature::endTime,
+)
+
+internal val bloodGlucoseEntries: Entries<BloodGlucose> = listOf(
+    "glucose" to BloodGlucose::glucose,
+    "timestamp" to BloodGlucose::timestamp,
 )

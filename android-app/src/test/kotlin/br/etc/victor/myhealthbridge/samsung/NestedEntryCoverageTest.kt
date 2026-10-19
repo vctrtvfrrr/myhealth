@@ -1,9 +1,12 @@
 package br.etc.victor.myhealthbridge.samsung
 
+import com.samsung.android.sdk.health.data.data.entries.BloodGlucose
 import com.samsung.android.sdk.health.data.data.entries.ExerciseLocation
 import com.samsung.android.sdk.health.data.data.entries.ExerciseLog
 import com.samsung.android.sdk.health.data.data.entries.ExerciseSession
 import com.samsung.android.sdk.health.data.data.entries.HeartRate
+import com.samsung.android.sdk.health.data.data.entries.OxygenSaturation
+import com.samsung.android.sdk.health.data.data.entries.SkinTemperature
 import com.samsung.android.sdk.health.data.data.entries.SleepSession
 import com.samsung.android.sdk.health.data.data.entries.SwimmingLog
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -30,6 +33,9 @@ class NestedEntryCoverageTest {
         coverageOf(SwimmingLog.SwimmingInterval::class.java, swimmingIntervalEntries),
         coverageOf(SleepSession::class.java, sleepSessionEntries),
         coverageOf(SleepSession.SleepStage::class.java, sleepStageEntries),
+        coverageOf(OxygenSaturation::class.java, oxygenSaturationEntries),
+        coverageOf(SkinTemperature::class.java, skinTemperatureEntries),
+        coverageOf(BloodGlucose::class.java, bloodGlucoseEntries),
     )
 
     private fun <T> coverageOf(type: Class<T>, entries: Entries<T>): DynamicTest = dynamicTest(type.simpleName) {

@@ -26,6 +26,9 @@ class HealthCapabilitiesTest {
                 HealthCategory.EXERCISE_LOCATION,
                 HealthCategory.STEPS,
                 HealthCategory.SLEEP,
+                HealthCategory.SKIN_TEMPERATURE,
+                HealthCategory.BLOOD_GLUCOSE,
+                HealthCategory.BLOOD_OXYGEN,
                 HealthCategory.HEART_RATE,
                 HealthCategory.USER_PROFILE,
             ) + GOALS,
@@ -62,6 +65,9 @@ class HealthCapabilitiesTest {
                 HealthCategory.WATER_INTAKE_GOAL,
                 HealthCategory.SLEEP,
                 HealthCategory.SLEEP_GOAL,
+                HealthCategory.SKIN_TEMPERATURE,
+                HealthCategory.BLOOD_GLUCOSE,
+                HealthCategory.BLOOD_OXYGEN,
                 HealthCategory.HEART_RATE,
                 HealthCategory.ACTIVE_CALORIES_BURNED_GOAL,
                 HealthCategory.ACTIVE_TIME_GOAL,
@@ -113,6 +119,31 @@ class HealthCapabilitiesTest {
         assertTrue(capability.supportsChanges)
         assertFalse(capability.hasAssociatedData)
         assertTrue(capability.pageSize > 0)
+    }
+
+    /**
+     * Their binned series has no identity of its own and travels inside the record, the way the stages
+     * travel inside a night. The blood oxygen and skin temperature a night associates are read here, by
+     * their own categories, and never through the sleep. See ADR 0023.
+     */
+    @Test
+    fun `declares blood glucose, blood oxygen and skin temperature end to end, each carrying its series`() {
+        mapOf(
+            HealthCategory.BLOOD_GLUCOSE to ("blood_glucose" to BloodGlucoseMapper),
+            HealthCategory.BLOOD_OXYGEN to ("blood_oxygen" to BloodOxygenMapper),
+            HealthCategory.SKIN_TEMPERATURE to ("skin_temperature" to SkinTemperatureMapper),
+        ).forEach { (category, expected) ->
+            val capability = HealthCapabilities.of(category) as RecordCapability
+
+            assertEquals(expected.first, capability.recordType)
+            assertEquals(expected.second, capability.mapper)
+            assertEquals("read_model.current_${expected.first}", capability.projection)
+            assertTrue(ReadOperation.TIME_RANGE in capability.readOperations)
+            assertTrue(capability.supportsChanges)
+            assertFalse(capability.hasAssociatedData)
+            assertEquals(AssociatedData.Nested("binning_data"), capability.associatedData)
+            assertTrue(capability.pageSize > 0)
+        }
     }
 
     /**

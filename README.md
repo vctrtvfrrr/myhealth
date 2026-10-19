@@ -6,9 +6,9 @@ MyHealth Bridge é um sistema pessoal para copiar os dados de saúde e atividade
 
 ## Estado do projeto
 
-O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. As verticais de contrato implementadas são `heart_rate`, `exercise` e `sleep`, exercitadas com envelopes sintéticos.
+O projeto está em fase inicial. A API de ingestão já recebe lotes homogêneos e idempotentes de envelopes canônicos em `POST /ingestions`, autentica o aparelho por token, preserva as Observed Record Versions de forma imutável no PostgreSQL e devolve um resultado por posição enviada. As verticais de contrato implementadas são `heart_rate`, `exercise`, `sleep`, `blood_oxygen`, `skin_temperature` e `blood_glucose`, exercitadas com envelopes sintéticos.
 
-Cada ingestão também projeta o Current Health Record e o Current Observed Snapshot, e o schema de leitura `read_model` oferece as views `current_heart_rate`, `current_exercise`, `current_exercise_location`, `current_sleep`, `current_sleep_session`, `current_sleep_stage`, `current_observed_snapshot`, `current_hourly_steps`, `current_hourly_activity_summary`, `user_profile` e `current_daily_goal` para consulta por uma conta somente leitura.
+Cada ingestão também projeta o Current Health Record e o Current Observed Snapshot, e o schema de leitura `read_model` oferece as views `current_heart_rate`, `current_exercise`, `current_exercise_location`, `current_sleep`, `current_sleep_session`, `current_sleep_stage`, `current_blood_oxygen`, `current_blood_oxygen_series`, `current_skin_temperature`, `current_skin_temperature_series`, `current_blood_glucose`, `current_blood_glucose_series`, `current_observed_snapshot`, `current_hourly_steps`, `current_hourly_activity_summary`, `user_profile` e `current_daily_goal` para consulta por uma conta somente leitura.
 
 O aplicativo Android já conecta ao Samsung Health Data SDK somente para leitura: verifica a Samsung Health Availability, solicita permissões de leitura e exibe o Permission State de cada uma das 25 Health Categories catalogadas.
 
@@ -17,6 +17,8 @@ A primeira fatia vertical está fechada para frequência cardíaca: o aplicativo
 Os exercícios seguem o mesmo critério, e trazem o que só existe dentro do registro que os carrega: a rota, que o Samsung Health não expõe como leitura própria e cuja Health Category existe apenas para que a permissão dela seja pedida. Ela é preservada no envelope do exercício e projetada como linhas próprias. Ver ADR `0019`.
 
 O sono segue o mesmo critério: as sessões de cada noite e os estágios de cada sessão, que não têm identidade própria, viajam no envelope do sono e são projetados como linhas próprias. Os pontos de oxigenação do sangue e de temperatura da pele que o Samsung Health associa a uma noite não entram no sono: têm UID próprio e chegam pelas próprias Health Categories. Ver ADR `0023`.
+
+A oxigenação do sangue, a temperatura da pele e a glicose seguem o mesmo critério, e trazem a série `binning_data` de que cada medição foi agregada. Um ponto da série não tem identidade própria: viaja no envelope da medição e é projetado como linha própria, como os estágios do sono. As medições que o Samsung Health associa a uma noite chegam por aqui como quaisquer outras; a noite a que pertencem é o sono cujo período as contém.
 
 Alterações feitas depois no Samsung Health se refletem no Current Health Record, e um Source Removal muda o estado corrente sem apagar Observed Record Version alguma. Além do cursor, cada execução lê o Source Change Feed da categoria, uma vez por dia relê os sete dias anteriores, e o Data Owner pode acionar uma reconciliação integral que relê todo o histórico acessível.
 
@@ -232,7 +234,7 @@ A reconstrução é o mesmo enunciado SQL sobre todas as identidades, exposto co
 | --- | --- |
 | `projection rebuild` | Descarta as projeções e as regenera a partir dos envelopes e observações preservados. Mostra a contagem de Current Health Records, prefixada por `projected=`, e a de Current Observed Snapshots, prefixada por `projected_snapshots=`. |
 
-O schema `read_model` é a superfície de consulta. Hoje ele tem nove views:
+O schema `read_model` é a superfície de consulta. Hoje ele tem quinze views:
 
 | View | Conteúdo |
 | --- | --- |
@@ -247,8 +249,14 @@ O schema `read_model` é a superfície de consulta. Hoje ele tem nove views:
 | `read_model.user_profile` | O perfil do Data Owner e o histórico das suas mudanças, uma linha por observação guardada (só uma mudança é guardada): `observed_at` em UTC com o offset original, `current` (a observação de maior `observed_at`), `empty` (o Samsung Health não tinha perfil), `date_of_birth` como texto (formato não documentado pelo Samsung Health), `height_cm`, `weight_kg`, `gender` com a constante da fonte, `nickname`, `source_scope` e `mapper_version`. Um campo nunca preenchido é nulo. São dados pessoais. |
 | `read_model.current_daily_goal` | O objetivo vigente em cada dia local, uma linha por objetivo e dia: `goal` (`steps_goal`, `active_calories_burned_goal`, `active_time_goal`, `nutrition_goal`, `water_intake_goal` ou `sleep_goal`), `day`, a coluna tipada do objetivo (`steps`, `calories` em kcal, `active_time` como intervalo, `amount` em mL, ou `bed_time` e `wake_up_time` como hora local do dia), `changed` (o valor difere do dia observado antes), `partial`, observação e `source_scope`. O Samsung Health repete o objetivo em todo dia em que ele vale, então `where changed` mostra só os dias em que ele mudou; um dia observado sem objetivo sai da view. |
 | `read_model.current_sleep_stage` | Os estágios das sessões correntes, uma linha por estágio: `samsung_uid` do sono, `session_position` da sessão a que pertence, `position` dentro dela, `start_at`, `end_at` e `stage` com a constante que a fonte reportou (`AWAKE`, `LIGHT`, `DEEP`, `REM` ou `UNDEFINED` no SDK fixado). Uma sessão sem estágios não contribui linha alguma. |
+| `read_model.current_blood_oxygen` | Medições de oxigenação do sangue correntes: identidade, `oxygen_saturation_percent` e a faixa `min_oxygen_saturation_percent`/`max_oxygen_saturation_percent` em %, período e observação em UTC com o zone offset original, proveniência e `mapper_version`. |
+| `read_model.current_blood_oxygen_series` | A série das medições correntes, uma linha por ponto: `samsung_uid` da medição, `position` na ordem em que a fonte reportou, `start_at`, `end_at`, `oxygen_saturation_percent`, `min_oxygen_saturation_percent` e `max_oxygen_saturation_percent`. |
+| `read_model.current_skin_temperature` | Medições de temperatura da pele correntes, que o Samsung Health só faz durante o sono: identidade, `temperature_celsius` e a faixa `min_temperature_celsius`/`max_temperature_celsius` em °C, período, observação, proveniência e `mapper_version`. |
+| `read_model.current_skin_temperature_series` | A série das medições correntes, uma linha por ponto: `samsung_uid`, `position`, `start_at`, `end_at`, `temperature_celsius`, `min_temperature_celsius` e `max_temperature_celsius`. |
+| `read_model.current_blood_glucose` | Leituras de glicose correntes: identidade, `glucose_mmol_per_liter`, `measurement_type`, `sample_source_type` e `meal_status` com a constante que a fonte reportou (nulos quando ela reportou `UNDEFINED`), `meal_at`, `insulin_injected` (sem unidade, porque o Samsung Health não documenta uma), `medication_taken`, período, observação, proveniência e `mapper_version`. |
+| `read_model.current_blood_glucose_series` | A série das leituras correntes, uma linha por ponto: `samsung_uid`, `position`, `at` e `glucose_mmol_per_liter`. |
 
-Uma Health Record removida na origem sai da view: a remoção é estado corrente, não medição corrente, e continua projetada e preservada. Um exercício removido leva a rota dele junto, e um sono removido leva as sessões e os estágios dele, pela mesma razão. `source_app` ou `source_device` nulo é o unknown explícito da Source Provenance, que é o que a fonte reportou.
+Uma Health Record removida na origem sai da view: a remoção é estado corrente, não medição corrente, e continua projetada e preservada. Um exercício removido leva a rota dele junto, um sono removido leva as sessões e os estágios dele, e uma medição removida leva a série dela, pela mesma razão. Uma medição sem série não contribui linha alguma para a view da série. `source_app` ou `source_device` nulo é o unknown explícito da Source Provenance, que é o que a fonte reportou.
 
 A conta somente leitura é criada por quem administra o PostgreSQL, porque o papel de runtime da API não tem esse privilégio. Depois disso, as permissões vêm de [`docs/sql/read-access.sql`](docs/sql/read-access.sql), executado como o papel de runtime — uma vez, e novamente a cada deploy que acrescente uma view ao `read_model`. Nada é concedido sobre as tabelas de ingestão: a view roda com os privilégios de quem a possui, então a conta alcança os envelopes preservados apenas pelo formato que a view expõe. Ver ADR `0013`.
 

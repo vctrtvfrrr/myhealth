@@ -333,10 +333,10 @@ object HealthCapabilities {
         ),
         measurement(HealthCategory.SLEEP_APNEA, "sleep_apnea"),
         dailyGoal(HealthCategory.SLEEP_GOAL, "sleep_goal", GoalMappers.SLEEP),
-        measurement(HealthCategory.SKIN_TEMPERATURE, "skin_temperature", AssociatedData.Nested("binning_data")),
+        binnedMeasurement(HealthCategory.SKIN_TEMPERATURE, "skin_temperature", SkinTemperatureMapper),
 
-        measurement(HealthCategory.BLOOD_GLUCOSE, "blood_glucose", AssociatedData.Nested("binning_data")),
-        measurement(HealthCategory.BLOOD_OXYGEN, "blood_oxygen", AssociatedData.Nested("binning_data")),
+        binnedMeasurement(HealthCategory.BLOOD_GLUCOSE, "blood_glucose", BloodGlucoseMapper),
+        binnedMeasurement(HealthCategory.BLOOD_OXYGEN, "blood_oxygen", BloodOxygenMapper),
         measurement(HealthCategory.BLOOD_PRESSURE, "blood_pressure"),
         measurement(HealthCategory.BODY_COMPOSITION, "body_composition"),
         measurement(HealthCategory.BODY_TEMPERATURE, "body_temperature"),
@@ -386,6 +386,20 @@ object HealthCapabilities {
         readOperations = RECORD_READS,
         pagination = Pagination.Records(MEASUREMENTS_PER_PAGE),
         associatedData = associatedData,
+    )
+
+    /**
+     * A measurement carrying the series it was binned from, which travels inside it. Those Samsung Health
+     * associates with a night are read here too, never through the sleep. See ADR 0023.
+     */
+    private fun binnedMeasurement(category: HealthCategory, recordType: String, mapper: RecordMapper) = RecordCapability(
+        category = category,
+        recordType = recordType,
+        readOperations = RECORD_READS,
+        pageSize = MEASUREMENTS_PER_PAGE,
+        mapper = mapper,
+        projection = "read_model.current_$recordType",
+        associatedData = AssociatedData.Nested("binning_data"),
     )
 
     private fun dailyGoal(category: HealthCategory, snapshotType: String, mapper: GoalMapper) = SnapshotCapability(

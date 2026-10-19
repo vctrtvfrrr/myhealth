@@ -39,6 +39,14 @@ class ReadModelAccessTest : IngestionApiTest() {
             ),
             token,
         )
+        listOf(
+            BinnedEnvelopes.BLOOD_OXYGEN_RECORD_TYPE to BinnedEnvelopes.bloodOxygen(samsungUid = "uid-read-only"),
+            BinnedEnvelopes.SKIN_TEMPERATURE_RECORD_TYPE to BinnedEnvelopes.skinTemperature(samsungUid = "uid-read-only"),
+            BinnedEnvelopes.BLOOD_GLUCOSE_RECORD_TYPE to BinnedEnvelopes.bloodGlucose(
+                samsungUid = "uid-read-only",
+                series = listOf(BinnedEnvelopes.glucoseReading()),
+            ),
+        ).forEach { (recordType, item) -> api.postBatch(Envelopes.batch(recordType = recordType, items = listOf(item)), token) }
         api.postBatch(
             Snapshots.batch(items = listOf(Snapshots.steps(start = "2026-07-01T09:00:00", end = "2026-07-01T10:00:00"))),
             token,
@@ -60,7 +68,17 @@ class ReadModelAccessTest : IngestionApiTest() {
                     "select count(*) from read_model.current_exercise_location where samsung_uid = 'uid-read-only'",
                 ),
             )
-            listOf("current_sleep", "current_sleep_session", "current_sleep_stage").forEach { view ->
+            listOf(
+                "current_sleep",
+                "current_sleep_session",
+                "current_sleep_stage",
+                "current_blood_oxygen",
+                "current_blood_oxygen_series",
+                "current_skin_temperature",
+                "current_skin_temperature_series",
+                "current_blood_glucose",
+                "current_blood_glucose_series",
+            ).forEach { view ->
                 assertEquals(
                     1,
                     reader.count("select count(*) from read_model.$view where samsung_uid = 'uid-read-only'"),

@@ -174,6 +174,119 @@ fun sleepStage(
     stage?.let { put("stage", SourceValue.Text(it)) }
 }
 
+/** A synthetic blood oxygen measurement with its binned series, as the adapter hands one over. Every value is invented. */
+fun bloodOxygenRecord(
+    uid: String = "uid-blood-oxygen-1",
+    start: Instant = Instant.parse("2026-08-10T03:00:00Z"),
+    end: Instant? = Instant.parse("2026-08-10T03:10:00Z"),
+    updateTime: Instant? = Instant.parse("2026-08-10T03:15:00Z"),
+    saturation: String? = "96.0",
+    min: String? = "93.0",
+    max: String? = "98.0",
+    bins: List<Map<String, SourceValue>>? = listOf(oxygenBin()),
+): SourceRecord = sourceRecord(
+    uid = uid,
+    start = start,
+    end = end,
+    updateTime = updateTime,
+    fields = buildMap {
+        saturation?.let { put("spo2", number(it)) }
+        min?.let { put("min", number(it)) }
+        max?.let { put("max", number(it)) }
+        bins?.let { put("binning_data", SourceValue.Series(it)) }
+    },
+)
+
+fun oxygenBin(
+    start: String? = "2026-08-10T03:00:00Z",
+    end: String? = "2026-08-10T03:10:00Z",
+    saturation: String? = "96.0",
+    min: String? = "93.0",
+    max: String? = "98.0",
+): Map<String, SourceValue> = buildMap {
+    saturation?.let { put("oxygen_saturation", number(it)) }
+    min?.let { put("min", number(it)) }
+    max?.let { put("max", number(it)) }
+    start?.let { put("start_time", SourceValue.Text(it)) }
+    end?.let { put("end_time", SourceValue.Text(it)) }
+}
+
+/** A synthetic skin temperature measured during sleep, as the adapter hands one over. Every value is invented. */
+fun skinTemperatureRecord(
+    uid: String = "uid-skin-temperature-1",
+    start: Instant = Instant.parse("2026-08-10T03:00:00Z"),
+    end: Instant? = Instant.parse("2026-08-10T03:10:00Z"),
+    updateTime: Instant? = Instant.parse("2026-08-10T03:15:00Z"),
+    temperature: String? = "33.5",
+    min: String? = "33.1",
+    max: String? = "33.9",
+    bins: List<Map<String, SourceValue>>? = listOf(skinTemperatureBin()),
+): SourceRecord = sourceRecord(
+    uid = uid,
+    start = start,
+    end = end,
+    updateTime = updateTime,
+    fields = buildMap {
+        temperature?.let { put("temperature", number(it)) }
+        min?.let { put("min", number(it)) }
+        max?.let { put("max", number(it)) }
+        bins?.let { put("binning_data", SourceValue.Series(it)) }
+    },
+)
+
+fun skinTemperatureBin(
+    start: String? = "2026-08-10T03:00:00Z",
+    end: String? = "2026-08-10T03:10:00Z",
+    temperature: String? = "33.5",
+    min: String? = "33.1",
+    max: String? = "33.9",
+): Map<String, SourceValue> = buildMap {
+    temperature?.let { put("skin_temperature", number(it)) }
+    min?.let { put("min", number(it)) }
+    max?.let { put("max", number(it)) }
+    start?.let { put("start_time", SourceValue.Text(it)) }
+    end?.let { put("end_time", SourceValue.Text(it)) }
+}
+
+/** A synthetic blood glucose reading, as the adapter hands one over. Every value is invented. */
+fun bloodGlucoseRecord(
+    uid: String = "uid-blood-glucose-1",
+    start: Instant = Instant.parse("2026-08-10T11:00:00Z"),
+    end: Instant? = start,
+    updateTime: Instant? = Instant.parse("2026-08-10T11:05:00Z"),
+    glucose: String? = "5.4",
+    measurementType: String? = "PLASMA",
+    sampleSourceType: String? = "CAPILLARY",
+    mealStatus: String? = "FASTING",
+    mealTime: String? = null,
+    insulinInjected: String? = null,
+    medicationTaken: Boolean? = null,
+    bins: List<Map<String, SourceValue>>? = null,
+): SourceRecord = sourceRecord(
+    uid = uid,
+    start = start,
+    end = end,
+    updateTime = updateTime,
+    fields = buildMap {
+        glucose?.let { put("glucose", number(it)) }
+        measurementType?.let { put("measurement_type", SourceValue.Text(it)) }
+        sampleSourceType?.let { put("sample_source_type", SourceValue.Text(it)) }
+        mealStatus?.let { put("meal_type", SourceValue.Text(it)) }
+        mealTime?.let { put("meal_time", SourceValue.Text(it)) }
+        insulinInjected?.let { put("insulin_injected", number(it)) }
+        medicationTaken?.let { put("medication", SourceValue.Flag(it)) }
+        bins?.let { put("binning_data", SourceValue.Series(it)) }
+    },
+)
+
+fun glucoseBin(
+    at: String? = "2026-08-10T11:00:00Z",
+    glucose: String? = "5.4",
+): Map<String, SourceValue> = buildMap {
+    glucose?.let { put("glucose", number(it)) }
+    at?.let { put("timestamp", SourceValue.Text(it)) }
+}
+
 /** An outbox item of a record type no capability in this test drains. */
 fun foreignItem(uid: String): NewOutboxItem = NewOutboxItem(
     category = HealthCategory.STEPS,

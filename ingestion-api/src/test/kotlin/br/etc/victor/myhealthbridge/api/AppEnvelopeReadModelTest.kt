@@ -211,6 +211,84 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
         assertEquals(2, versionsOf("uid-golden-removed-sleep").size)
     }
 
+    /**
+     * The measurements that carry a binned series reach the read model with their series as rows of
+     * their own, projected out of the envelope the measurement was preserved in.
+     */
+    @Test
+    fun `measurements the application mapped become queryable with their binned series`() {
+        listOf("blood_oxygen" to MAPPED_BLOOD_OXYGEN, "skin_temperature" to MAPPED_SKIN_TEMPERATURE, "blood_glucose" to MAPPED_BLOOD_GLUCOSE)
+            .forEach { (recordType, item) ->
+                val response = api.postBatch("""{"contractVersion":1,"recordType":"$recordType","items":[$item]}""", token)
+                assertEquals(listOf("accepted"), statuses(response.body), recordType)
+            }
+
+        val oxygen = row(
+            """
+            select oxygen_saturation_percent::text, min_oxygen_saturation_percent::text, period_end_offset, mapper_version
+            from read_model.current_blood_oxygen where samsung_uid = ?
+            """.trimIndent(),
+            "uid-golden-blood-oxygen",
+        )
+        assertEquals("96", oxygen.getValue("oxygen_saturation_percent"))
+        assertEquals("93", oxygen.getValue("min_oxygen_saturation_percent"))
+        assertEquals("-03:00", oxygen.getValue("period_end_offset"))
+        assertEquals("samsung-health-blood-oxygen/1", oxygen.getValue("mapper_version"))
+        assertEquals(
+            listOf("95", "97"),
+            column(
+                "select oxygen_saturation_percent::text from read_model.current_blood_oxygen_series where samsung_uid = ? order by position",
+                "uid-golden-blood-oxygen",
+            ),
+        )
+        assertEquals(
+            listOf(null),
+            column(
+                "select max_oxygen_saturation_percent::text from read_model.current_blood_oxygen_series where samsung_uid = ? and position = 2",
+                "uid-golden-blood-oxygen",
+            ),
+        )
+
+        val skin = row(
+            "select temperature_celsius::text, max_temperature_celsius::text from read_model.current_skin_temperature where samsung_uid = ?",
+            "uid-golden-skin-temperature",
+        )
+        assertEquals("33.5", skin.getValue("temperature_celsius"))
+        assertEquals("33.9", skin.getValue("max_temperature_celsius"))
+        assertEquals(
+            listOf("33.5"),
+            column(
+                """
+                select temperature_celsius::text from read_model.current_skin_temperature_series
+                where samsung_uid = ? and start_at = '2026-08-10T03:00:00Z' and end_at = '2026-08-10T03:10:00Z'
+                """.trimIndent(),
+                "uid-golden-skin-temperature",
+            ),
+        )
+
+        val glucose = row(
+            """
+            select glucose_mmol_per_liter::text, measurement_type, sample_source_type, meal_status, meal_at, insulin_injected::text,
+                medication_taken::text
+            from read_model.current_blood_glucose where samsung_uid = ?
+            """.trimIndent(),
+            "uid-golden-blood-glucose",
+        )
+        assertEquals("5.4", glucose.getValue("glucose_mmol_per_liter"))
+        assertEquals("PLASMA", glucose.getValue("measurement_type"))
+        assertEquals(null, glucose["sample_source_type"])
+        assertEquals("AFTER_LUNCH", glucose.getValue("meal_status"))
+        assertEquals("4", glucose.getValue("insulin_injected"))
+        assertEquals("true", glucose.getValue("medication_taken"))
+        assertEquals(
+            listOf("5.4", "5.9"),
+            column(
+                "select glucose_mmol_per_liter::text from read_model.current_blood_glucose_series where samsung_uid = ? order by position",
+                "uid-golden-blood-glucose",
+            ),
+        )
+    }
+
     private fun column(sql: String, samsungUid: String): List<String?> = api.query { connection ->
         connection.prepareStatement(sql).use { statement ->
             statement.setString(1, samsungUid)
@@ -271,5 +349,12 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
 
         const val EXERCISE_LOCATIONS =
             "select count(*) from read_model.current_exercise_location where samsung_uid = 'uid-golden-exercise'"
+    
+
+        const val MAPPED_BLOOD_OXYGEN = """{"samsungUid":"uid-golden-blood-oxygen","observedAt":{"instant":"2026-08-10T03:15:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-blood-oxygen/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T03:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T03:10:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"spo2":96.0,"min":93.0,"max":98.0,"binning_data":[{"oxygen_saturation":95.0,"min":93.0,"max":98.0,"start_time":"2026-08-10T03:00:00Z","end_time":"2026-08-10T03:05:00Z"},{"oxygen_saturation":97.0,"start_time":"2026-08-10T03:05:00Z","end_time":"2026-08-10T03:10:00Z"}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"bloodOxygen":{"saturation":{"value":96.0,"unit":"%"},"min":{"value":93.0,"unit":"%"},"max":{"value":98.0,"unit":"%"},"series":[{"start":"2026-08-10T03:00:00Z","end":"2026-08-10T03:05:00Z","saturationPercent":95.0,"minPercent":93.0,"maxPercent":98.0},{"start":"2026-08-10T03:05:00Z","end":"2026-08-10T03:10:00Z","saturationPercent":97.0}]}}}}"""
+
+        const val MAPPED_SKIN_TEMPERATURE = """{"samsungUid":"uid-golden-skin-temperature","observedAt":{"instant":"2026-08-10T03:15:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-skin-temperature/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T03:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T03:10:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"temperature":33.5,"min":33.1,"max":33.9,"binning_data":[{"skin_temperature":33.5,"min":33.1,"max":33.9,"start_time":"2026-08-10T03:00:00Z","end_time":"2026-08-10T03:10:00Z"}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"skinTemperature":{"temperature":{"value":33.5,"unit":"Cel"},"min":{"value":33.1,"unit":"Cel"},"max":{"value":33.9,"unit":"Cel"},"series":[{"start":"2026-08-10T03:00:00Z","end":"2026-08-10T03:10:00Z","temperatureCelsius":33.5,"minCelsius":33.1,"maxCelsius":33.9}]}}}}"""
+
+        const val MAPPED_BLOOD_GLUCOSE = """{"samsungUid":"uid-golden-blood-glucose","observedAt":{"instant":"2026-08-10T11:05:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-blood-glucose/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T11:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T11:00:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"glucose":5.4,"measurement_type":"PLASMA","sample_source_type":"UNDEFINED","meal_type":"AFTER_LUNCH","meal_time":"2026-08-10T10:00:00Z","insulin_injected":4.0,"medication":true,"binning_data":[{"glucose":5.4,"timestamp":"2026-08-10T11:00:00Z"},{"glucose":5.9,"timestamp":"2026-08-10T11:05:00Z"}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"bloodGlucose":{"glucose":{"value":5.4,"unit":"mmol/L"},"measurementType":"PLASMA","mealStatus":"AFTER_LUNCH","mealTime":"2026-08-10T10:00:00Z","insulinInjected":4.0,"medicationTaken":true,"series":[{"at":"2026-08-10T11:00:00Z","glucoseMmolPerLiter":5.4},{"at":"2026-08-10T11:05:00Z","glucoseMmolPerLiter":5.9}]}}}}"""
     }
 }

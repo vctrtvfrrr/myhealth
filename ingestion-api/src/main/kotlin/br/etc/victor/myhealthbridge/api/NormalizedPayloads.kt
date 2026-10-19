@@ -21,6 +21,9 @@ object NormalizedPayloads {
         ("heart_rate" to "samsung-health-heart-rate/1") to ::validateHeartRate,
         ("exercise" to "samsung-health-exercise/1") to ::validateExercise,
         ("sleep" to "samsung-health-sleep/1") to ::validateSleep,
+        ("blood_oxygen" to "samsung-health-blood-oxygen/1") to ::validateBloodOxygen,
+        ("skin_temperature" to "samsung-health-skin-temperature/1") to ::validateSkinTemperature,
+        ("blood_glucose" to "samsung-health-blood-glucose/1") to ::validateBloodGlucose,
     )
 
     private val recordTypes: Set<String> = validators.keys.mapTo(mutableSetOf()) { it.first }
@@ -176,6 +179,102 @@ object NormalizedPayloads {
                 !name.isNullOrEmpty() &&
                 name.length <= MAX_SLEEP_STAGE_LENGTH
         }
+    }
+
+    private val PERCENTAGE = BigDecimal.ZERO..BigDecimal(100)
+
+    /** Beyond anything a skin sensor can plausibly report, for the reason the heart rate range is. */
+    private val PLAUSIBLE_SKIN_CELSIUS = BigDecimal.ZERO..BigDecimal(60)
+
+    /** Beyond anything a glucose meter can plausibly report, for the reason the heart rate range is. */
+    private val PLAUSIBLE_GLUCOSE_MMOL_PER_LITER = BigDecimal.ZERO..BigDecimal(100)
+
+    /** Samsung Health documents no unit for it, so the bound only catches what no dose could mean. */
+    private val PLAUSIBLE_INSULIN = BigDecimal.ZERO..BigDecimal(1_000)
+
+    private const val PERCENT = "%"
+    private const val CELSIUS = "Cel"
+    private const val MILLIMOLES_PER_LITER = "mmol/L"
+
+    /** As long as the longest constant an SDK could plausibly name a glucose context with. */
+    private const val MAX_GLUCOSE_CONSTANT_LENGTH = 64
+
+    private fun validateBloodOxygen(payload: JsonObject): List<RejectionCode> =
+        rangedMeasurement(payload["bloodOxygen"], "saturation", PERCENT, PERCENTAGE, "Percent")
+
+    private fun validateSkinTemperature(payload: JsonObject): List<RejectionCode> =
+        rangedMeasurement(payload["skinTemperature"], "temperature", CELSIUS, PLAUSIBLE_SKIN_CELSIUS, "Celsius")
+
+    /**
+     * The measurement is required and its range is not. Inside the series a bin states its unit in the
+     * name of each key, like a point of a route, so each one is checked against the range its name
+     * promises; the read model casts all of them.
+     */
+    private fun rangedMeasurement(
+        node: JsonElement?,
+        valueKey: String,
+        unit: String,
+        plausible: ClosedRange<BigDecimal>,
+        binUnitSuffix: String,
+    ): List<RejectionCode> {
+        val measurement = node as? JsonObject ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+        val value = measurement[valueKey] ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+
+        val codes = mutableListOf<RejectionCode>()
+        codes += quantity(value, unit, plausible)
+        codes += quantity(measurement["min"], unit, plausible)
+        codes += quantity(measurement["max"], unit, plausible)
+
+        val series = series(measurement["series"]) { bin ->
+            bin.requiredInstant("start") &&
+                bin.requiredInstant("end") &&
+                bin.required("$valueKey$binUnitSuffix", plausible) &&
+                bin.optional("min$binUnitSuffix", plausible) &&
+                bin.optional("max$binUnitSuffix", plausible)
+        }
+        if (!series) codes += RejectionCode.INVALID_PAYLOAD
+
+        return codes.distinct()
+    }
+
+    /**
+     * The glucose level is required; how it was taken and how it relates to a meal are carried under the
+     * constants the source names them with, so an unknown constant is accepted the way a sleep stage is.
+     */
+    private fun validateBloodGlucose(payload: JsonObject): List<RejectionCode> {
+        val glucose = payload["bloodGlucose"] as? JsonObject ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+        val level = glucose["glucose"] ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+
+        val codes = mutableListOf<RejectionCode>()
+        codes += quantity(level, MILLIMOLES_PER_LITER, PLAUSIBLE_GLUCOSE_MMOL_PER_LITER)
+
+        val context = listOf("measurementType", "sampleSourceType", "mealStatus").all { glucose.optionalConstant(it) } &&
+            glucose.instant("mealTime") &&
+            glucose.optional("insulinInjected", PLAUSIBLE_INSULIN) &&
+            glucose.optionalFlag("medicationTaken")
+        val series = series(glucose["series"]) { reading ->
+            reading.requiredInstant("at") && reading.required("glucoseMmolPerLiter", PLAUSIBLE_GLUCOSE_MMOL_PER_LITER)
+        }
+        if (!context || !series) codes += RejectionCode.INVALID_PAYLOAD
+
+        return codes.distinct()
+    }
+
+    private fun series(node: JsonElement?, valid: (JsonObject) -> Boolean): Boolean {
+        if (node == null) return true
+        val entries = node as? JsonArray ?: return false
+        return entries.all { entry -> (entry as? JsonObject)?.let(valid) ?: false }
+    }
+
+    private fun JsonObject.optionalConstant(key: String): Boolean {
+        val node = this[key] ?: return true
+        val text = (node as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return false
+        return text.isNotEmpty() && text.length <= MAX_GLUCOSE_CONSTANT_LENGTH
+    }
+
+    private fun JsonObject.optionalFlag(key: String): Boolean {
+        val node = this[key] ?: return true
+        return (node as? JsonPrimitive)?.takeIf { !it.isString }?.content in setOf("true", "false")
     }
 
     private fun JsonObject.requiredInstant(key: String): Boolean = this[key] != null && instant(key)

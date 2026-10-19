@@ -4,7 +4,7 @@ Gerado de `HealthCapabilities` (`health-sync`) e verificado por `CapabilityCatal
 
 Uma entrada por Health Category do Samsung Health Data SDK adotado. Uma categoria que o SDK expõe e o catálogo não declara não é sincronizada e vira Maintenance Incident (`uncataloged_category`). Tamanhos de página e de leitura são escolhas deste repositório, não limites do SDK.
 
-Implementadas: 13 de 25.
+Implementadas: 16 de 25.
 
 | Categoria | Classe | Situação | Permissão | Leituras | Paginação | Mudanças | Dados associados | Identidade | Mapper | Projeção |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -20,9 +20,9 @@ Implementadas: 13 de 25.
 | `sleep` | Health Record | implementada | `sleep` | `TIME_RANGE`, `CHANGES` | 100 registros por página | sim | `sessions`, `sessions.stages` | `sleep` + Samsung UID | `samsung-health-sleep/1` | `read_model.current_sleep` |
 | `sleep_apnea` | Health Record | não implementada | `sleep_apnea` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `sleep_apnea` + Samsung UID | — | — |
 | `sleep_goal` | Observed Snapshot | implementada | `sleep_goal` | `AGGREGATE` | 366 janelas por leitura | não | — | `sleep_goal` + dia local | `samsung-health-sleep-goal/1` | `read_model.current_daily_goal` |
-| `skin_temperature` | Health Record | não implementada | `skin_temperature` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | `binning_data` | `skin_temperature` + Samsung UID | — | — |
-| `blood_glucose` | Health Record | não implementada | `blood_glucose` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | `binning_data` | `blood_glucose` + Samsung UID | — | — |
-| `blood_oxygen` | Health Record | não implementada | `blood_oxygen` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | `binning_data` | `blood_oxygen` + Samsung UID | — | — |
+| `skin_temperature` | Health Record | implementada | `skin_temperature` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | `binning_data` | `skin_temperature` + Samsung UID | `samsung-health-skin-temperature/1` | `read_model.current_skin_temperature` |
+| `blood_glucose` | Health Record | implementada | `blood_glucose` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | `binning_data` | `blood_glucose` + Samsung UID | `samsung-health-blood-glucose/1` | `read_model.current_blood_glucose` |
+| `blood_oxygen` | Health Record | implementada | `blood_oxygen` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | `binning_data` | `blood_oxygen` + Samsung UID | `samsung-health-blood-oxygen/1` | `read_model.current_blood_oxygen` |
 | `blood_pressure` | Health Record | não implementada | `blood_pressure` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `blood_pressure` + Samsung UID | — | — |
 | `body_composition` | Health Record | não implementada | `body_composition` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `body_composition` + Samsung UID | — | — |
 | `body_temperature` | Health Record | não implementada | `body_temperature` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `body_temperature` + Samsung UID | — | — |
