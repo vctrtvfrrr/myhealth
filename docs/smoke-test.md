@@ -335,6 +335,9 @@ Uma linha `Aprovada` sem desvios abertos, com todas as issues de implementação
 | Data | Commit ou tag do APK | Aparelho | Samsung Health | Resultado | Desvios |
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-17 | `7ad5850` | SM-S938B, Android 16 | 7.1.0.053 | Todos os passos passaram depois de provisionar o aparelho na VPS. | Ver abaixo. |
+| 2026-10-19 | `v1.0.0` (`5f626fc`) | SM-S938B, Android 16 | 7.1.0.053 | Reprovada: no passo 7 a leitura incremental falhou com a janela de leitura invertida; os passos 1 a 4 e 6 passaram. | Ver abaixo. |
+| 2026-10-19 | `v1.0.1` (`14be1f0`) | SM-S938B, Android 16 | 7.1.0.053 | Reprovada: no passo 4 a Pontuação de energia não concluiu a sincronização; os passos 1 a 3 passaram. | Ver abaixo. |
+| 2026-10-19 | `v1.0.2` (`01fcf40`) | SM-S938B, Android 16 | 7.1.0.053 | Aprovada: os dez passos terminaram como esperado, o passo 5 na segunda tentativa; é a primeira 1.0.x aprovada e a entrega da 1.0. | Ver abaixo. |
 
 ### 2026-10-17
 
@@ -343,3 +346,11 @@ Uma linha `Aprovada` sem desvios abertos, com todas as issues de implementação
 - **Passo 3:** o texto da notificação termina com ponto duplicado ("p.m..").
 - **Passo 5:** o trabalho horário rodou sete minutos depois da janela, com a rede do aplicativo em background bloqueada até o sistema liberar o job.
 - A especificação previa o token do aparelho no Android Keystore; ele fica no Room. Decidido em "Decidir o armazenamento do token do aparelho: Keystore ou Room" (#26): o Room basta, ver ADR `0020`.
+
+### 2026-10-19
+
+- **v1.0.0, passo 7:** depois da carga inicial, a leitura incremental de várias categorias falhou com `unexpected_failure` e `InvalidRequestException`, e uma frequência cardíaca nova não chegou à API. O `SyncService` calculava o fim da carga inicial na hora UTC e os importadores liam na hora local do aparelho, então a janela ia de 20:35 a 17:35. Corrigido em "Janela de leitura invertida depois da carga inicial por descompasso de relógios" (#64, fechada), na v1.0.1. Um cursor já gravado pela 1.0.0 só se recupera com uma Full Reconciliation, o que o passo 4 já exige.
+- **v1.0.1, passo 4:** a Pontuação de energia terminava a sincronização com "O Samsung Health não respondeu na última tentativa", porque a leitura por data pedia um intervalo de tamanho zero quando a janela cabia num único dia. Corrigido em "Leitura da pontuação de energia recusada quando a janela cabe num único dia" (#66, fechada), na v1.0.2.
+- **v1.0.2, passo 5:** o trabalho horário rodou mais de uma hora depois da janela, com o aplicativo em background, e a rede do aplicativo caiu no meio da rodada (filtro de rede em background da Samsung). A API recebeu parte dos lotes, a outbox ficou com 10 itens e a aba Diagnóstico mostrou `ingestion_unreachable`. Depois de uma sincronização manual, o trabalho seguinte rodou inteiro: Última tentativa e Último sucesso coincidiram nas 24 categorias lidas, sem incidente e com a outbox em 0. Não gerou issue, porque o aplicativo se comportou como projetado: parou a rodada, manteve a outbox e retomou na seguinte.
+- **v1.0.2, passo 3:** o texto da notificação continua terminando com ponto duplicado ("p.m..").
+- **v1.0.2, passo 5:** o título do incidente `ingestion_unreachable` diz "sem resposta há 24 horas" mesmo quando a falha foi de uma só rodada.
