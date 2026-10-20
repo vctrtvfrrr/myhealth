@@ -285,6 +285,8 @@ Essa conta foi provisionada em produção em 19/10/2026. As sete consultas que o
 
 A credencial fica no armazenamento privado de senhas do Data Owner, fora do repositório, do `.env` da API e dos secrets do CI. O arquivo `/home/codelab/.config/myhealth/read.pgpass`, usado no provisionamento, foi removido da VPS em 19/10/2026 depois que o Data Owner confirmou ter salvo a senha. O papel e sua senha continuam válidos no PostgreSQL.
 
+O Grafana da plataforma também lê o `read_model` por essa conta, pela datasource `myhealth-read` que o `codelab/infra` provisiona (ADR `0027`). Quando ela existir, a senha passa a viver também numa chave do Ansible Vault do `codelab/infra`. Para rotacioná-la, altere a senha do papel, atualize o armazenamento privado e o vault e rode de novo o playbook do Grafana; até isso terminar, os dashboards e o `psql` pela conta de leitura falham juntos.
+
 Para consultar pela conta de leitura, execute na VPS o comando abaixo e informe a senha no prompt do `psql`, sem colocá-la na linha de comando:
 
 ```sh
