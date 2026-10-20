@@ -105,7 +105,7 @@ A daily re-reading of the last seven days of a Health Category, taken by pulling
 _Avoid_: Backfill, retry window
 
 **Full Reconciliation**:
-A re-reading of the whole accessible history of every granted Health Category, asked for by the Data Owner, trusting no Sync Cursor. It recovers from lost local state or a suspected divergence, and duplicates nothing because a re-read produces the same Observed Record Versions. No re-reading reports a Source Removal that was never observed, but the Record Inventories it declares let the API conclude one.
+A re-reading of the whole accessible history of every granted Health Category, asked for by the Data Owner, trusting no Sync Cursor. It recovers from lost local state or a suspected divergence, and duplicates nothing because a re-read under the same mappers produces the same Observed Record Versions. After a mapper gains a new version, the re-read stores the new normalization as another Observed Record Version of each record, which is how the history already held gains what the new version exposes. No re-reading reports a Source Removal that was never observed, but the Record Inventories it declares let the API conclude one.
 _Avoid_: Resync, full sync, repair
 
 **Record Inventory**:
