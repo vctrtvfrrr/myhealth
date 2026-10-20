@@ -57,7 +57,7 @@ A provisioned device authorized to deliver Health Records to the ingestion API, 
 _Avoid_: Client, API user, source device
 
 **Ingestion**:
-A single authenticated attempt to deliver a batch of Observed Record Versions or of Observed Snapshot observations, recorded with its positional result for every submitted item; a retry is a new Ingestion, never a replay of an earlier answer.
+A single authenticated attempt to deliver a batch of Observed Record Versions or of Observed Snapshot observations of one Health Category, recorded with its positional result for every submitted item; a retry is a new Ingestion, never a replay of an earlier answer.
 _Avoid_: Upload session, sync run, batch id
 
 **Ingestion Contract Version**:
