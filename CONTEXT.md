@@ -40,6 +40,10 @@ _Avoid_: Health Record, historical measurement
 The stretch of local time an Observed Snapshot summarizes: one local hour for step and activity totals, one local day for goals, and none for the profile, which has a single snapshot. An observation made before its window ended is partial, and a window with nothing in it is observed as empty rather than left unobserved.
 _Avoid_: Bucket, period, interval
 
+**Record Local Time**:
+The wall-clock time at which a Health Record happened, under the offset the record itself carries; the day, week and month a record belongs to are those of this clock, not of the viewer's time zone, so a trip does not move it to another day.
+_Avoid_: Server time, UTC time, viewer's time
+
 **Current Observed Snapshot**:
 The latest observation of an Observed Snapshot, decided by observation time rather than by arrival, and used for ordinary queries and visualizations.
 _Avoid_: Latest value, live total
