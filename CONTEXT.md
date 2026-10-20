@@ -41,7 +41,7 @@ The stretch of local time an Observed Snapshot summarizes: one local hour for st
 _Avoid_: Bucket, period, interval
 
 **Record Local Time**:
-The wall-clock time at which a Health Record happened, under the offset the record itself carries; the day, week and month a record belongs to are those of this clock, not of the viewer's time zone, so a trip does not move it to another day.
+The wall-clock time at which a Health Record happened, under the offset the record itself carries; the day, week and month a record belongs to are those of this clock, not of the viewer's time zone, so a trip does not move it to another day. A record with a period belongs to the day it starts, except a sleep, which belongs to the day it ends: the night from the 14th to the 15th is the 15th's.
 _Avoid_: Server time, UTC time, viewer's time
 
 **Current Observed Snapshot**:
