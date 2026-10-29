@@ -65,10 +65,11 @@ class IngestionStore(
     fun persist(
         deviceId: Long,
         contractVersion: Int,
+        recordType: String,
         receivedAt: Instant,
         items: List<ItemValidation>,
         inventory: DeclaredInventory? = null,
-    ): IngestionResponse = transaction(deviceId, contractVersion, receivedAt, items.size) { statements, ingestionId ->
+    ): IngestionResponse = transaction(deviceId, contractVersion, recordType, receivedAt, items.size) { statements, ingestionId ->
         val observed = LinkedHashSet<Long>()
         val results = items.mapIndexed { index, item ->
             when (item) {
@@ -104,9 +105,10 @@ class IngestionStore(
     fun persistSnapshots(
         deviceId: Long,
         contractVersion: Int,
+        snapshotType: String,
         receivedAt: Instant,
         items: List<SnapshotValidation>,
-    ): IngestionResponse = transaction(deviceId, contractVersion, receivedAt, items.size) { statements, ingestionId ->
+    ): IngestionResponse = transaction(deviceId, contractVersion, snapshotType, receivedAt, items.size) { statements, ingestionId ->
         val observed = LinkedHashSet<Long>()
         val results = items.mapIndexed { index, item ->
             when (item) {
@@ -130,6 +132,7 @@ class IngestionStore(
     private fun transaction(
         deviceId: Long,
         contractVersion: Int,
+        healthCategory: String,
         receivedAt: Instant,
         itemCount: Int,
         work: (Statements, UUID) -> IngestionResponse,
@@ -141,7 +144,7 @@ class IngestionStore(
             connection.autoCommit = false
             try {
                 val statements = Statements(connection, deadline)
-                statements.insertIngestion(ingestionId, deviceId, contractVersion, itemCount, receivedAt)
+                statements.insertIngestion(ingestionId, deviceId, contractVersion, healthCategory, itemCount, receivedAt)
                 val response = work(statements, ingestionId)
 
                 // Nothing is committed once the budget is gone: a 503 must never describe stored data.
@@ -165,8 +168,8 @@ class IngestionStore(
 
         private val ingestion = prepare(
             """
-            insert into ingestion (id, ingestion_device_id, contract_version, item_count, received_at)
-            values (?, ?, ?, ?, ?)
+            insert into ingestion (id, ingestion_device_id, contract_version, health_category, item_count, received_at)
+            values (?, ?, ?, ?, ?, ?)
             """,
         )
 
@@ -292,12 +295,20 @@ class IngestionStore(
             """,
         )
 
-        fun insertIngestion(id: UUID, deviceId: Long, contractVersion: Int, itemCount: Int, receivedAt: Instant) {
+        fun insertIngestion(
+            id: UUID,
+            deviceId: Long,
+            contractVersion: Int,
+            healthCategory: String,
+            itemCount: Int,
+            receivedAt: Instant,
+        ) {
             ingestion.setObject(1, id)
             ingestion.setLong(2, deviceId)
             ingestion.setInt(3, contractVersion)
-            ingestion.setInt(4, itemCount)
-            ingestion.setUtc(5, receivedAt)
+            ingestion.setString(4, healthCategory)
+            ingestion.setInt(5, itemCount)
+            ingestion.setUtc(6, receivedAt)
             ingestion.executeWithinBudget()
         }
 

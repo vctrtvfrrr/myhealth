@@ -130,6 +130,9 @@ class ReadModelAccessTest : IngestionApiTest() {
                 ),
             )
 
+            assertTrue(reader.count("select count(*) from read_model.ingestion_outcome where health_category = 'steps'") > 0)
+            assertEquals(0, reader.count("select count(*) from read_model.ingestion_rejection"))
+
             listOf(
                 "insert into health_record_identity (record_type, samsung_uid) values ('heart_rate', 'uid-forged')",
                 "update observed_record_version set state = 'removed'",

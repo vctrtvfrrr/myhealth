@@ -98,15 +98,24 @@ class IngestionEndpoint(
             is BatchRequest.Accepted -> {
                 val validator = ItemValidator(request.recordType)
                 val validated = request.items.map(validator::validate)
-                request.contractVersion to
-                    persist { store.persist(request.deviceId, request.contractVersion, it, validated, request.inventory) }
+                request.contractVersion to persist { receivedAt ->
+                    store.persist(
+                        request.deviceId,
+                        request.contractVersion,
+                        request.recordType,
+                        receivedAt,
+                        validated,
+                        request.inventory,
+                    )
+                }
             }
 
             is BatchRequest.Snapshots -> {
                 val validator = SnapshotValidator(request.snapshotType)
                 val validated = request.items.map(validator::validate)
-                request.contractVersion to
-                    persist { store.persistSnapshots(request.deviceId, request.contractVersion, it, validated) }
+                request.contractVersion to persist { receivedAt ->
+                    store.persistSnapshots(request.deviceId, request.contractVersion, request.snapshotType, receivedAt, validated)
+                }
             }
         }
         if (response == null) return call.refuse(BatchErrorCode.INGESTION_TEMPORARILY_UNAVAILABLE)
