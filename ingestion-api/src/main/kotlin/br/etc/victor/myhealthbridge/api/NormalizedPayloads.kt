@@ -183,7 +183,8 @@ object NormalizedPayloads {
     )
 
     /**
-     * Version 2 adds every session of the exercise to what version 1 carried. Inside a session every key
+     * Version 2 adds every session of the exercise to what version 1 carried, and moves the route inside
+     * them: a route beside the sessions too would show every point twice. Inside a session every key
      * states its unit in its name, as a point of a route does, so each one is checked against the range
      * its name promises: the read model casts all of them.
      */
@@ -191,16 +192,15 @@ object NormalizedPayloads {
         val codes = validateExercise(payload).toMutableList()
         val exercise = payload["exercise"] as? JsonObject ?: return codes
 
-        if (!exercise.optionalText("customTitle") || !series(exercise["sessions"], ::exerciseSession)) {
-            codes += RejectionCode.INVALID_PAYLOAD
-        }
+        val sessions = exercise.optionalText("customTitle") && series(exercise["sessions"], ::exerciseSession)
+        if (!sessions || "route" in exercise) codes += RejectionCode.INVALID_PAYLOAD
 
         return codes.distinct()
     }
 
     private fun exerciseSession(session: JsonObject): Boolean =
-        session.requiredInstant("start") &&
-            session.requiredInstant("end") &&
+        session.instant("start") &&
+            session.instant("end") &&
             session.optionalConstant("type") &&
             session.optionalConstant("countType") &&
             session.optionalText("customTitle") &&
@@ -489,12 +489,19 @@ object NormalizedPayloads {
         return value != null && value in plausible
     }
 
-    /** The instant the point was taken at, in the same UTC form every time on the wire is written in. */
+    /**
+     * The instant the point was taken at, in the same UTC form every time on the wire is written in, and
+     * within the four digit years the read model can cast it in: an instant the database could not read
+     * would fail every query over the view that casts it.
+     */
     private fun JsonObject.instant(key: String): Boolean {
         val node = this[key] ?: return true
         val text = (node as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return false
-        return text.endsWith("Z") && runCatching { Instant.parse(text) }.isSuccess
+        val instant = runCatching { Instant.parse(text) }.getOrNull() ?: return false
+        return text.endsWith("Z") && instant in CASTABLE_INSTANTS
     }
+
+    private val CASTABLE_INSTANTS = Instant.parse("0001-01-01T00:00:00Z")..Instant.parse("9999-12-31T23:59:59.999999Z")
 
     private fun JsonPrimitive.decimalOrNull(): BigDecimal? = runCatching { BigDecimal(content) }.getOrNull()
 }

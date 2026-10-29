@@ -283,15 +283,24 @@ class ExerciseMapperTest {
         assertEquals(setOf("start", "end"), session.keys)
     }
 
+    /** Its metrics, log and leg of the route are still the exercise's, and the sessions after it keep their place. */
     @Test
-    fun `leaves out a session that does not say when it began and ended`() {
+    fun `keeps a session that does not say when it began or ended`() {
         val record = exerciseRecord(
-            sessions = listOf(session(start = null), session(end = null), session(start = "2026-08-10T09:12:00Z")),
+            sessions = listOf(
+                session(start = null, route = listOf(location())),
+                session(end = null),
+                session(start = "2026-08-10T09:12:00Z"),
+            ),
         )
 
-        val exercise = exerciseOf(mapper.map(record))
-        assertEquals(listOf("2026-08-10T09:12:00Z"), sessionsOf(exercise).map { text(it, "start") })
-        assertEquals("5400.000" to "s", quantity(exercise, "duration"))
+        val sessions = sessionsOf(exerciseOf(mapper.map(record)))
+        assertEquals(
+            listOf(null, "2026-08-10T09:00:00Z", "2026-08-10T09:12:00Z"),
+            sessions.map { (it["start"] as JsonPrimitive?)?.content },
+        )
+        assertNull(sessions[1]["end"])
+        assertEquals(1, (sessions[0]["route"] as JsonArray).size)
     }
 
     @Test

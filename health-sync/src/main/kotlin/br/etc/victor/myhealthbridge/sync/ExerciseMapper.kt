@@ -87,22 +87,19 @@ object ExerciseMapper : RecordMapper {
      * Every session, in the order the source reported them.
      *
      * Like a point of a route, a session states the unit of each metric in the name of its key, in the
-     * unit the SDK documents for it. One that does not say when it began and ended is not a stretch of
-     * the exercise anyone could place, and is left out, as a session of sleep is.
+     * unit the SDK documents for it. One that does not say when it began or ended is kept without the
+     * time it did not state: its metrics, log and leg of the route are still the exercise's, and leaving
+     * it out would move every session after it to another position.
      */
     private fun JsonObjectBuilder.sessions(sessions: List<Map<String, SourceValue>>) {
-        val normalized = sessions.mapNotNull(::session)
-        if (normalized.isEmpty()) return
-        put("sessions", JsonArray(normalized))
+        if (sessions.isEmpty()) return
+        put("sessions", JsonArray(sessions.map(::session)))
     }
 
-    private fun session(session: Map<String, SourceValue>): JsonObject? {
-        val start = session[START_TIME] as? SourceValue.Text ?: return null
-        val end = session[END_TIME] as? SourceValue.Text ?: return null
-
-        return buildJsonObject {
-            put("start", start.value)
-            put("end", end.value)
+    private fun session(session: Map<String, SourceValue>): JsonObject =
+        buildJsonObject {
+            (session[START_TIME] as? SourceValue.Text)?.let { put("start", it.value) }
+            (session[END_TIME] as? SourceValue.Text)?.let { put("end", it.value) }
             SESSION_TEXTS.forEach { (source, key) -> (session[source] as? SourceValue.Text)?.let { put(key, it.value) } }
             SESSION_NUMBERS.forEach { (source, key) -> (session[source] as? SourceValue.Number)?.let { put(key, JsonPrimitive(it.value)) } }
             (session[AUTO_DETECTED] as? SourceValue.Flag)?.let { put("autoDetected", it.value) }
@@ -111,7 +108,6 @@ object ExerciseMapper : RecordMapper {
             entries("log", session[LOG], ::logEntry)
             entries("route", session[ROUTE], ::point)
         }
-    }
 
     private fun JsonObjectBuilder.entries(
         key: String,

@@ -129,9 +129,32 @@ class ExercisePayloadTest {
     }
 
     @Test
-    fun `rejects a session that does not say when it began and ended`() {
-        assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), rejectSession(ExerciseEnvelopes.session(start = null)))
+    fun `accepts a session that does not say when it began or ended`() {
+        accept(ExerciseEnvelopes.exercise(sessions = listOf(ExerciseEnvelopes.session(start = null, end = null))))
+    }
+
+    @Test
+    fun `rejects a session whose times the read model could not read`() {
         assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), rejectSession(ExerciseEnvelopes.session(end = "yesterday")))
+        assertEquals(
+            listOf(RejectionCode.INVALID_PAYLOAD),
+            rejectSession(ExerciseEnvelopes.session(start = "+10000-01-01T00:00:00Z")),
+        )
+        assertEquals(
+            listOf(RejectionCode.INVALID_PAYLOAD),
+            rejectSession(ExerciseEnvelopes.session(log = listOf(ExerciseEnvelopes.logEntry(at = "-0001-01-01T00:00:00Z")))),
+        )
+    }
+
+    /** Version 2 carries the route inside its sessions; a route beside them too would show every point twice. */
+    @Test
+    fun `rejects an exercise of version 2 that also carries the route of version 1`() {
+        val both = ExerciseEnvelopes.exercise(
+            route = listOf(Envelopes.routePoint()),
+            sessions = listOf(ExerciseEnvelopes.session(route = listOf(Envelopes.routePoint()))),
+        )
+
+        assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), reject(both))
     }
 
     @Test
