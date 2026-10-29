@@ -104,7 +104,38 @@ class RecordLocalTimeTest : IngestionApiTest() {
     }
 
     @Test
-    fun `places what a record carries inside it at the wall clock of the record's offset`() =
+    fun `appends every local column to its view as a timestamp without time zone`() {
+        val expected = categories.associate { category -> category.view to category.instants.map { "${it}_local" } } +
+            listOf("current_sleep_session", "current_sleep_stage", "current_blood_oxygen_series", "current_skin_temperature_series")
+                .associateWith { listOf("start_at_local", "end_at_local") } +
+            listOf("current_blood_glucose_series", "current_exercise_location").associateWith { listOf("at_local") }
+
+        val columns = api.query { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery(
+                    """
+                    select table_name, column_name, data_type from information_schema.columns
+                    where table_schema = 'read_model'
+                    order by table_name, ordinal_position
+                    """,
+                ).use { rows ->
+                    buildList { while (rows.next()) add(Triple(rows.getString(1), rows.getString(2), rows.getString(3))) }
+                }
+            }
+        }.groupBy({ it.first }, { it.second to it.third })
+
+        assertEquals(expected.keys, columns.filterValues { view -> view.any { it.first.endsWith("_local") } }.keys)
+        expected.forEach { (view, locals) ->
+            assertEquals(
+                locals.map { it to "timestamp without time zone" },
+                columns.getValue(view).takeLast(locals.size),
+                view,
+            )
+        }
+    }
+
+    @Test
+    fun `places what a record carries inside it at the wall clock of the offset the record starts at`() =
         listOf(west, east).forEach { zone ->
             val uid = "uid-children-${zone.name}"
             send(
@@ -118,29 +149,29 @@ class RecordLocalTimeTest : IngestionApiTest() {
                             stages = listOf(Envelopes.sleepStage(start = CHILD_START, end = CHILD_END)),
                         ),
                     ),
-                ).withPeriod(START, END, zone.offset),
+                ).withPeriod(START, END, zone.offset, endOffset = "+00:00"),
             )
             send(
                 BinnedEnvelopes.BLOOD_OXYGEN_RECORD_TYPE,
                 BinnedEnvelopes.bloodOxygen(samsungUid = uid, series = listOf(BinnedEnvelopes.oxygenBin(CHILD_START, CHILD_END)))
-                    .withPeriod(START, END, zone.offset),
+                    .withPeriod(START, END, zone.offset, endOffset = "+00:00"),
             )
             send(
                 BinnedEnvelopes.SKIN_TEMPERATURE_RECORD_TYPE,
                 BinnedEnvelopes.skinTemperature(
                     samsungUid = uid,
                     series = listOf(BinnedEnvelopes.skinTemperatureBin(CHILD_START, CHILD_END)),
-                ).withPeriod(START, END, zone.offset),
+                ).withPeriod(START, END, zone.offset, endOffset = "+00:00"),
             )
             send(
                 BinnedEnvelopes.BLOOD_GLUCOSE_RECORD_TYPE,
                 BinnedEnvelopes.bloodGlucose(samsungUid = uid, series = listOf(BinnedEnvelopes.glucoseReading(at = CHILD_START)))
-                    .withPeriod(START, END, zone.offset),
+                    .withPeriod(START, END, zone.offset, endOffset = "+00:00"),
             )
             send(
                 Envelopes.EXERCISE_RECORD_TYPE,
                 Envelopes.exercise(samsungUid = uid, route = listOf(Envelopes.routePoint(at = CHILD_START)))
-                    .withPeriod(START, END, zone.offset),
+                    .withPeriod(START, END, zone.offset, endOffset = "+00:00"),
             )
 
             val localChildStart = if (zone == west) "2026-08-10 20:30:00" else "2026-08-11 09:00:00"
