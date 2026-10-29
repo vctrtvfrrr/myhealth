@@ -113,6 +113,23 @@ class ReadModelAccessTest : IngestionApiTest() {
                 assertEquals(1, reader.count("select count(*) from read_model.$view where samsung_uid = 'uid-read-only'"), view)
             }
 
+            assertEquals(
+                1,
+                reader.count(
+                    """
+                    select count(*) from read_model.current_heart_rate
+                    where samsung_uid = 'uid-read-only'
+                      and read_model.local_bucket('day', period_start_local) <= period_end_local
+                    """,
+                ),
+            )
+            assertEquals(
+                1,
+                reader.count(
+                    "select count(*) from read_model.current_sleep_stage where samsung_uid = 'uid-read-only' and start_at_local is not null",
+                ),
+            )
+
             listOf(
                 "insert into health_record_identity (record_type, samsung_uid) values ('heart_rate', 'uid-forged')",
                 "update observed_record_version set state = 'removed'",
