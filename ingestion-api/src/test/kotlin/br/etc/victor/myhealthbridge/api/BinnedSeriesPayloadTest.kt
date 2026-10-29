@@ -3,6 +3,8 @@ package br.etc.victor.myhealthbridge.api
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.bloodGlucose
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.bloodOxygen
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.glucoseReading
+import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.heartRate
+import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.heartRateBin
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.oxygenBin
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.skinTemperature
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.skinTemperatureBin
@@ -14,7 +16,7 @@ import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 /**
- * What the API accepts as a blood oxygen, skin temperature or blood glucose measurement.
+ * What the API accepts as a heart rate, blood oxygen, skin temperature or blood glucose measurement.
  *
  * The measurement itself is required, because a record without it would be an invented reading. Its
  * range, the context of a glucose reading and the series are optional because the source reports them
@@ -22,6 +24,85 @@ import org.junit.jupiter.api.Test
  * key of a bin to the type its name promises.
  */
 class BinnedSeriesPayloadTest {
+
+    @Nested
+    inner class HeartRate {
+
+        private val validator = ItemValidator(BinnedEnvelopes.HEART_RATE_RECORD_TYPE)
+
+        @Test
+        fun `accepts a synthetic measurement with its range and series`() {
+            accept(validator, heartRate(series = listOf(heartRateBin(), heartRateBin(min = null, max = null))))
+        }
+
+        @Test
+        fun `accepts a measurement the source reported no range nor series for`() {
+            accept(validator, heartRate(min = null, max = null, series = null))
+        }
+
+        /** An application not yet updated, and its outbox, still send what version 1 of the mapper made. */
+        @Test
+        fun `still accepts the rate alone from version 1 of the mapper`() {
+            accept(validator, Envelopes.heartRate(mapperVersion = "samsung-health-heart-rate/1"))
+        }
+
+        @Test
+        fun `rejects a payload of the shape the other version makes`() {
+            assertEquals(
+                listOf(RejectionCode.INVALID_PAYLOAD),
+                reject(validator, Envelopes.heartRate(mapperVersion = BinnedEnvelopes.HEART_RATE_MAPPER_VERSION)),
+            )
+            assertEquals(
+                listOf(RejectionCode.INVALID_PAYLOAD, RejectionCode.INVALID_UNIT),
+                reject(validator, heartRate(mapperVersion = Envelopes.MAPPER_VERSION)),
+            )
+        }
+
+        @Test
+        fun `rejects a measurement the mapper did not normalize`() {
+            assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), reject(validator, heartRate(withPayload = false)))
+            assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), reject(validator, heartRate(rate = null)))
+        }
+
+        @Test
+        fun `rejects a rate no heart can beat at`() {
+            assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), reject(validator, heartRate(rate = "0")))
+            assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), reject(validator, heartRate(min = "0.5")))
+            assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), reject(validator, heartRate(max = "501")))
+            assertEquals(listOf(RejectionCode.INVALID_PAYLOAD), reject(validator, heartRate(max = "fast")))
+        }
+
+        @Test
+        fun `rejects a rate reported in another unit`() {
+            assertEquals(listOf(RejectionCode.INVALID_UNIT), reject(validator, heartRate(unit = "Hz")))
+        }
+
+        @Test
+        fun `rejects a bin that does not say when it was or what it measured`() {
+            listOf(
+                heartRateBin(start = null),
+                heartRateBin(end = "2026-08-10T03:10:00"),
+                heartRateBin(rate = null),
+                heartRateBin(rate = "600"),
+                heartRateBin(min = "slow"),
+                heartRateBin(max = "0"),
+            ).forEach { bin ->
+                assertEquals(
+                    listOf(RejectionCode.INVALID_PAYLOAD),
+                    reject(validator, heartRate(series = listOf(bin))),
+                    "accepted $bin",
+                )
+            }
+        }
+
+        @Test
+        fun `rejects a measurement mapped by a version this server does not know`() {
+            assertEquals(
+                listOf(RejectionCode.UNSUPPORTED_MAPPER),
+                reject(validator, heartRate(mapperVersion = "samsung-health-heart-rate/3")),
+            )
+        }
+    }
 
     @Nested
     inner class BloodOxygen {

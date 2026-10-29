@@ -19,7 +19,7 @@ class ReadModelAccessTest : IngestionApiTest() {
 
     @Test
     fun `a read only account queries the view and can write nothing`() {
-        send(Envelopes.heartRate(samsungUid = "uid-read-only"))
+        send(BinnedEnvelopes.heartRate(samsungUid = "uid-read-only"))
         api.postBatch(
             Envelopes.batch(
                 recordType = Envelopes.EXERCISE_RECORD_TYPE,
@@ -79,6 +79,7 @@ class ReadModelAccessTest : IngestionApiTest() {
                 ),
             )
             listOf(
+                "current_heart_rate_series",
                 "current_sleep",
                 "current_sleep_session",
                 "current_sleep_stage",

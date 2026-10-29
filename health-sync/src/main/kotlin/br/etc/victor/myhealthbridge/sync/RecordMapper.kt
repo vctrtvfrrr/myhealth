@@ -140,40 +140,6 @@ private fun RecordMapper.unknownEnumsIn(fields: Map<String, SourceValue>): List<
     }
 
 /**
- * The one mapper of Samsung Health heart rate records.
- *
- * The normalized payload carries only what the read model exposes; everything else the source
- * reported stays in the source payload, which is what preserves a field this version does not
- * interpret.
- */
-object HeartRateMapper : RecordMapper {
-
-    override val version: String = "samsung-health-heart-rate/1"
-
-    private const val BEATS_PER_MINUTE = "/min"
-
-    private const val HEART_RATE_FIELD = "heart_rate"
-
-    override fun map(record: SourceRecord): HealthRecordEnvelope =
-        presentEnvelope(record, normalizedPayload(record))
-
-    /**
-     * An absent measurement is emitted as absent rather than substituted, so the API rejects the item
-     * and it stays a mapping pendency instead of becoming an invented reading.
-     */
-    private fun normalizedPayload(record: SourceRecord): JsonObject = buildJsonObject {
-        val beats = record.fields[HEART_RATE_FIELD] as? SourceValue.Number ?: return@buildJsonObject
-        put(
-            "heartRate",
-            buildJsonObject {
-                put("value", JsonPrimitive(beats.value))
-                put("unit", BEATS_PER_MINUTE)
-            },
-        )
-    }
-}
-
-/**
  * Everything the source reported, under the names it uses.
  *
  * The client identity sits under its own key instead of beside the fields, because a source field is

@@ -174,6 +174,43 @@ fun sleepStage(
     stage?.let { put("stage", SourceValue.Text(it)) }
 }
 
+/** A synthetic heart rate measurement with its range and binned series, as the adapter hands one over. Every value is invented. */
+fun heartRateRecord(
+    uid: String = "uid-heart-rate-1",
+    start: Instant = Instant.parse("2026-08-10T21:59:00Z"),
+    end: Instant? = Instant.parse("2026-08-10T22:09:00Z"),
+    updateTime: Instant? = Instant.parse("2026-08-10T22:10:00Z"),
+    beats: String? = "72.5",
+    min: String? = "58.0",
+    max: String? = "131.0",
+    bins: List<Map<String, SourceValue>>? = listOf(heartRateBin()),
+): SourceRecord = sourceRecord(
+    uid = uid,
+    start = start,
+    end = end,
+    updateTime = updateTime,
+    fields = buildMap {
+        beats?.let { put("heart_rate", number(it)) }
+        min?.let { put("min", number(it)) }
+        max?.let { put("max", number(it)) }
+        bins?.let { put("binning_data", SourceValue.Series(it)) }
+    },
+)
+
+fun heartRateBin(
+    start: String? = "2026-08-10T21:59:00Z",
+    end: String? = "2026-08-10T22:09:00Z",
+    beats: String? = "72.5",
+    min: String? = "58.0",
+    max: String? = "131.0",
+): Map<String, SourceValue> = buildMap {
+    beats?.let { put("heart_rate", number(it)) }
+    min?.let { put("min", number(it)) }
+    max?.let { put("max", number(it)) }
+    start?.let { put("start_time", SourceValue.Text(it)) }
+    end?.let { put("end_time", SourceValue.Text(it)) }
+}
+
 /** A synthetic blood oxygen measurement with its binned series, as the adapter hands one over. Every value is invented. */
 fun bloodOxygenRecord(
     uid: String = "uid-blood-oxygen-1",

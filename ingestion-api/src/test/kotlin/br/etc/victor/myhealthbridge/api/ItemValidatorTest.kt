@@ -186,7 +186,7 @@ class ItemValidatorTest {
     fun `rejects a mapper version this server does not know`() {
         assertEquals(
             listOf(RejectionCode.UNSUPPORTED_MAPPER),
-            reject(Envelopes.heartRate(mapperVersion = "samsung-health-heart-rate/2")),
+            reject(Envelopes.heartRate(mapperVersion = "samsung-health-heart-rate/99")),
         )
     }
 

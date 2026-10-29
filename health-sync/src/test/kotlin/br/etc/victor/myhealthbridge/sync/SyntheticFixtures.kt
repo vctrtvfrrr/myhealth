@@ -40,7 +40,7 @@ object SyntheticFixtures {
         HealthCategory.BLOOD_PRESSURE to SyntheticFixture.Record(bloodPressureRecord()),
         HealthCategory.BODY_COMPOSITION to SyntheticFixture.Record(bodyCompositionRecord()),
         HealthCategory.BODY_TEMPERATURE to SyntheticFixture.Record(bodyTemperatureRecord()),
-        HealthCategory.HEART_RATE to SyntheticFixture.Record(sourceRecord()),
+        HealthCategory.HEART_RATE to SyntheticFixture.Record(heartRateRecord()),
         HealthCategory.ACTIVE_CALORIES_BURNED_GOAL to SyntheticFixture.Aggregate(number("450")),
         HealthCategory.ACTIVE_TIME_GOAL to SyntheticFixture.Aggregate(number("5400.000")),
         HealthCategory.NUTRITION_GOAL to SyntheticFixture.Aggregate(number("2100.0")),

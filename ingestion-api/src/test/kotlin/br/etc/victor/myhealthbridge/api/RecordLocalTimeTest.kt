@@ -106,8 +106,13 @@ class RecordLocalTimeTest : IngestionApiTest() {
     @Test
     fun `appends every local column to its view as a timestamp without time zone`() {
         val expected = categories.associate { category -> category.view to category.instants.map { "${it}_local" } } +
-            listOf("current_sleep_session", "current_sleep_stage", "current_blood_oxygen_series", "current_skin_temperature_series")
-                .associateWith { listOf("start_at_local", "end_at_local") } +
+            listOf(
+                "current_sleep_session",
+                "current_sleep_stage",
+                "current_heart_rate_series",
+                "current_blood_oxygen_series",
+                "current_skin_temperature_series",
+            ).associateWith { listOf("start_at_local", "end_at_local") } +
             listOf("current_blood_glucose_series", "current_exercise_location").associateWith { listOf("at_local") }
 
         val columns = api.query { connection ->
@@ -152,6 +157,11 @@ class RecordLocalTimeTest : IngestionApiTest() {
                 ).withPeriod(START, END, zone.offset, endOffset = "+00:00"),
             )
             send(
+                BinnedEnvelopes.HEART_RATE_RECORD_TYPE,
+                BinnedEnvelopes.heartRate(samsungUid = uid, series = listOf(BinnedEnvelopes.heartRateBin(CHILD_START, CHILD_END)))
+                    .withPeriod(START, END, zone.offset, endOffset = "+00:00"),
+            )
+            send(
                 BinnedEnvelopes.BLOOD_OXYGEN_RECORD_TYPE,
                 BinnedEnvelopes.bloodOxygen(samsungUid = uid, series = listOf(BinnedEnvelopes.oxygenBin(CHILD_START, CHILD_END)))
                     .withPeriod(START, END, zone.offset, endOffset = "+00:00"),
@@ -179,6 +189,7 @@ class RecordLocalTimeTest : IngestionApiTest() {
             listOf(
                 "current_sleep_session",
                 "current_sleep_stage",
+                "current_heart_rate_series",
                 "current_blood_oxygen_series",
                 "current_skin_temperature_series",
             ).forEach { view ->

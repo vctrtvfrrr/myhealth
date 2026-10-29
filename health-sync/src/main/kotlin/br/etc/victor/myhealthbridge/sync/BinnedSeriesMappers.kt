@@ -9,6 +9,34 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /**
+ * The one mapper of Samsung Health heart rate records.
+ *
+ * Like blood oxygen, a measurement carries the range it moved in and the series it was binned from,
+ * which travels inside the record. Version 1 carried the rate alone, as `heartRate.value`; version 2
+ * carries the whole ranged measurement, so a record a Full Reconciliation reads again gains its range
+ * and series. See ADR 0017.
+ */
+object HeartRateMapper : RecordMapper {
+
+    override val version: String = "samsung-health-heart-rate/2"
+
+    override fun map(record: SourceRecord): HealthRecordEnvelope = presentEnvelope(
+        record,
+        rangedMeasurement(
+            record,
+            payloadKey = "heartRate",
+            valueKey = "rate",
+            sourceField = "heart_rate",
+            binField = "heart_rate",
+            unit = BEATS_PER_MINUTE,
+            binUnitSuffix = "BeatsPerMinute",
+        ),
+    )
+
+    private const val BEATS_PER_MINUTE = "/min"
+}
+
+/**
  * The one mapper of Samsung Health blood oxygen records.
  *
  * A measurement carries the series it was binned from, which has no identity of its own and travels

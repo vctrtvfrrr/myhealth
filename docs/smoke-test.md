@@ -101,7 +101,7 @@ A Full Reconciliation depois de instalar a 1.0 é obrigatória, mesmo que todas 
 | Pressão arterial | `blood_pressure` | Health Record | `current_blood_pressure` |
 | Composição corporal | `body_composition` | Health Record | `current_body_composition` |
 | Temperatura corporal | `body_temperature` | Health Record | `current_body_temperature` |
-| Frequência cardíaca | `heart_rate` | Health Record | `current_heart_rate` |
+| Frequência cardíaca | `heart_rate` | Health Record | `current_heart_rate`, `current_heart_rate_series` |
 | Notificação de ritmo cardíaco irregular | `irregular_heart_rhythm` | Health Record | `current_irregular_heart_rhythm` |
 | Meta de calorias ativas | `active_calories_burned_goal` | Observed Snapshot | `current_daily_goal` |
 | Meta de tempo ativo | `active_time_goal` | Observed Snapshot | `current_daily_goal` |
@@ -195,6 +195,7 @@ union all select 'exercise', count(*), count(*) filter (where period_start < :'c
 union all select 'exercise_location', count(*), count(*) filter (where "at" < :'corte') from read_model.current_exercise_location
 union all select 'floors_climbed', count(*), count(*) filter (where period_start < :'corte') from read_model.current_floors_climbed
 union all select 'heart_rate', count(*), count(*) filter (where period_start < :'corte') from read_model.current_heart_rate
+union all select 'heart_rate.series', count(*), count(*) filter (where start_at < :'corte') from read_model.current_heart_rate_series
 union all select 'irregular_heart_rhythm', count(*), count(*) filter (where detected_at < :'corte') from read_model.current_irregular_heart_rhythm
 union all select 'nutrition', count(*), count(*) filter (where period_start < :'corte') from read_model.current_nutrition
 union all select 'nutrition_goal', count(*), count(*) filter (where day < :'corte') from read_model.current_daily_goal where goal = 'nutrition_goal'

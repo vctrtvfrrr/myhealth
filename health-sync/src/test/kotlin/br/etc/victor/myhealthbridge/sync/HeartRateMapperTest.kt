@@ -1,5 +1,6 @@
 package br.etc.victor.myhealthbridge.sync
 
+import br.etc.victor.myhealthbridge.contract.HealthRecordEnvelope
 import br.etc.victor.myhealthbridge.contract.RecordState
 import br.etc.victor.myhealthbridge.contract.SourceIdentity
 import kotlinx.serialization.json.JsonArray
@@ -20,7 +21,7 @@ class HeartRateMapperTest {
         val envelope = mapper.map(sourceRecord(uid = "samsung-uid-42"))
 
         assertEquals("samsung-uid-42", envelope.samsungUid)
-        assertEquals("samsung-health-heart-rate/1", envelope.mapperVersion)
+        assertEquals("samsung-health-heart-rate/2", envelope.mapperVersion)
     }
 
     @Test
@@ -106,19 +107,68 @@ class HeartRateMapperTest {
     }
 
     @Test
-    fun `normalizes the measurement into beats per minute`() {
-        val envelope = mapper.map(sourceRecord(fields = mapOf("heart_rate" to number("72.5"))))
+    fun `normalizes the rate and its range into beats per minute`() {
+        val heartRate = heartRateOf(mapper.map(heartRateRecord()))
 
-        val heartRate = (envelope.state as RecordState.Present).normalizedPayload["heartRate"] as JsonObject
-        assertEquals("72.5", (heartRate["value"] as JsonPrimitive).content)
-        assertEquals("/min", (heartRate["unit"] as JsonPrimitive).content)
+        assertEquals("72.5" to "/min", quantity(heartRate, "rate"))
+        assertEquals("58.0" to "/min", quantity(heartRate, "min"))
+        assertEquals("131.0" to "/min", quantity(heartRate, "max"))
+    }
+
+    @Test
+    fun `leaves out a range the source did not report`() {
+        val heartRate = heartRateOf(mapper.map(heartRateRecord(min = null, max = null)))
+
+        assertNull(heartRate["min"])
+        assertNull(heartRate["max"])
     }
 
     @Test
     fun `leaves the normalized measurement out when the source did not report one`() {
-        val envelope = mapper.map(sourceRecord(fields = mapOf("min" to number("60"))))
+        val envelope = mapper.map(heartRateRecord(beats = null))
 
         assertNull((envelope.state as RecordState.Present).normalizedPayload["heartRate"])
+    }
+
+    @Test
+    fun `projects every bin of the series, in the order the source reported them`() {
+        val record = heartRateRecord(
+            bins = listOf(
+                heartRateBin(start = "2026-08-10T21:59:00Z", end = "2026-08-10T22:04:00Z", beats = "70.0"),
+                heartRateBin(start = "2026-08-10T22:04:00Z", end = "2026-08-10T22:09:00Z", beats = "75.0", min = null, max = null),
+            ),
+        )
+
+        val series = heartRateOf(mapper.map(record))["series"] as JsonArray
+        assertEquals(2, series.size)
+
+        val first = series[0] as JsonObject
+        assertEquals("2026-08-10T21:59:00Z", text(first, "start"))
+        assertEquals("2026-08-10T22:04:00Z", text(first, "end"))
+        assertEquals("70.0", text(first, "rateBeatsPerMinute"))
+        assertEquals("58.0", text(first, "minBeatsPerMinute"))
+        assertEquals("131.0", text(first, "maxBeatsPerMinute"))
+
+        val second = series[1] as JsonObject
+        assertEquals("75.0", text(second, "rateBeatsPerMinute"))
+        assertNull(second["minBeatsPerMinute"])
+        assertNull(second["maxBeatsPerMinute"])
+    }
+
+    @Test
+    fun `leaves out a bin that does not say when it was or what it measured`() {
+        val record = heartRateRecord(
+            bins = listOf(heartRateBin(start = null), heartRateBin(end = null), heartRateBin(beats = null), heartRateBin(beats = "64.0")),
+        )
+
+        val series = heartRateOf(mapper.map(record))["series"] as JsonArray
+        assertEquals(listOf("64.0"), series.map { text(it as JsonObject, "rateBeatsPerMinute") })
+    }
+
+    @Test
+    fun `leaves the series out of a measurement the source binned nothing for`() {
+        assertNull(heartRateOf(mapper.map(heartRateRecord(bins = null)))["series"])
+        assertNull(heartRateOf(mapper.map(heartRateRecord(bins = emptyList())))["series"])
     }
 
     @Test
@@ -163,9 +213,18 @@ class HeartRateMapperTest {
 
     @Test
     fun `keeps a decimal exactly as the source reported it`() {
-        val envelope = mapper.map(sourceRecord(fields = mapOf("heart_rate" to number("72.4000001"))))
+        val heartRate = heartRateOf(mapper.map(heartRateRecord(beats = "72.4000001")))
 
-        val heartRate = (envelope.state as RecordState.Present).normalizedPayload["heartRate"] as JsonObject
-        assertEquals("72.4000001", (heartRate["value"] as JsonPrimitive).content)
+        assertEquals("72.4000001" to "/min", quantity(heartRate, "rate"))
+    }
+
+    private fun heartRateOf(envelope: HealthRecordEnvelope): JsonObject =
+        (envelope.state as RecordState.Present).normalizedPayload["heartRate"] as JsonObject
+
+    private fun text(node: JsonObject, key: String): String = (node[key] as JsonPrimitive).content
+
+    private fun quantity(node: JsonObject, name: String): Pair<String, String> {
+        val quantity = node[name] as JsonObject
+        return text(quantity, "value") to text(quantity, "unit")
     }
 }

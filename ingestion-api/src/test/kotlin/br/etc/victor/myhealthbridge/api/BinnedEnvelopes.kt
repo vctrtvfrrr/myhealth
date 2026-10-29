@@ -9,19 +9,50 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 
 /**
- * Synthetic envelopes of the measurements that carry a binned series: blood oxygen, skin temperature and
- * blood glucose.
+ * Synthetic envelopes of the measurements that carry a binned series: heart rate from version 2 of its
+ * mapper, blood oxygen, skin temperature and blood glucose.
  *
  * Every value is invented: the repository must never carry fixtures derived from real measurements.
  */
 object BinnedEnvelopes {
 
+    const val HEART_RATE_RECORD_TYPE = "heart_rate"
+    const val HEART_RATE_MAPPER_VERSION = "samsung-health-heart-rate/2"
     const val BLOOD_OXYGEN_RECORD_TYPE = "blood_oxygen"
     const val BLOOD_OXYGEN_MAPPER_VERSION = "samsung-health-blood-oxygen/1"
     const val SKIN_TEMPERATURE_RECORD_TYPE = "skin_temperature"
     const val SKIN_TEMPERATURE_MAPPER_VERSION = "samsung-health-skin-temperature/1"
     const val BLOOD_GLUCOSE_RECORD_TYPE = "blood_glucose"
     const val BLOOD_GLUCOSE_MAPPER_VERSION = "samsung-health-blood-glucose/1"
+
+    fun heartRate(
+        samsungUid: String = "uid-heart-rate-1",
+        rate: String? = "72.5",
+        unit: String = "/min",
+        min: String? = "58.0",
+        max: String? = "131.0",
+        series: List<JsonObject>? = listOf(heartRateBin()),
+        mapperVersion: String = HEART_RATE_MAPPER_VERSION,
+        observedAt: String = "2026-08-10T03:15:00Z",
+        withPayload: Boolean = true,
+    ): JsonObject = present(samsungUid, mapperVersion, observedAt, "heart_rate", rate) {
+        if (withPayload) {
+            putJsonObject("heartRate") {
+                quantity("rate", rate, unit)
+                quantity("min", min, unit)
+                quantity("max", max, unit)
+                series?.let { put("series", JsonArray(it)) }
+            }
+        }
+    }
+
+    fun heartRateBin(
+        start: String? = "2026-08-10T03:00:00Z",
+        end: String? = "2026-08-10T03:10:00Z",
+        rate: String? = "72.5",
+        min: String? = "58.0",
+        max: String? = "131.0",
+    ): JsonObject = bin(start, end, "rateBeatsPerMinute" to rate, "minBeatsPerMinute" to min, "maxBeatsPerMinute" to max)
 
     fun bloodOxygen(
         samsungUid: String = "uid-blood-oxygen-1",

@@ -35,7 +35,15 @@ class HeartRateEnvelopeGoldenTest {
                     "min" to number("58.0"),
                     "max" to number("131.0"),
                     "binning_data" to SourceValue.Series(
-                        listOf(mapOf("heart_rate" to number("70.0"), "start_time" to SourceValue.Text("2026-08-10T21:59:00Z"))),
+                        listOf(
+                            mapOf(
+                                "heart_rate" to number("70.0"),
+                                "min" to number("61.0"),
+                                "max" to number("79.0"),
+                                "start_time" to SourceValue.Text("2026-08-10T21:59:00Z"),
+                                "end_time" to SourceValue.Text("2026-08-10T21:59:30Z"),
+                            ),
+                        ),
                     ),
                 ),
             ),
@@ -61,9 +69,9 @@ class HeartRateEnvelopeGoldenTest {
     }
 
     private companion object {
-        const val GOLDEN ="""{"samsungUid":"uid-golden","observedAt":{"instant":"2026-08-10T22:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T21:59:30Z","offset":"-03:00"}},"sourcePayload":{"fields":{"heart_rate":72.5,"min":58.0,"max":131.0,"binning_data":[{"heart_rate":70.0,"start_time":"2026-08-10T21:59:00Z"}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"heartRate":{"value":72.5,"unit":"/min"}}}}"""
+        const val GOLDEN ="""{"samsungUid":"uid-golden","observedAt":{"instant":"2026-08-10T22:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/2","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T21:59:30Z","offset":"-03:00"}},"sourcePayload":{"fields":{"heart_rate":72.5,"min":58.0,"max":131.0,"binning_data":[{"heart_rate":70.0,"min":61.0,"max":79.0,"start_time":"2026-08-10T21:59:00Z","end_time":"2026-08-10T21:59:30Z"}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"heartRate":{"rate":{"value":72.5,"unit":"/min"},"min":{"value":58.0,"unit":"/min"},"max":{"value":131.0,"unit":"/min"},"series":[{"start":"2026-08-10T21:59:00Z","end":"2026-08-10T21:59:30Z","rateBeatsPerMinute":70.0,"minBeatsPerMinute":61.0,"maxBeatsPerMinute":79.0}]}}}}"""
 
         const val GOLDEN_REMOVAL =
-            """{"samsungUid":"uid-golden-removed","observedAt":{"instant":"2026-08-12T09:00:00Z","offset":"+00:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"unknown"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"removed"}}"""
+            """{"samsungUid":"uid-golden-removed","observedAt":{"instant":"2026-08-12T09:00:00Z","offset":"+00:00"},"mapperVersion":"samsung-health-heart-rate/2","sourceProvenance":{"sourceApp":{"kind":"unknown"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"removed"}}"""
     }
 }

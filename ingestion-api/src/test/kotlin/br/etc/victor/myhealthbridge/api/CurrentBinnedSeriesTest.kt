@@ -3,6 +3,8 @@ package br.etc.victor.myhealthbridge.api
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.bloodGlucose
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.bloodOxygen
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.glucoseReading
+import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.heartRate
+import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.heartRateBin
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.oxygenBin
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.skinTemperature
 import br.etc.victor.myhealthbridge.api.BinnedEnvelopes.skinTemperatureBin
@@ -19,7 +21,7 @@ import org.junit.jupiter.api.Test
 @Tag("integration")
 class CurrentBinnedSeriesTest : IngestionApiTest() {
 
-    /** One of the three categories, with a measurement of [value] binned into one bin per value of [series]. */
+    /** One of the categories, with a measurement of [value] binned into one bin per value of [series]. */
     private class Kind(
         val recordType: String,
         val mapperVersion: String,
@@ -31,6 +33,16 @@ class CurrentBinnedSeriesTest : IngestionApiTest() {
     )
 
     private val kinds = listOf(
+        Kind(
+            recordType = BinnedEnvelopes.HEART_RATE_RECORD_TYPE,
+            mapperVersion = BinnedEnvelopes.HEART_RATE_MAPPER_VERSION,
+            view = "current_heart_rate",
+            valueColumn = "beats_per_minute",
+            seriesView = "current_heart_rate_series",
+            seriesColumn = "beats_per_minute",
+        ) { uid, observedAt, value, series ->
+            heartRate(samsungUid = uid, observedAt = observedAt, rate = value, series = series.map { heartRateBin(rate = it) })
+        },
         Kind(
             recordType = BinnedEnvelopes.BLOOD_OXYGEN_RECORD_TYPE,
             mapperVersion = BinnedEnvelopes.BLOOD_OXYGEN_MAPPER_VERSION,

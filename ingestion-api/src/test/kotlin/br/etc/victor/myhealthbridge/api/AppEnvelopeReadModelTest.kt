@@ -28,10 +28,25 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
         val row = readModelRow("uid-golden")
         assertEquals("72.5", row.getValue("beats_per_minute"))
         assertEquals("/min", row.getValue("unit"))
+        assertEquals("58", row.getValue("min_beats_per_minute"))
+        assertEquals("131", row.getValue("max_beats_per_minute"))
         assertEquals("-03:00", row.getValue("period_start_offset"))
         assertEquals("com.example.shealth", row.getValue("source_app"))
         assertEquals(null, row["source_device"])
-        assertEquals("samsung-health-heart-rate/1", row.getValue("mapper_version"))
+        assertEquals("samsung-health-heart-rate/2", row.getValue("mapper_version"))
+
+        val bin = row(
+            """
+            select start_at_local::text, end_at_local::text, beats_per_minute::text, min_beats_per_minute::text,
+                max_beats_per_minute::text
+            from read_model.current_heart_rate_series where samsung_uid = ?
+            """.trimIndent(),
+            "uid-golden",
+        )
+        assertEquals(
+            listOf("2026-08-10 18:59:00", "2026-08-10 18:59:30", "70", "61", "79"),
+            bin.values.toList(),
+        )
     }
 
     /**
@@ -391,7 +406,8 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
 
     private fun readModelRow(samsungUid: String): Map<String, String?> = row(
         """
-        select beats_per_minute::text, unit, period_start_offset, source_app, source_device, mapper_version
+        select beats_per_minute::text, unit, min_beats_per_minute::text, max_beats_per_minute::text,
+            period_start_offset, source_app, source_device, mapper_version
         from read_model.current_heart_rate
         where samsung_uid = ?
         """.trimIndent(),
@@ -409,9 +425,9 @@ class AppEnvelopeReadModelTest : IngestionApiTest() {
     }
 
     private companion object {
-        const val MAPPED_HEART_RATE = """{"samsungUid":"uid-golden","observedAt":{"instant":"2026-08-10T22:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T21:59:30Z","offset":"-03:00"}},"sourcePayload":{"fields":{"heart_rate":72.5,"min":58.0,"max":131.0,"binning_data":[{"heart_rate":70.0,"start_time":"2026-08-10T21:59:00Z"}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"heartRate":{"value":72.5,"unit":"/min"}}}}"""
+        const val MAPPED_HEART_RATE = """{"samsungUid":"uid-golden","observedAt":{"instant":"2026-08-10T22:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-heart-rate/2","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T21:59:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T21:59:30Z","offset":"-03:00"}},"sourcePayload":{"fields":{"heart_rate":72.5,"min":58.0,"max":131.0,"binning_data":[{"heart_rate":70.0,"min":61.0,"max":79.0,"start_time":"2026-08-10T21:59:00Z","end_time":"2026-08-10T21:59:30Z"}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"heartRate":{"rate":{"value":72.5,"unit":"/min"},"min":{"value":58.0,"unit":"/min"},"max":{"value":131.0,"unit":"/min"},"series":[{"start":"2026-08-10T21:59:00Z","end":"2026-08-10T21:59:30Z","rateBeatsPerMinute":70.0,"minBeatsPerMinute":61.0,"maxBeatsPerMinute":79.0}]}}}}"""
 
-        const val MAPPED_REMOVAL = """{"samsungUid":"uid-golden-removed","observedAt":{"instant":"2026-08-12T09:00:00Z","offset":"+00:00"},"mapperVersion":"samsung-health-heart-rate/1","sourceProvenance":{"sourceApp":{"kind":"unknown"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"removed"}}"""
+        const val MAPPED_REMOVAL = """{"samsungUid":"uid-golden-removed","observedAt":{"instant":"2026-08-12T09:00:00Z","offset":"+00:00"},"mapperVersion":"samsung-health-heart-rate/2","sourceProvenance":{"sourceApp":{"kind":"unknown"},"sourceDevice":{"kind":"unknown"}},"state":{"kind":"removed"}}"""
 
         const val MAPPED_EXERCISE ="""{"samsungUid":"uid-golden-exercise","observedAt":{"instant":"2026-08-10T10:00:00Z","offset":"-03:00"},"mapperVersion":"samsung-health-exercise/1","sourceProvenance":{"sourceApp":{"kind":"known","id":"com.example.shealth"},"sourceDevice":{"kind":"known","id":"device-1"}},"state":{"kind":"present","period":{"start":{"instant":"2026-08-10T09:00:00Z","offset":"-03:00"},"end":{"instant":"2026-08-10T09:30:00Z","offset":"-03:00"}},"sourcePayload":{"fields":{"exercise_type":"RUNNING","custom_title":"morning loop","sessions":[{"duration":1800.0,"distance":5000.0,"calories":320.0,"route":[{"timestamp":"2026-08-10T09:00:00Z","latitude":-23.5,"longitude":-46.6,"altitude":760.0,"accuracy":4.0},{"timestamp":"2026-08-10T09:15:00Z","latitude":-23.6,"longitude":-46.7}]}]},"client":{"dataId":"client-1","version":3}},"normalizedPayload":{"exercise":{"type":"RUNNING","duration":{"value":1800.0,"unit":"s"},"distance":{"value":5000.0,"unit":"m"},"calories":{"value":320.0,"unit":"kcal"},"route":[{"at":"2026-08-10T09:00:00Z","latitudeDegrees":-23.5,"longitudeDegrees":-46.6,"altitudeMeters":760.0,"accuracyMeters":4.0},{"at":"2026-08-10T09:15:00Z","latitudeDegrees":-23.6,"longitudeDegrees":-46.7}]}}}}"""
 

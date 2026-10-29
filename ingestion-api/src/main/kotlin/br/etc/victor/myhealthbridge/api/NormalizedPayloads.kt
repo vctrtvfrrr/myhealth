@@ -19,6 +19,7 @@ object NormalizedPayloads {
 
     private val validators: Map<Pair<String, String>, (JsonObject) -> List<RejectionCode>> = mapOf(
         ("heart_rate" to "samsung-health-heart-rate/1") to ::validateHeartRate,
+        ("heart_rate" to "samsung-health-heart-rate/2") to ::validateRangedHeartRate,
         ("exercise" to "samsung-health-exercise/1") to ::validateExercise,
         ("sleep" to "samsung-health-sleep/1") to ::validateSleep,
         ("blood_oxygen" to "samsung-health-blood-oxygen/1") to ::validateBloodOxygen,
@@ -204,6 +205,9 @@ object NormalizedPayloads {
 
     /** As long as the longest constant an SDK could plausibly name a glucose context with. */
     private const val MAX_GLUCOSE_CONSTANT_LENGTH = 64
+
+    private fun validateRangedHeartRate(payload: JsonObject): List<RejectionCode> =
+        rangedMeasurement(payload["heartRate"], "rate", BEATS_PER_MINUTE, PLAUSIBLE_BEATS_PER_MINUTE, "BeatsPerMinute")
 
     private fun validateBloodOxygen(payload: JsonObject): List<RejectionCode> =
         rangedMeasurement(payload["bloodOxygen"], "saturation", PERCENT, PERCENTAGE, "Percent")
