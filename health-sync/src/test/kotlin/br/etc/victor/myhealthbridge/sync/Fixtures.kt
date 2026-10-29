@@ -104,17 +104,96 @@ fun exerciseRecord(
 )
 
 fun session(
+    start: String? = "2026-08-10T09:00:00Z",
+    end: String? = "2026-08-10T09:30:00Z",
     duration: String? = "1800.000",
     distance: String? = "5000.0",
     calories: String? = "320.0",
     route: List<Map<String, SourceValue>> = emptyList(),
     fields: Map<String, SourceValue> = emptyMap(),
 ): Map<String, SourceValue> = buildMap {
+    start?.let { put("start_time", SourceValue.Text(it)) }
+    end?.let { put("end_time", SourceValue.Text(it)) }
     duration?.let { put("duration", number(it)) }
     distance?.let { put("distance", number(it)) }
     calories?.let { put("calories", number(it)) }
     if (route.isNotEmpty()) put("route", SourceValue.Series(route))
     putAll(fields)
+}
+
+/** Every metric a session of a ride can carry, under the names the adapter hands them over with. Every value is invented. */
+fun sessionMetrics(): Map<String, SourceValue> = mapOf(
+    "exercise_type" to SourceValue.Text("BIKING"),
+    "custom_title" to SourceValue.Text("hill leg"),
+    "count_type" to SourceValue.Text("REPETITION"),
+    "count" to number("42"),
+    "incline_distance" to number("1200.0"),
+    "decline_distance" to number("1100.0"),
+    "altitude_gain" to number("85.5"),
+    "altitude_loss" to number("80.25"),
+    "min_altitude" to number("700.0"),
+    "max_altitude" to number("785.5"),
+    "mean_speed" to number("6.5"),
+    "max_speed" to number("12.25"),
+    "mean_cadence" to number("80.0"),
+    "max_cadence" to number("110.0"),
+    "mean_calorie_burn_rate" to number("540.0"),
+    "max_calorie_burn_rate" to number("900.0"),
+    "mean_power" to number("180.0"),
+    "max_power" to number("420.0"),
+    "mean_rpm" to number("78.0"),
+    "max_rpm" to number("105.0"),
+    "mean_heart_rate" to number("142.0"),
+    "min_heart_rate" to number("96.0"),
+    "max_heart_rate" to number("171.0"),
+    "vo2_max" to number("44.5"),
+    "auto_detected" to SourceValue.Flag(false),
+    "comment" to SourceValue.Text("windy"),
+)
+
+fun exerciseLog(
+    at: String? = "2026-08-10T09:01:00Z",
+    heartRate: String? = "128.0",
+    cadence: String? = "82.0",
+    count: String? = "3",
+    power: String? = "175.0",
+    speed: String? = "6.25",
+): Map<String, SourceValue> = buildMap {
+    at?.let { put("timestamp", SourceValue.Text(it)) }
+    heartRate?.let { put("heart_rate", number(it)) }
+    cadence?.let { put("cadence", number(it)) }
+    count?.let { put("count", number(it)) }
+    power?.let { put("power", number(it)) }
+    speed?.let { put("speed", number(it)) }
+}
+
+/** A synthetic swimming log, as the adapter hands the one of a swimming session over. Every value is invented. */
+fun swimmingLog(
+    poolLength: String? = "25",
+    poolLengthUnit: String? = "meter",
+    totalDistance: String? = "1000.0",
+    totalDuration: String? = "1500.000",
+    intervals: List<Map<String, SourceValue>> = listOf(swimmingInterval()),
+): SourceValue.Nested = SourceValue.Nested(
+    buildMap {
+        poolLength?.let { put("pool_length", number(it)) }
+        poolLengthUnit?.let { put("pool_length_unit", SourceValue.Text(it)) }
+        totalDistance?.let { put("total_distance", number(it)) }
+        totalDuration?.let { put("total_duration", number(it)) }
+        if (intervals.isNotEmpty()) put("swimming_intervals", SourceValue.Series(intervals))
+    },
+)
+
+fun swimmingInterval(
+    duration: String? = "95.500",
+    strokeType: String? = "FREESTYLE",
+    strokeCount: String? = "36",
+    interval: String? = "1",
+): Map<String, SourceValue> = buildMap {
+    duration?.let { put("duration", number(it)) }
+    strokeType?.let { put("stroke_type", SourceValue.Text(it)) }
+    strokeCount?.let { put("stroke_count", number(it)) }
+    interval?.let { put("interval", number(it)) }
 }
 
 fun location(

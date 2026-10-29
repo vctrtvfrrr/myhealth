@@ -84,7 +84,7 @@ A Full Reconciliation depois de instalar a 1.0 é obrigatória, mesmo que todas 
 | Categoria na tela | Id | Classe | View |
 | --- | --- | --- | --- |
 | Resumo de atividade | `activity_summary` | Observed Snapshot | `current_hourly_activity_summary` |
-| Exercício | `exercise` | Health Record | `current_exercise` |
+| Exercício | `exercise` | Health Record | `current_exercise`, `current_exercise_session`, `current_exercise_log`, `current_exercise_swimming_interval` |
 | Localização de exercício | `exercise_location` | só permissão | `current_exercise_location` |
 | Andares subidos | `floors_climbed` | Health Record | `current_floors_climbed` |
 | Passos | `steps` | Observed Snapshot | `current_hourly_steps` |
@@ -192,6 +192,8 @@ union all select 'body_composition', count(*), count(*) filter (where period_sta
 union all select 'body_temperature', count(*), count(*) filter (where period_start < :'corte') from read_model.current_body_temperature
 union all select 'energy_score', count(*), count(*) filter (where local_date < :'corte') from read_model.current_energy_score
 union all select 'exercise', count(*), count(*) filter (where period_start < :'corte') from read_model.current_exercise
+union all select 'exercise.session', count(*), count(*) filter (where start_at < :'corte') from read_model.current_exercise_session
+union all select 'exercise.log', count(*), count(*) filter (where "at" < :'corte') from read_model.current_exercise_log
 union all select 'exercise_location', count(*), count(*) filter (where "at" < :'corte') from read_model.current_exercise_location
 union all select 'floors_climbed', count(*), count(*) filter (where period_start < :'corte') from read_model.current_floors_climbed
 union all select 'heart_rate', count(*), count(*) filter (where period_start < :'corte') from read_model.current_heart_rate

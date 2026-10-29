@@ -187,4 +187,7 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    // The Portuguese names of the exercise types are checked against the migrations that declare them.
+    systemProperty("repositoryRoot", rootDir.absolutePath)
+    inputs.dir(rootDir.resolve("ingestion-api/src/main/resources/db/migration"))
 }

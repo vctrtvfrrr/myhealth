@@ -21,6 +21,7 @@ object NormalizedPayloads {
         ("heart_rate" to "samsung-health-heart-rate/1") to ::validateHeartRate,
         ("heart_rate" to "samsung-health-heart-rate/2") to ::validateRangedHeartRate,
         ("exercise" to "samsung-health-exercise/1") to ::validateExercise,
+        ("exercise" to "samsung-health-exercise/2") to ::validateExerciseSessions,
         ("sleep" to "samsung-health-sleep/1") to ::validateSleep,
         ("blood_oxygen" to "samsung-health-blood-oxygen/1") to ::validateBloodOxygen,
         ("skin_temperature" to "samsung-health-skin-temperature/1") to ::validateSkinTemperature,
@@ -121,19 +122,110 @@ object NormalizedPayloads {
      * casts each of them to the type its name promises, and a value that cannot be cast would be stored
      * as valid and then fail every query over the view rather than only the record that carried it.
      */
-    private fun route(node: JsonElement?): List<RejectionCode> {
-        if (node == null) return emptyList()
-        val points = node as? JsonArray ?: return listOf(RejectionCode.INVALID_PAYLOAD)
+    private fun route(node: JsonElement?): List<RejectionCode> =
+        if (series(node, ::point)) emptyList() else listOf(RejectionCode.INVALID_PAYLOAD)
 
-        val valid = points.all { point ->
-            val coordinates = point as? JsonObject ?: return@all false
-            coordinates.required("latitudeDegrees", LATITUDE_DEGREES) &&
-                coordinates.required("longitudeDegrees", LONGITUDE_DEGREES) &&
-                coordinates.optional("altitudeMeters", PLAUSIBLE_ALTITUDE_METERS) &&
-                coordinates.optional("accuracyMeters", PLAUSIBLE_ACCURACY_METERS) &&
-                coordinates.instant("at")
+    private fun point(coordinates: JsonObject): Boolean =
+        coordinates.required("latitudeDegrees", LATITUDE_DEGREES) &&
+            coordinates.required("longitudeDegrees", LONGITUDE_DEGREES) &&
+            coordinates.optional("altitudeMeters", PLAUSIBLE_ALTITUDE_METERS) &&
+            coordinates.optional("accuracyMeters", PLAUSIBLE_ACCURACY_METERS) &&
+            coordinates.instant("at")
+
+    /**
+     * Beyond anything a session can plausibly report, for the reason the heart rate range is. A rate the
+     * source left at zero is still a session, so the heart rates of an exercise start at zero.
+     */
+    private val PLAUSIBLE_EXERCISE_BEATS_PER_MINUTE = BigDecimal.ZERO..BigDecimal(500)
+    private val PLAUSIBLE_METERS_PER_SECOND = BigDecimal.ZERO..BigDecimal(1_000)
+    private val PLAUSIBLE_PER_MINUTE = BigDecimal.ZERO..BigDecimal(100_000)
+    private val PLAUSIBLE_KILOCALORIES_PER_HOUR = BigDecimal.ZERO..BigDecimal(100_000)
+    private val PLAUSIBLE_WATTS = BigDecimal.ZERO..BigDecimal(100_000)
+    private val PLAUSIBLE_COUNT = BigDecimal.ZERO..BigDecimal(100_000_000)
+
+    /** Samsung Health documents no unit for it, so the bound only catches what no VO2 max could mean. */
+    private val PLAUSIBLE_VO2_MAX = BigDecimal.ZERO..BigDecimal(1_000)
+
+    /** Each metric a session may carry, under the key that names its unit, with its plausible range. */
+    private val SESSION_METRICS: Map<String, ClosedRange<BigDecimal>> = mapOf(
+        "durationSeconds" to PLAUSIBLE_SECONDS,
+        "count" to PLAUSIBLE_COUNT,
+        "caloriesKilocalories" to PLAUSIBLE_KILOCALORIES,
+        "distanceMeters" to PLAUSIBLE_METERS,
+        "inclineDistanceMeters" to PLAUSIBLE_METERS,
+        "declineDistanceMeters" to PLAUSIBLE_METERS,
+        "altitudeGainMeters" to PLAUSIBLE_METERS,
+        "altitudeLossMeters" to PLAUSIBLE_METERS,
+        "minAltitudeMeters" to PLAUSIBLE_ALTITUDE_METERS,
+        "maxAltitudeMeters" to PLAUSIBLE_ALTITUDE_METERS,
+        "meanSpeedMetersPerSecond" to PLAUSIBLE_METERS_PER_SECOND,
+        "maxSpeedMetersPerSecond" to PLAUSIBLE_METERS_PER_SECOND,
+        "meanCadencePerMinute" to PLAUSIBLE_PER_MINUTE,
+        "maxCadencePerMinute" to PLAUSIBLE_PER_MINUTE,
+        "meanCalorieBurnRateKilocaloriesPerHour" to PLAUSIBLE_KILOCALORIES_PER_HOUR,
+        "maxCalorieBurnRateKilocaloriesPerHour" to PLAUSIBLE_KILOCALORIES_PER_HOUR,
+        "meanPowerWatts" to PLAUSIBLE_WATTS,
+        "maxPowerWatts" to PLAUSIBLE_WATTS,
+        "meanRpm" to PLAUSIBLE_PER_MINUTE,
+        "maxRpm" to PLAUSIBLE_PER_MINUTE,
+        "meanHeartRateBeatsPerMinute" to PLAUSIBLE_EXERCISE_BEATS_PER_MINUTE,
+        "minHeartRateBeatsPerMinute" to PLAUSIBLE_EXERCISE_BEATS_PER_MINUTE,
+        "maxHeartRateBeatsPerMinute" to PLAUSIBLE_EXERCISE_BEATS_PER_MINUTE,
+        "vo2Max" to PLAUSIBLE_VO2_MAX,
+    )
+
+    private val LOG_METRICS: Map<String, ClosedRange<BigDecimal>> = mapOf(
+        "heartRateBeatsPerMinute" to PLAUSIBLE_EXERCISE_BEATS_PER_MINUTE,
+        "cadencePerMinute" to PLAUSIBLE_PER_MINUTE,
+        "count" to PLAUSIBLE_COUNT,
+        "powerWatts" to PLAUSIBLE_WATTS,
+        "speedMetersPerSecond" to PLAUSIBLE_METERS_PER_SECOND,
+    )
+
+    /**
+     * Version 2 adds every session of the exercise to what version 1 carried. Inside a session every key
+     * states its unit in its name, as a point of a route does, so each one is checked against the range
+     * its name promises: the read model casts all of them.
+     */
+    private fun validateExerciseSessions(payload: JsonObject): List<RejectionCode> {
+        val codes = validateExercise(payload).toMutableList()
+        val exercise = payload["exercise"] as? JsonObject ?: return codes
+
+        if (!exercise.optionalText("customTitle") || !series(exercise["sessions"], ::exerciseSession)) {
+            codes += RejectionCode.INVALID_PAYLOAD
         }
-        return if (valid) emptyList() else listOf(RejectionCode.INVALID_PAYLOAD)
+
+        return codes.distinct()
+    }
+
+    private fun exerciseSession(session: JsonObject): Boolean =
+        session.requiredInstant("start") &&
+            session.requiredInstant("end") &&
+            session.optionalConstant("type") &&
+            session.optionalConstant("countType") &&
+            session.optionalText("customTitle") &&
+            session.optionalText("comment") &&
+            session.optionalFlag("autoDetected") &&
+            SESSION_METRICS.all { (key, plausible) -> session.optional(key, plausible) } &&
+            swimming(session["swimming"]) &&
+            series(session["log"]) { entry ->
+                entry.requiredInstant("at") && LOG_METRICS.all { (key, plausible) -> entry.optional(key, plausible) }
+            } &&
+            series(session["route"], ::point)
+
+    private fun swimming(node: JsonElement?): Boolean {
+        if (node == null) return true
+        val swimming = node as? JsonObject ?: return false
+
+        return swimming.optional("poolLengthMeters", PLAUSIBLE_METERS) &&
+            swimming.optional("totalDistanceMeters", PLAUSIBLE_METERS) &&
+            swimming.optional("totalDurationSeconds", PLAUSIBLE_SECONDS) &&
+            series(swimming["intervals"]) { interval ->
+                interval.optional("durationSeconds", PLAUSIBLE_SECONDS) &&
+                    interval.optionalConstant("strokeType") &&
+                    interval.optional("strokeCount", PLAUSIBLE_COUNT) &&
+                    interval.optional("interval", PLAUSIBLE_COUNT)
+            }
     }
 
     /**

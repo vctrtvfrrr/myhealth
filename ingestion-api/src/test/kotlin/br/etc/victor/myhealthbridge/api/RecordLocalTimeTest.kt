@@ -112,8 +112,10 @@ class RecordLocalTimeTest : IngestionApiTest() {
                 "current_heart_rate_series",
                 "current_blood_oxygen_series",
                 "current_skin_temperature_series",
+                "current_exercise_session",
             ).associateWith { listOf("start_at_local", "end_at_local") } +
-            listOf("current_blood_glucose_series", "current_exercise_location").associateWith { listOf("at_local") }
+            listOf("current_blood_glucose_series", "current_exercise_location", "current_exercise_log")
+                .associateWith { listOf("at_local") }
 
         val columns = api.query { connection ->
             connection.createStatement().use { statement ->
@@ -180,8 +182,17 @@ class RecordLocalTimeTest : IngestionApiTest() {
             )
             send(
                 Envelopes.EXERCISE_RECORD_TYPE,
-                Envelopes.exercise(samsungUid = uid, route = listOf(Envelopes.routePoint(at = CHILD_START)))
-                    .withPeriod(START, END, zone.offset, endOffset = "+00:00"),
+                ExerciseEnvelopes.exercise(
+                    samsungUid = uid,
+                    sessions = listOf(
+                        ExerciseEnvelopes.session(
+                            start = CHILD_START,
+                            end = CHILD_END,
+                            log = listOf(ExerciseEnvelopes.logEntry(at = CHILD_START)),
+                            route = listOf(Envelopes.routePoint(at = CHILD_START)),
+                        ),
+                    ),
+                ).withPeriod(START, END, zone.offset, endOffset = "+00:00"),
             )
 
             val localChildStart = if (zone == west) "2026-08-10 20:30:00" else "2026-08-11 09:00:00"
@@ -192,6 +203,7 @@ class RecordLocalTimeTest : IngestionApiTest() {
                 "current_heart_rate_series",
                 "current_blood_oxygen_series",
                 "current_skin_temperature_series",
+                "current_exercise_session",
             ).forEach { view ->
                 assertEquals(
                     listOf(localChildStart, localChildEnd),
@@ -199,7 +211,7 @@ class RecordLocalTimeTest : IngestionApiTest() {
                     "$view ${zone.name}",
                 )
             }
-            listOf("current_blood_glucose_series", "current_exercise_location").forEach { view ->
+            listOf("current_blood_glucose_series", "current_exercise_location", "current_exercise_log").forEach { view ->
                 assertEquals(listOf(localChildStart), row(listOf("at_local::text"), view, uid), "$view ${zone.name}")
             }
         }

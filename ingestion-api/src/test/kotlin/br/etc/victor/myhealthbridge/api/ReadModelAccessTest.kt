@@ -23,7 +23,18 @@ class ReadModelAccessTest : IngestionApiTest() {
         api.postBatch(
             Envelopes.batch(
                 recordType = Envelopes.EXERCISE_RECORD_TYPE,
-                items = listOf(Envelopes.exercise(samsungUid = "uid-read-only", route = listOf(Envelopes.routePoint()))),
+                items = listOf(
+                    ExerciseEnvelopes.exercise(
+                        samsungUid = "uid-read-only",
+                        sessions = listOf(
+                            ExerciseEnvelopes.session(
+                                log = listOf(ExerciseEnvelopes.logEntry()),
+                                swimming = ExerciseEnvelopes.swimming(),
+                                route = listOf(Envelopes.routePoint()),
+                            ),
+                        ),
+                    ),
+                ),
             ),
             token,
         )
@@ -80,6 +91,9 @@ class ReadModelAccessTest : IngestionApiTest() {
             )
             listOf(
                 "current_heart_rate_series",
+                "current_exercise_session",
+                "current_exercise_log",
+                "current_exercise_swimming_interval",
                 "current_sleep",
                 "current_sleep_session",
                 "current_sleep_stage",

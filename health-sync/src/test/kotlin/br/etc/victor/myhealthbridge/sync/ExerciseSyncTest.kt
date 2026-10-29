@@ -79,7 +79,8 @@ class ExerciseSyncTest {
     private fun FakeIngestionClient.delivered(): List<HealthRecordEnvelope> = batches.flatMap { it.items }
 
     private fun HealthRecordEnvelope.route() =
-        (state as RecordState.Present).normalizedPayload.getValue("exercise").jsonObject["route"]?.jsonArray
+        (state as RecordState.Present).normalizedPayload.getValue("exercise").jsonObject["sessions"]
+            ?.jsonArray?.single()?.jsonObject?.get("route")?.jsonArray
 
     /** A history already walked and delivered, which is the only state the changes feed is read in. */
     private suspend fun imported() {

@@ -9,7 +9,7 @@ Implementadas: 25 de 25.
 | Categoria | Classe | Situação | Permissão | Leituras | Paginação | Mudanças | Dados associados | Identidade | Mapper | Projeção |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `activity_summary` | Observed Snapshot | implementada | `activity_summary` | `AGGREGATE` | 744 janelas por leitura | não | — | `activity_summary` + hora local | `samsung-health-activity-summary/1` | `read_model.current_hourly_activity_summary` |
-| `exercise` | Health Record | implementada | `exercise` | `TIME_RANGE`, `CHANGES`, `ASSOCIATED` | 50 registros por página | sim | `sessions`, `sessions.route` | `exercise` + Samsung UID | `samsung-health-exercise/1` | `read_model.current_exercise` |
+| `exercise` | Health Record | implementada | `exercise` | `TIME_RANGE`, `CHANGES`, `ASSOCIATED` | 50 registros por página | sim | `sessions`, `sessions.route` | `exercise` + Samsung UID | `samsung-health-exercise/2` | `read_model.current_exercise` |
 | `exercise_location` | só permissão | implementada | `exercise_location` | — | — | não | — | dentro de `exercise` | — | `read_model.current_exercise_location` |
 | `floors_climbed` | Health Record | implementada | `floors_climbed` | `TIME_RANGE`, `CHANGES` | 500 registros por página | sim | — | `floors_climbed` + Samsung UID | `samsung-health-floors-climbed/1` | `read_model.current_floors_climbed` |
 | `steps` | Observed Snapshot | implementada | `steps` | `AGGREGATE` | 744 janelas por leitura | não | — | `steps` + hora local | `samsung-health-steps/1` | `read_model.current_hourly_steps` |
