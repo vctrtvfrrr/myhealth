@@ -3,6 +3,7 @@ package br.etc.victor.myhealthbridge.api
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -91,6 +92,24 @@ class IngestionHealthCategoryMigrationTest {
                 }
             },
         )
+    }
+
+    @Test
+    fun `refuses a new ingestion that names no category`() {
+        val refusal = runCatching {
+            api.query { connection ->
+                connection.createStatement().use { statement ->
+                    statement.execute(
+                        """
+                        insert into ingestion (id, ingestion_device_id, contract_version, item_count, received_at)
+                        values ('00000000-0000-0000-0000-000000000006', 1, 1, 1, '2026-07-02T12:00:00Z')
+                        """.trimIndent(),
+                    )
+                }
+            }
+        }.exceptionOrNull()
+
+        assertTrue(refusal?.message.orEmpty().contains("ingestion_names_its_health_category"), refusal.toString())
     }
 
     private fun categoryOf(ingestionId: String): String? = api.query { connection ->

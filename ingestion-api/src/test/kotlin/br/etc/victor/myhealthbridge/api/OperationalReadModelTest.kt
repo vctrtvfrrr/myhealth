@@ -38,6 +38,20 @@ class OperationalReadModelTest : IngestionApiTest() {
     }
 
     @Test
+    fun `records the health category of a batch whose every item was rejected`() {
+        val response = api.postBatch(
+            Envelopes.batch(items = listOf(Envelopes.heartRate(samsungUid = "uid-all-rejected", mapperVersion = "heart_rate/999"))),
+            token,
+        )
+
+        assertEquals(listOf(Envelopes.RECORD_TYPE, "1", "1", "0", "0", "1", null, null), outcomeOf(ingestionId(response.body)))
+        assertEquals(
+            listOf(Triple(0, "unsupported_mapper", Envelopes.RECORD_TYPE)),
+            rejectionsOf(ingestionId(response.body)),
+        )
+    }
+
+    @Test
     fun `records the snapshot type of a batch of observed snapshots`() {
         val response = api.postBatch(
             Snapshots.batch(items = listOf(Snapshots.steps(start = "2026-08-20T09:00:00", end = "2026-08-20T10:00:00"))),

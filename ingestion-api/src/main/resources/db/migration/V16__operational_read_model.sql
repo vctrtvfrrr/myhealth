@@ -18,6 +18,11 @@ set health_category = coalesce(
     (select d.record_type from declared_inventory d where d.ingestion_id = i.id)
 );
 
+-- Not valid, so that it binds every Ingestion recorded from now on and leaves the legacy nulls alone.
+alter table ingestion add constraint ingestion_names_its_health_category check (health_category is not null) not valid;
+
+create index ingestion_by_received_at on ingestion (received_at);
+
 -- The synchronization as the API saw it, one row per Ingestion, for the operational panels. It carries
 -- no health content and no Ingestion Device, and leaves grouping in time to each panel's own query.
 create view read_model.ingestion_outcome as
@@ -27,21 +32,20 @@ select
     i.health_category,
     i.contract_version,
     i.item_count,
-    coalesce(items.accepted, 0) as accepted_count,
-    coalesce(items.already_present, 0) as already_present_count,
-    coalesce(items.rejected, 0) as rejected_count,
+    items.accepted as accepted_count,
+    items.already_present as already_present_count,
+    items.rejected as rejected_count,
     d.status as inventory_status,
     d.removal_count as concluded_removal_count
 from ingestion i
-left join (
+cross join lateral (
     select
-        ingestion_id,
-        count(*) filter (where status = 'accepted') as accepted,
-        count(*) filter (where status = 'already_present') as already_present,
-        count(*) filter (where status = 'rejected') as rejected
-    from ingestion_item
-    group by ingestion_id
-) items on items.ingestion_id = i.id
+        count(*) filter (where item.status = 'accepted') as accepted,
+        count(*) filter (where item.status = 'already_present') as already_present,
+        count(*) filter (where item.status = 'rejected') as rejected
+    from ingestion_item item
+    where item.ingestion_id = i.id
+) items
 left join declared_inventory d on d.ingestion_id = i.id;
 
 -- One row per rejection code of every rejected item: an item refused for two reasons counts under both.
