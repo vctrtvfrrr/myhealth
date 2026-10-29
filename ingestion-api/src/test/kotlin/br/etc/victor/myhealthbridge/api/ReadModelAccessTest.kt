@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
 
@@ -72,7 +71,7 @@ class ReadModelAccessTest : IngestionApiTest() {
             Snapshots.batch(items = listOf(Snapshots.steps(start = "2026-07-01T09:00:00", end = "2026-07-01T10:00:00"))),
             token,
         )
-        grantReadAccess()
+        grantReadAccess(READER_PASSWORD)
 
         asReader { reader ->
             assertEquals(
@@ -171,13 +170,6 @@ class ReadModelAccessTest : IngestionApiTest() {
         }
     }
 
-    private fun grantReadAccess() = api.query { connection ->
-        connection.createStatement().use { statement ->
-            statement.execute("create role $READER login password '$READER_PASSWORD'")
-            statement.execute(File(System.getProperty("repositoryRoot"), "docs/sql/read-access.sql").readText())
-        }
-    }
-
     private fun <T> asReader(block: (Connection) -> T): T =
         DriverManager.getConnection(postgres.jdbcUrl, READER, READER_PASSWORD).use(block)
 
@@ -196,7 +188,7 @@ class ReadModelAccessTest : IngestionApiTest() {
             .contains("permission denied")
 
     private companion object {
-        const val READER = "myhealth_read"
+        const val READER = PlatformDashboards.READ_ACCOUNT
         const val READER_PASSWORD = "read-only"
     }
 }

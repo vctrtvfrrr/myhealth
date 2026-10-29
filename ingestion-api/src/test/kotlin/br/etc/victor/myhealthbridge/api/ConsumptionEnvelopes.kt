@@ -64,16 +64,23 @@ object ConsumptionEnvelopes {
         mapperVersion: String = FLOORS_CLIMBED_MAPPER_VERSION,
         observedAt: String = "2026-08-10T09:11:00Z",
         withPayload: Boolean = true,
-    ): JsonObject = present(samsungUid, mapperVersion, observedAt) {
+        start: String = PERIOD_START,
+        end: String = PERIOD_END,
+    ): JsonObject = present(samsungUid, mapperVersion, observedAt, start, end) {
         if (withPayload) {
             putJsonObject("floorsClimbed") { floors?.let { put("floors", measurement(it)) } }
         }
     }
 
+    private const val PERIOD_START = "2026-08-10T09:00:00Z"
+    private const val PERIOD_END = "2026-08-10T09:10:00Z"
+
     private fun present(
         samsungUid: String,
         mapperVersion: String,
         observedAt: String,
+        start: String = PERIOD_START,
+        end: String = PERIOD_END,
         normalized: JsonObjectBuilder.() -> Unit,
     ): JsonObject = buildJsonObject {
         put("samsungUid", samsungUid)
@@ -96,11 +103,11 @@ object ConsumptionEnvelopes {
             put("kind", "present")
             putJsonObject("period") {
                 putJsonObject("start") {
-                    put("instant", "2026-08-10T09:00:00Z")
+                    put("instant", start)
                     put("offset", "-03:00")
                 }
                 putJsonObject("end") {
-                    put("instant", "2026-08-10T09:10:00Z")
+                    put("instant", end)
                     put("offset", "-03:00")
                 }
             }

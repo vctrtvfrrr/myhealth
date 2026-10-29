@@ -113,14 +113,18 @@ class DeploymentContractTest {
     }
 
     @Test
-    fun `the observability generation is empty`() {
+    fun `the observability generation holds only dashboards, where the action collects them`() {
         val observability = DeploymentArtifacts.root.resolve("observability")
+        val published = observability.walkTopDown()
+            .filter { it.isFile && it.extension == "json" }
+            .map { it.relativeTo(observability).invariantSeparatorsPath }
+            .toList()
 
-        assertTrue(observability.isDirectory, "the empty generation is not declared anywhere")
+        assertTrue(published.isNotEmpty(), "the generation publishes no dashboard")
         assertEquals(
             emptyList<String>(),
-            observability.walkTopDown().filter { it.extension == "json" }.map { it.name }.toList(),
-            "the first version publishes an empty observability generation on purpose",
+            published.filterNot { Regex("""dashboards/[^/]+\.json""").matches(it) },
+            "the action collects only dashboards/*.json and alerts/*.json, and this stack declares no alert rule",
         )
     }
 }

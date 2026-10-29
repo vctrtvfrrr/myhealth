@@ -1,0 +1,585 @@
+{
+  "uid": "atividade",
+  "title": "Atividade",
+  "description": "Passos, tempo ativo, calorias, distância e andares, com a meta diária, pela hora local de cada registro.",
+  "tags": [
+    "saude"
+  ],
+  "timezone": "browser",
+  "weekStart": "sunday",
+  "time": {
+    "from": "now-7d/d",
+    "to": "now"
+  },
+  "refresh": "",
+  "schemaVersion": 41,
+  "graphTooltip": 1,
+  "editable": false,
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Atividade",
+      "type": "link",
+      "url": "/d/myhealth--atividade",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "custom",
+        "name": "agrupar",
+        "label": "Agrupar por",
+        "query": "Hora : hour,Dia : day,Semana : week,Mês : month",
+        "current": {
+          "text": "Dia",
+          "value": "day"
+        },
+        "options": [
+          {
+            "text": "Hora",
+            "value": "hour",
+            "selected": false
+          },
+          {
+            "text": "Dia",
+            "value": "day",
+            "selected": true
+          },
+          {
+            "text": "Semana",
+            "value": "week",
+            "selected": false
+          },
+          {
+            "text": "Mês",
+            "value": "month",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Passos",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 1,
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Meta"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineInterpolation",
+                "value": "stepAfter"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nfirst_data as (\n  select read_model.local_bucket('$agrupar', min(window_start)) as bucket from read_model.current_hourly_steps\n),\nbuckets as (\n  select generate_series(\n           greatest(read_model.local_bucket('$agrupar', from_local), first_data.bucket),\n           read_model.local_bucket('$agrupar', least(to_local, now_local)),\n           '1 $agrupar'::interval) as bucket\n  from period, first_data\n  where first_data.bucket is not null\n),\nmetric as (\n  select read_model.local_bucket('$agrupar', window_start) as bucket, sum(steps) as value\n  from read_model.current_hourly_steps, period\n  where window_start >= from_local and window_start < to_local\n  group by 1\n),\ngoal as (\n  select read_model.local_bucket('$agrupar', day::timestamp) as bucket, sum(steps) as goal\n  from read_model.current_daily_goal, period\n  where goal = 'steps_goal' and '$agrupar' <> 'hour'\n    and day >= from_local::date and day < to_local\n  group by 1\n)\nselect coalesce(b.bucket, m.bucket, g.bucket) at time zone '$__timezone' as time,\n       case when m.bucket is not null then coalesce(m.value, 0) when b.bucket is not null then 0 end as \"Passos\",\n       g.goal as \"Meta\"\nfrom buckets b\nfull outer join metric m on m.bucket = b.bucket\nfull outer join goal g on g.bucket = coalesce(b.bucket, m.bucket)\nwhere coalesce(b.bucket, m.bucket, g.bucket) < (select to_local from period)\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Tempo ativo",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dthms",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 1,
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Meta"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineInterpolation",
+                "value": "stepAfter"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nfirst_data as (\n  select read_model.local_bucket('$agrupar', min(window_start)) as bucket from read_model.current_hourly_activity_summary\n),\nbuckets as (\n  select generate_series(\n           greatest(read_model.local_bucket('$agrupar', from_local), first_data.bucket),\n           read_model.local_bucket('$agrupar', least(to_local, now_local)),\n           '1 $agrupar'::interval) as bucket\n  from period, first_data\n  where first_data.bucket is not null\n),\nmetric as (\n  select read_model.local_bucket('$agrupar', window_start) as bucket, sum(active_time_seconds) as value\n  from read_model.current_hourly_activity_summary, period\n  where window_start >= from_local and window_start < to_local\n  group by 1\n),\ngoal as (\n  select read_model.local_bucket('$agrupar', day::timestamp) as bucket, sum(active_time_seconds) as goal\n  from read_model.current_daily_goal, period\n  where goal = 'active_time_goal' and '$agrupar' <> 'hour'\n    and day >= from_local::date and day < to_local\n  group by 1\n)\nselect coalesce(b.bucket, m.bucket, g.bucket) at time zone '$__timezone' as time,\n       case when m.bucket is not null then coalesce(m.value, 0) when b.bucket is not null then 0 end as \"Tempo ativo\",\n       g.goal as \"Meta\"\nfrom buckets b\nfull outer join metric m on m.bucket = b.bucket\nfull outer join goal g on g.bucket = coalesce(b.bucket, m.bucket)\nwhere coalesce(b.bucket, m.bucket, g.bucket) < (select to_local from period)\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Calorias ativas",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: kcal",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 1,
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Meta"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineInterpolation",
+                "value": "stepAfter"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nfirst_data as (\n  select read_model.local_bucket('$agrupar', min(window_start)) as bucket from read_model.current_hourly_activity_summary\n),\nbuckets as (\n  select generate_series(\n           greatest(read_model.local_bucket('$agrupar', from_local), first_data.bucket),\n           read_model.local_bucket('$agrupar', least(to_local, now_local)),\n           '1 $agrupar'::interval) as bucket\n  from period, first_data\n  where first_data.bucket is not null\n),\nmetric as (\n  select read_model.local_bucket('$agrupar', window_start) as bucket, sum(active_calories_burned_kilocalories) as value\n  from read_model.current_hourly_activity_summary, period\n  where window_start >= from_local and window_start < to_local\n  group by 1\n),\ngoal as (\n  select read_model.local_bucket('$agrupar', day::timestamp) as bucket, sum(active_calories_burned_kilocalories) as goal\n  from read_model.current_daily_goal, period\n  where goal = 'active_calories_burned_goal' and '$agrupar' <> 'hour'\n    and day >= from_local::date and day < to_local\n  group by 1\n)\nselect coalesce(b.bucket, m.bucket, g.bucket) at time zone '$__timezone' as time,\n       case when m.bucket is not null then coalesce(m.value, 0) when b.bucket is not null then 0 end as \"Calorias ativas\",\n       g.goal as \"Meta\"\nfrom buckets b\nfull outer join metric m on m.bucket = b.bucket\nfull outer join goal g on g.bucket = coalesce(b.bucket, m.bucket)\nwhere coalesce(b.bucket, m.bucket, g.bucket) < (select to_local from period)\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Calorias totais",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: kcal",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 1,
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nfirst_data as (\n  select read_model.local_bucket('$agrupar', min(window_start)) as bucket from read_model.current_hourly_activity_summary\n),\nbuckets as (\n  select generate_series(\n           greatest(read_model.local_bucket('$agrupar', from_local), first_data.bucket),\n           read_model.local_bucket('$agrupar', least(to_local, now_local)),\n           '1 $agrupar'::interval) as bucket\n  from period, first_data\n  where first_data.bucket is not null\n),\nmetric as (\n  select read_model.local_bucket('$agrupar', window_start) as bucket, sum(calories_burned_kilocalories) as value\n  from read_model.current_hourly_activity_summary, period\n  where window_start >= from_local and window_start < to_local\n  group by 1\n)\nselect coalesce(b.bucket, m.bucket) at time zone '$__timezone' as time,\n       case when m.bucket is not null then coalesce(m.value, 0) when b.bucket is not null then 0 end as \"Calorias totais\"\nfrom buckets b\nfull outer join metric m on m.bucket = b.bucket\nwhere coalesce(b.bucket, m.bucket) < (select to_local from period)\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Distância",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthkm",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 1,
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "decimals": 2
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nfirst_data as (\n  select read_model.local_bucket('$agrupar', min(window_start)) as bucket from read_model.current_hourly_activity_summary\n),\nbuckets as (\n  select generate_series(\n           greatest(read_model.local_bucket('$agrupar', from_local), first_data.bucket),\n           read_model.local_bucket('$agrupar', least(to_local, now_local)),\n           '1 $agrupar'::interval) as bucket\n  from period, first_data\n  where first_data.bucket is not null\n),\nmetric as (\n  select read_model.local_bucket('$agrupar', window_start) as bucket, sum(distance_meters / 1000) as value\n  from read_model.current_hourly_activity_summary, period\n  where window_start >= from_local and window_start < to_local\n  group by 1\n)\nselect coalesce(b.bucket, m.bucket) at time zone '$__timezone' as time,\n       case when m.bucket is not null then coalesce(m.value, 0) when b.bucket is not null then 0 end as \"Distância\"\nfrom buckets b\nfull outer join metric m on m.bucket = b.bucket\nwhere coalesce(b.bucket, m.bucket) < (select to_local from period)\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Andares",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 1,
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select read_model.local_bucket('$agrupar', period_start_local) at time zone '$__timezone' as time,\n       sum(floors) as \"Andares\"\nfrom read_model.current_floors_climbed\nwhere period_start_local >= $__timeFrom()::timestamptz at time zone '$__timezone'\n  and period_start_local < $__timeTo()::timestamptz at time zone '$__timezone'\ngroup by 1\norder by 1"
+        }
+      ]
+    }
+  ]
+}

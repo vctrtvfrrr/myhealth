@@ -25,5 +25,26 @@ services:
       postgres:
         condition: service_healthy
 
+  # The dashboards as the platform shows them, read from production through an SSH tunnel as
+  # myhealth_read (ADR 0028). Started by `./gradlew previewUp`; see observability/README.md.
+  grafana:
+    image: grafana/grafana:13.1
+    profiles:
+      - preview
+    environment:
+      MYHEALTH_READ_PASSWORD: ${MYHEALTH_READ_PASSWORD:-}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Editor
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - '127.0.0.1:3039:3000'
+    volumes:
+      - ./build/grafana-preview/provisioning:/etc/grafana/provisioning:ro
+      - ./build/grafana-preview/dashboards:/etc/grafana/dashboards:ro
+
 volumes:
   pgdata:

@@ -86,6 +86,8 @@ Não fazem parte da primeira versão: escrita no Samsung Health, captura de sens
 | `./gradlew integrationTest` | Executa apenas os testes de integração, que sobem containers. |
 | `./gradlew :ingestion-api:buildImage` | Constrói a imagem `myhealth-api:local` a partir da distribuição do Gradle; `-Pmyhealth.image=<nome:tag>` troca o nome. |
 | `./gradlew devUp` | Reconstrói a imagem e sobe PostgreSQL e a API em containers para desenvolvimento local. |
+| `./gradlew :ingestion-api:grafanaPreview` | Escreve em `build/grafana-preview/` os dashboards como a plataforma os salva e o provisionamento da prévia local. |
+| `./gradlew previewUp` | Escreve a prévia e sobe o Grafana local que lê a produção por túnel SSH; ver [`observability/README.md`](observability/README.md). |
 | `./gradlew :ingestion-api:run` | Sobe a API de ingestão em `http://localhost:8039` (porta configurável por `PORT`), exigindo um PostgreSQL alcançável. |
 | `./gradlew :android-app:assembleDebug` | Gera o APK de depuração em `android-app/build/outputs/apk/debug/`. |
 | `./gradlew :android-app:installDebug` | Instala o APK no aparelho ou emulador conectado. |
@@ -293,7 +295,7 @@ Essa conta foi provisionada em produção em 19/10/2026. As sete consultas que o
 
 A credencial fica no armazenamento privado de senhas do Data Owner, fora do repositório, do `.env` da API e dos secrets do CI. O arquivo `/home/codelab/.config/myhealth/read.pgpass`, usado no provisionamento, foi removido da VPS em 19/10/2026 depois que o Data Owner confirmou ter salvo a senha. O papel e sua senha continuam válidos no PostgreSQL.
 
-O Grafana da plataforma também lê o `read_model` por essa conta, pela datasource `myhealth-read` que o `codelab/infra` provisiona (ADR `0027`). Quando ela existir, a senha passa a viver também numa chave do Ansible Vault do `codelab/infra`. Para rotacioná-la, altere a senha do papel, atualize o armazenamento privado e o vault e rode de novo o playbook do Grafana; até isso terminar, os dashboards e o `psql` pela conta de leitura falham juntos.
+O Grafana da plataforma também lê o `read_model` por essa conta, pela datasource `myhealth-read` que o `codelab/infra` provisiona (ADR `0027`), e a senha vive também numa chave do Ansible Vault do `codelab/infra`. Para rotacioná-la, em ordem: altere a senha do papel (`\password myhealth_read` como administrador), atualize o armazenamento privado do Data Owner e a chave do vault e rode de novo o playbook do Grafana na plataforma. Até o último passo terminar, os dashboards falham por autenticação; até o armazenamento privado ser atualizado, o `psql` pela conta de leitura e a prévia local dos dashboards também falham.
 
 Para consultar pela conta de leitura, execute na VPS o comando abaixo e informe a senha no prompt do `psql`, sem colocá-la na linha de comando:
 
@@ -441,6 +443,6 @@ Na API, só `DATABASE_PORT` e `PORT` têm default; as demais são obrigatórias 
 
 Antes do primeiro deploy, a plataforma precisa provisionar a database no PostgreSQL compartilhado e o domínio — ver o runbook de Application Stacks em `codelab/infra`.
 
-O diretório [`observability/`](observability/) publica deliberadamente uma geração vazia: dashboards e regras de alerta específicos desta aplicação estão fora do escopo da primeira versão.
+O diretório [`observability/`](observability/) é a geração de observabilidade que a action publica a cada deploy: os dashboards da Personal Health History, na pasta `App: myhealth` do Grafana da plataforma, e nenhuma regra de alerta. Uma geração que o reconciliador da plataforma recusa impede o deploy da API, e por isso o CI verifica as regras dele e roda cada painel num Grafana real antes. O [`observability/README.md`](observability/README.md) descreve como escrever, testar e pré-visualizar um dashboard. Ver ADRs `0005`, `0027` e `0028`.
 
 `DeploymentContractTest` e `RenderedComposeTest` cobrem esses artefatos: o segundo renderiza o `compose.yml` pelo próprio Compose, a partir do `.env` que a action escreveria, e é por isso que roda em `integrationTest`.

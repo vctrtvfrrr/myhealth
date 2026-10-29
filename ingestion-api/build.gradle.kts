@@ -28,11 +28,15 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 
+// The tests read these files from the repository, so a change to them alone must run the tests again.
+val repositoryInputs = files(rootDir.resolve("observability"), rootDir.resolve("docs/sql"))
+
 tasks.test {
     useJUnitPlatform {
         excludeTags("integration")
     }
     systemProperty("repositoryRoot", rootDir.absolutePath)
+    inputs.files(repositoryInputs).withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 val integrationTest = tasks.register<Test>("integrationTest") {
@@ -49,11 +53,23 @@ val integrationTest = tasks.register<Test>("integrationTest") {
     dependsOn(tasks.installDist)
     systemProperty("distributionDir", layout.buildDirectory.dir("install/${project.name}").get().asFile.absolutePath)
     systemProperty("repositoryRoot", rootDir.absolutePath)
+    inputs.files(repositoryInputs).withPathSensitivity(PathSensitivity.RELATIVE)
     shouldRunAfter(tasks.test)
 }
 
 tasks.check {
     dependsOn(integrationTest)
+}
+
+tasks.register<JavaExec>("grafanaPreview") {
+    group = "observability"
+    description = "Writes the dashboards as the platform saves them, with the provisioning of the local preview."
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass = "br.etc.victor.myhealthbridge.api.GrafanaPreviewKt"
+    args(
+        rootDir.resolve("observability/dashboards").absolutePath,
+        rootProject.layout.buildDirectory.dir("grafana-preview").get().asFile.absolutePath,
+    )
 }
 
 tasks.register<Exec>("buildImage") {

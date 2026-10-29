@@ -21,3 +21,10 @@ tasks.register<Exec>("devUp") {
     dependsOn(":ingestion-api:buildImage")
     commandLine("docker", "compose", "-f", "compose.dev.yml", "up")
 }
+
+tasks.register<Exec>("previewUp") {
+    group = "observability"
+    description = "Writes the dashboard preview and starts the local Grafana that reads production through the tunnel."
+    dependsOn(":ingestion-api:grafanaPreview")
+    commandLine("docker", "compose", "-f", "compose.dev.yml", "--profile", "preview", "up", "grafana")
+}

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.TestInstance
 import org.testcontainers.containers.PostgreSQLContainer
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -99,6 +100,14 @@ abstract class IngestionApiTest(private val settings: Map<String, String> = empt
                 row.next()
                 row.getInt(1)
             }
+        }
+    }
+
+    /** Creates the read account and grants it what `docs/sql/read-access.sql` grants (ADR 0013). */
+    protected fun grantReadAccess(password: String) = api.query { connection ->
+        connection.createStatement().use { statement ->
+            statement.execute("create role ${PlatformDashboards.READ_ACCOUNT} login password '$password'")
+            statement.execute(File(System.getProperty("repositoryRoot"), "docs/sql/read-access.sql").readText())
         }
     }
 

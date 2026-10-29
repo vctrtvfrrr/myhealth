@@ -1,3 +1,5 @@
 # Deploy through the CodeLab Application Stack contract
 
 The ingestion API is delivered as the `myhealth` Application Stack through `codelab/deploy-stack`, using a commit-SHA image in the Gitea Registry, a repository-owned `compose.yml`, and `APPENV_*` runtime configuration. The first version intentionally publishes an empty observability generation because dashboards and application-specific alert rules are outside its scope; deployment artifacts conform to the existing VPS platform instead of introducing a parallel delivery mechanism.
+
+**Amended 2026-10-29.** The empty observability generation is superseded by ADRs 0027 and 0028: the generation now publishes the dashboards in `observability/dashboards/*.json`, which read the Personal Health History through the `myhealth-read` datasource the platform provisions, and still declares no alert rule. The deploy contract stands as it was: the same `codelab/deploy-stack` action, commit-SHA image, `compose.yml` and `APPENV_*` configuration, and a generation the platform reconciler rejects still keeps the API from being deployed.
