@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
 import org.testcontainers.containers.Network
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 /**
  * Every panel of every dashboard, run through the Grafana of the platform against a read model filled
@@ -94,7 +95,7 @@ class DashboardPanelsTest : IngestionApiTest() {
                     }
                     combinations(variables).map { values ->
                         dynamicTest("$name / ${target.refId()} / $values") {
-                            val result = grafana.query(target, SEEDED, values)
+                            val result = grafana.query(target, SEEDED, values, panel.minimumIntervalMs())
 
                             assertNull(result.error, result.error)
                             assertTrue(result.rows.isNotEmpty(), "the panel answered no rows")
@@ -533,12 +534,11 @@ class DashboardPanelsTest : IngestionApiTest() {
     }
 
     @Test
-    fun `ingestions and their items fall on the interval they were received in, as a total, by category or by contract version`() {
+    fun `ingestions and their items fall on the hour they were received in, as a total, by category or by contract version`() {
         assertEquals(
             listOf(
                 listOf("2026-08-14T00:00:00Z", 1.0),
-                listOf("2026-08-15T12:00:00Z", 2.0),
-                listOf("2026-08-15T12:05:00Z", 1.0),
+                listOf("2026-08-15T12:00:00Z", 3.0),
                 listOf("2026-08-15T18:00:00Z", 1.0),
                 listOf("2026-08-16T06:00:00Z", 1.0),
                 listOf("2026-08-16T09:00:00Z", 1.0),
@@ -548,8 +548,7 @@ class DashboardPanelsTest : IngestionApiTest() {
         assertEquals(
             listOf(
                 listOf("2026-08-14T00:00:00Z", 1.0, null, null),
-                listOf("2026-08-15T12:00:00Z", 2.0, null, null),
-                listOf("2026-08-15T12:05:00Z", null, 1.0, null),
+                listOf("2026-08-15T12:00:00Z", 2.0, 1.0, null),
                 listOf("2026-08-15T18:00:00Z", null, null, 1.0),
                 listOf("2026-08-16T06:00:00Z", null, 1.0, null),
                 listOf("2026-08-16T09:00:00Z", 1.0, null, null),
@@ -560,7 +559,6 @@ class DashboardPanelsTest : IngestionApiTest() {
             listOf(
                 listOf("2026-08-14T00:00:00Z", null, 1.0, null),
                 listOf("2026-08-15T12:00:00Z", 5.0, null, null),
-                listOf("2026-08-15T12:05:00Z", 0.0, null, null),
                 listOf("2026-08-15T18:00:00Z", null, null, 1.0),
                 listOf("2026-08-16T06:00:00Z", 0.0, null, null),
                 listOf("2026-08-16T09:00:00Z", 1.0, null, null),
@@ -570,12 +568,11 @@ class DashboardPanelsTest : IngestionApiTest() {
     }
 
     @Test
-    fun `items are counted by result on the interval they were received in, and refusal codes by category`() {
+    fun `items are counted by result on the hour they were received in, and refusal codes by category`() {
         assertEquals(
             listOf(
                 listOf("2026-08-14T00:00:00Z", 1.0, 0.0, 0.0),
                 listOf("2026-08-15T12:00:00Z", 2.0, 2.0, 1.0),
-                listOf("2026-08-15T12:05:00Z", 0.0, 0.0, 0.0),
                 listOf("2026-08-15T18:00:00Z", 1.0, 0.0, 0.0),
                 listOf("2026-08-16T06:00:00Z", 0.0, 0.0, 0.0),
                 listOf("2026-08-16T09:00:00Z", 0.0, 1.0, 0.0),
@@ -589,24 +586,27 @@ class DashboardPanelsTest : IngestionApiTest() {
     }
 
     @Test
-    fun `the time since the last ingestion of a category counts a resend of what was already present, as of the end of the period`() {
-        assertEquals(
-            listOf(
-                listOf(VitalSignEnvelopes.BLOOD_PRESSURE_RECORD_TYPE, "270000"),
-                listOf(Snapshots.USER_PROFILE, "118800"),
-                listOf(Envelopes.RECORD_TYPE, "64800"),
-            ),
-            table("operacional", "Tempo desde a última Ingestion", SEEDED).map { listOf(it["Health Category"], it["Tempo desde"]) },
+    fun `the time since the last ingestion of a category runs until now, counting a resend of what was already present`() {
+        val last = mapOf(
+            VitalSignEnvelopes.BLOOD_PRESSURE_RECORD_TYPE to Instant.parse("2026-08-14T00:00:00Z"),
+            Snapshots.USER_PROFILE to Instant.parse("2026-08-15T18:00:00Z"),
+            Envelopes.RECORD_TYPE to Instant.parse("2026-08-16T09:00:00Z"),
         )
-        assertEquals(
-            listOf(
-                listOf(VitalSignEnvelopes.BLOOD_PRESSURE_RECORD_TYPE, "183600"),
-                listOf(Envelopes.RECORD_TYPE, "53700"),
-                listOf(Snapshots.USER_PROFILE, "32400"),
-            ),
-            table("operacional", "Tempo desde a última Ingestion", Grafana.TimeRange(SEEDED.from, localMidnight("2026-08-16")))
-                .map { listOf(it["Health Category"], it["Tempo desde"]) },
-        )
+
+        // A day of the 16th still lists the categories whose last Ingestion came before it.
+        listOf(SEEDED, Grafana.TimeRange(localMidnight("2026-08-16"), localMidnight("2026-08-17"))).forEach { range ->
+            val before = Instant.now()
+            val rows = table("operacional", "Tempo desde a última Ingestion", range).filter { it["Health Category"] in last }
+            val after = Instant.now()
+
+            assertEquals(last.keys.toList(), rows.map { it["Health Category"] })
+            rows.forEach { row ->
+                val received = last.getValue(row["Health Category"]!!)
+                val age = row["Tempo desde"]!!.toDouble()
+                assertEquals(received.toEpochMilli().toString(), row["Última Ingestion"])
+                assertTrue(age >= received.until(before, ChronoUnit.SECONDS) && age <= received.until(after, ChronoUnit.SECONDS) + 1, "$row")
+            }
+        }
     }
 
     @Test
@@ -649,7 +649,7 @@ class DashboardPanelsTest : IngestionApiTest() {
     ): List<Map<String, JsonElement>> {
         val found = grafana.dashboard(dashboard).panel(panel)
         val target = found.targets().single { it.datasourceUid(found) == PlatformDashboards.DATASOURCE_UID }
-        val result = grafana.query(target, range, GIVEN_VARIABLES[dashboard].orEmpty() + variables)
+        val result = grafana.query(target, range, GIVEN_VARIABLES[dashboard].orEmpty() + variables, found.minimumIntervalMs())
         assertNull(result.error, result.error)
         return result.rows
     }
@@ -836,10 +836,17 @@ class DashboardPanelsTest : IngestionApiTest() {
 
     /**
      * Ingestions received inside [SEEDED], each moved to the instant it names, about categories no area
-     * dashboard reads, or about heart rates of July, before the earliest day any dashboard counts from. Every other Ingestion of the seed keeps the moment it was really
-     * received, after [SEEDED].
+     * dashboard reads, or about heart rates of July, before the earliest day any dashboard counts from.
+     * Every Ingestion seeded before them is moved to [BEFORE_OPERATIONS], so that none is the last of its
+     * category.
      */
     private fun seedOperations() {
+        api.query { connection ->
+            connection.prepareStatement("update ingestion set received_at = cast(? as timestamptz)").use {
+                it.setString(1, BEFORE_OPERATIONS)
+                it.executeUpdate()
+            }
+        }
         val heartRate = { uid: String, start: String -> Envelopes.heartRate(samsungUid = uid, start = start, end = start) }
         receivedAt(
             "2026-08-14T00:00:00Z",
@@ -983,6 +990,13 @@ class DashboardPanelsTest : IngestionApiTest() {
 
     private fun JsonObject.type(): String = this["type"]?.jsonPrimitive?.content.orEmpty()
 
+    /** What the panel's minimum interval makes of `$__interval`, which the browser would never set lower. */
+    private fun JsonObject.minimumIntervalMs(): Long {
+        val interval = this["interval"]?.jsonPrimitive?.content ?: return 60_000
+        val (amount, unit) = Regex("""(\d+)([smhd])""").matchEntire(interval)?.destructured ?: error("unreadable interval $interval")
+        return amount.toLong() * mapOf("s" to 1_000L, "m" to 60_000L, "h" to 3_600_000L, "d" to 86_400_000L).getValue(unit)
+    }
+
     private fun JsonObject.targets(): List<JsonObject> = this["targets"]?.jsonArray.orEmpty().map { it.jsonObject }
 
     private fun JsonObject.datasourceUid(panel: JsonObject): String? = (this["datasource"] ?: panel["datasource"]).uid()
@@ -1002,6 +1016,7 @@ class DashboardPanelsTest : IngestionApiTest() {
         const val DATABASE_HOST = "postgres"
         const val READER_PASSWORD = "dashboard-reader"
         const val OBSERVED = "2026-08-20T12:00:00Z"
+        const val BEFORE_OPERATIONS = "2026-08-01T00:00:00Z"
 
         val PANELS_WITHOUT_QUERY = setOf("row", "text")
 

@@ -74,12 +74,12 @@ class Grafana(network: Network, datasourceProvisioning: String) : AutoCloseable 
         return Dashboard(saved["dashboard"]!!.jsonObject, saved["meta"]!!.jsonObject["folderUid"]!!.jsonPrimitive.content)
     }
 
-    fun query(target: JsonObject, range: TimeRange, variables: Map<String, String>): QueryResult {
+    fun query(target: JsonObject, range: TimeRange, variables: Map<String, String>, intervalMs: Long = 60_000): QueryResult {
         val substituted = buildJsonObject {
             target.forEach { (key, value) ->
                 put(key, if (key == "rawSql") JsonPrimitive(interpolate(value.jsonPrimitive.content, variables)) else value)
             }
-            put("intervalMs", 60_000)
+            put("intervalMs", intervalMs)
             put("maxDataPoints", 1_000)
         }
         val response = call(

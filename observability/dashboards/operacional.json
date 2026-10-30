@@ -11,7 +11,7 @@
     "from": "now-7d",
     "to": "now"
   },
-  "refresh": "",
+  "refresh": "5m",
   "schemaVersion": 41,
   "graphTooltip": 1,
   "editable": false,
@@ -78,6 +78,18 @@
       "targetBlank": false,
       "tags": [],
       "tooltip": ""
+    },
+    {
+      "title": "Operacional",
+      "type": "link",
+      "url": "/d/myhealth--operacional",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
     }
   ],
   "templating": {
@@ -119,7 +131,7 @@
       "id": 1,
       "type": "table",
       "title": "Tempo desde a última Ingestion",
-      "description": "Por Health Category, desde a Ingestion mais recente até o fim do período, contando os reenvios do que já estava presente. Amarelo acima de 26 h e vermelho acima de 48 h, só como cor: não há alerta.",
+      "description": "Por Health Category, desde a Ingestion mais recente até agora, qualquer que seja o período, contando os reenvios do que já estava presente. Amarelo acima de 26 h e vermelho acima de 48 h, só como cor: não há alerta.",
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "myhealth-read"
@@ -204,7 +216,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "select health_category as \"Health Category\",\n       max(received_at) as \"Última Ingestion\",\n       extract(epoch from $__timeTo()::timestamptz - max(received_at)) as \"Tempo desde\"\nfrom read_model.ingestion_outcome\nwhere received_at <= $__timeTo()\n  and health_category is not null\ngroup by 1\norder by 3 desc, 1"
+          "rawSql": "select health_category as \"Health Category\",\n       max(received_at) as \"Última Ingestion\",\n       extract(epoch from now() - max(received_at)) as \"Tempo desde\"\nfrom read_model.ingestion_outcome\nwhere health_category is not null\ngroup by 1\norder by 3 desc, 1"
         }
       ]
     },
@@ -722,7 +734,17 @@
             "uid": "loki"
           },
           "editorMode": "code",
-          "expr": "{app=\"myhealth\", service=\"api\"} |~ \"ingestion (refused|unavailable) code=| ERROR .* - Startup aborted\" | regexp `ingestion (?P<outcome>refused|unavailable) code=(?P<code>[a-z_]+)`",
+          "expr": "{app=\"myhealth\", service=\"api\"} |~ \"ingestion (refused|unavailable) code=\" | regexp `ingestion (?P<outcome>refused|unavailable) code=(?P<code>[a-z_]+)`",
+          "queryType": "range"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{app=\"myhealth\", service=\"api\"} |~ \" ERROR .* - Startup aborted\"",
           "queryType": "range"
         }
       ]

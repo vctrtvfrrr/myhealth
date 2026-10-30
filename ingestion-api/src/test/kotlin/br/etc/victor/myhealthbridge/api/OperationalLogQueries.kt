@@ -38,7 +38,10 @@ class OperationalLogQueries(dashboard: JsonObject) {
 
         fun labels(line: String): Map<String, String>? {
             if (!contains.all { it in line } || !matches.all { it.containsMatchIn(line) }) return null
-            val found = extraction?.find(line) ?: return emptyMap()
+            if (extraction == null) return emptyMap()
+            // Loki keeps a line its `regexp` misses, without labels; a line that only passes that way is taken
+            // as missed, so a query relying on it fails here instead of showing an unlabelled line.
+            val found = extraction.find(line) ?: return null
             return labelNames.associateWith { name -> found.groups[name]?.value.orEmpty() }
         }
     }
