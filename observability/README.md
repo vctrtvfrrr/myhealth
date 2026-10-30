@@ -26,6 +26,8 @@ Os painéis só leem views de `read_model`, as únicas que a conta de leitura al
 - A coluna `time` é o balde convertido para o fuso do navegador, `<balde> at time zone '$__timezone'`.
 - O período filtra a coluna local entre `$__timeFrom()::timestamptz at time zone '$__timezone'` e o mesmo com `$__timeTo()`.
 - `$__timeGroup` não serve, porque só tem baldes fixos alinhados ao UTC.
+- Uma consulta que devolve colunas de texto ao lado do tempo, como os campos ocultos de um link ou os estágios de um State timeline, usa `format: table`. No `time_series`, o Grafana trata o texto como rótulo e remonta as séries.
+- Um data link para outro dashboard lê campos ocultos da própria linha (`${__data.fields.<campo>}`) e é escrito como `/d/myhealth--<uid>`, igual à barra de links.
 
 Unidades: durações e horários em `dthms`, distância em `lengthkm` com 2 casas, calorias com `suffix: kcal` e frequência cardíaca com `suffix: bpm`. Nenhum painel tem limite, faixa ou cor de referência clínica.
 

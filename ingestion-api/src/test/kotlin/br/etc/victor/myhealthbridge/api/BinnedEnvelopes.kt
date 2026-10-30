@@ -64,7 +64,9 @@ object BinnedEnvelopes {
         mapperVersion: String = BLOOD_OXYGEN_MAPPER_VERSION,
         observedAt: String = "2026-08-10T03:15:00Z",
         withPayload: Boolean = true,
-    ): JsonObject = present(samsungUid, mapperVersion, observedAt, "spo2", saturation) {
+        start: String = "2026-08-10T03:00:00Z",
+        end: String = "2026-08-10T03:10:00Z",
+    ): JsonObject = present(samsungUid, mapperVersion, observedAt, "spo2", saturation, start, end) {
         if (withPayload) {
             putJsonObject("bloodOxygen") {
                 quantity("saturation", saturation, unit)
@@ -93,7 +95,9 @@ object BinnedEnvelopes {
         mapperVersion: String = SKIN_TEMPERATURE_MAPPER_VERSION,
         observedAt: String = "2026-08-10T03:15:00Z",
         withPayload: Boolean = true,
-    ): JsonObject = present(samsungUid, mapperVersion, observedAt, "temperature", temperature) {
+        start: String = "2026-08-10T03:00:00Z",
+        end: String = "2026-08-10T03:10:00Z",
+    ): JsonObject = present(samsungUid, mapperVersion, observedAt, "temperature", temperature, start, end) {
         if (withPayload) {
             putJsonObject("skinTemperature") {
                 quantity("temperature", temperature, unit)
@@ -152,6 +156,8 @@ object BinnedEnvelopes {
         observedAt: String,
         sourceField: String,
         sourceValue: String?,
+        start: String = "2026-08-10T03:00:00Z",
+        end: String = "2026-08-10T03:10:00Z",
         normalized: JsonObjectBuilder.() -> Unit,
     ): JsonObject = buildJsonObject {
         put("samsungUid", samsungUid)
@@ -174,11 +180,11 @@ object BinnedEnvelopes {
             put("kind", "present")
             putJsonObject("period") {
                 putJsonObject("start") {
-                    put("instant", "2026-08-10T03:00:00Z")
+                    put("instant", start)
                     put("offset", "-03:00")
                 }
                 putJsonObject("end") {
-                    put("instant", "2026-08-10T03:10:00Z")
+                    put("instant", end)
                     put("offset", "-03:00")
                 }
             }

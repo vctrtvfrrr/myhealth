@@ -1,0 +1,928 @@
+{
+  "uid": "sono",
+  "title": "Sono",
+  "description": "Duração, estágios, sleep score e horários de cada noite contra a meta; a noite conta no dia em que termina.",
+  "tags": [
+    "saude"
+  ],
+  "timezone": "browser",
+  "weekStart": "sunday",
+  "time": {
+    "from": "now-7d/d",
+    "to": "now"
+  },
+  "refresh": "",
+  "schemaVersion": 41,
+  "graphTooltip": 1,
+  "editable": false,
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Atividade",
+      "type": "link",
+      "url": "/d/myhealth--atividade",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Sono",
+      "type": "link",
+      "url": "/d/myhealth--sono",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "custom",
+        "name": "agrupar",
+        "label": "Agrupar por",
+        "query": "Hora : hour,Dia : day,Semana : week,Mês : month",
+        "current": {
+          "text": "Dia",
+          "value": "day"
+        },
+        "options": [
+          {
+            "text": "Hora",
+            "value": "hour",
+            "selected": false
+          },
+          {
+            "text": "Dia",
+            "value": "day",
+            "selected": true
+          },
+          {
+            "text": "Semana",
+            "value": "week",
+            "selected": false
+          },
+          {
+            "text": "Mês",
+            "value": "month",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Período",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duração média"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Score médio"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Deitar médio"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Acordar médio"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/"
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local\n),\nsleep as (\n  select s.samsung_uid, s.sleep_score, s.period_start_local, s.period_end_local,\n         cast(s.period_end_local as date) as day,\n         coalesce(s.duration_seconds, extract(epoch from s.period_end - s.period_start)) as duration_seconds\n  from read_model.current_sleep s, period\n  where s.period_end_local >= period.from_local and s.period_end_local < period.to_local\n),\nlongest as (\n  select distinct on (day) day, samsung_uid, sleep_score, period_start_local, period_end_local,\n         sum(duration_seconds) over (partition by day) as total_seconds\n  from sleep\n  order by day, sleep.duration_seconds desc, sleep.period_end_local desc\n),\nnightly as (\n  select l.day, l.samsung_uid, l.total_seconds, l.sleep_score, l.period_start_local, l.period_end_local,\n         extract(epoch from cast(l.period_start_local as time))\n           + case when cast(l.period_start_local as time) < time '12:00' then 86400 else 0 end as bed_seconds,\n         extract(epoch from cast(l.period_end_local as time)) as wake_seconds,\n         extract(epoch from g.wake_up_time - g.bed_time)\n           + case when g.wake_up_time < g.bed_time then 86400 else 0 end as target_seconds,\n         extract(epoch from g.bed_time)\n           + case when g.bed_time < time '12:00' then 86400 else 0 end as goal_bed_seconds,\n         extract(epoch from g.wake_up_time) as goal_wake_seconds\n  from longest l\n  left join read_model.current_daily_goal g on g.goal = 'sleep_goal' and g.day = l.day\n)\nselect avg(total_seconds) as \"Duração média\",\n       avg(sleep_score) as \"Score médio\",\n       avg(bed_seconds) as \"Deitar médio\",\n       avg(wake_seconds) as \"Acordar médio\",\n       format('%s de %s', count(*) filter (where total_seconds >= target_seconds), count(target_seconds)) as \"Noites na meta\"\nfrom nightly"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Duração",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dthms",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 1,
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Meta"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineInterpolation",
+                "value": "stepAfter"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duração"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Abrir a noite",
+                    "url": "/d/myhealth--noite-de-sono?var-samsung_uid=${__data.fields.samsung_uid}&from=${__data.fields.from}&to=${__data.fields.to}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local\n),\nsleep as (\n  select s.samsung_uid, s.sleep_score, s.period_start_local, s.period_end_local,\n         cast(s.period_end_local as date) as day,\n         coalesce(s.duration_seconds, extract(epoch from s.period_end - s.period_start)) as duration_seconds\n  from read_model.current_sleep s, period\n  where s.period_end_local >= period.from_local and s.period_end_local < period.to_local\n),\nlongest as (\n  select distinct on (day) day, samsung_uid, sleep_score, period_start_local, period_end_local,\n         sum(duration_seconds) over (partition by day) as total_seconds\n  from sleep\n  order by day, sleep.duration_seconds desc, sleep.period_end_local desc\n),\nnightly as (\n  select l.day, l.samsung_uid, l.total_seconds, l.sleep_score, l.period_start_local, l.period_end_local,\n         extract(epoch from cast(l.period_start_local as time))\n           + case when cast(l.period_start_local as time) < time '12:00' then 86400 else 0 end as bed_seconds,\n         extract(epoch from cast(l.period_end_local as time)) as wake_seconds,\n         extract(epoch from g.wake_up_time - g.bed_time)\n           + case when g.wake_up_time < g.bed_time then 86400 else 0 end as target_seconds,\n         extract(epoch from g.bed_time)\n           + case when g.bed_time < time '12:00' then 86400 else 0 end as goal_bed_seconds,\n         extract(epoch from g.wake_up_time) as goal_wake_seconds\n  from longest l\n  left join read_model.current_daily_goal g on g.goal = 'sleep_goal' and g.day = l.day\n)\nselect read_model.local_bucket(case when '$agrupar' = 'hour' then 'day' else '$agrupar' end, n.day::timestamp) at time zone '$__timezone' as time,\n       avg(n.total_seconds) as \"Duração\",\n       avg(n.target_seconds) as \"Meta\",\n       case when '$agrupar' in ('hour', 'day') then min(n.samsung_uid) end as samsung_uid,\n       case when '$agrupar' in ('hour', 'day') then cast(cast(extract(epoch from (min(n.period_start_local) - interval '30 minutes') at time zone '$__timezone') * 1000 as bigint) as text) end as \"from\",\n       case when '$agrupar' in ('hour', 'day') then cast(cast(extract(epoch from (max(n.period_end_local) + interval '30 minutes') at time zone '$__timezone') * 1000 as bigint) as text) end as \"to\"\nfrom nightly n\ngroup by 1\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Tempo por estágio",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dthms",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 1,
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Acordado"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "REM"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "light-blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Leve"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Profundo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "dark-purple"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Indefinido"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8e8e8e"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum",
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local\n),\nsleep as (\n  select s.samsung_uid, s.sleep_score, s.period_start_local, s.period_end_local,\n         cast(s.period_end_local as date) as day,\n         coalesce(s.duration_seconds, extract(epoch from s.period_end - s.period_start)) as duration_seconds\n  from read_model.current_sleep s, period\n  where s.period_end_local >= period.from_local and s.period_end_local < period.to_local\n),\nlongest as (\n  select distinct on (day) day, samsung_uid, sleep_score, period_start_local, period_end_local,\n         sum(duration_seconds) over (partition by day) as total_seconds\n  from sleep\n  order by day, sleep.duration_seconds desc, sleep.period_end_local desc\n),\nnightly as (\n  select l.day, l.samsung_uid, l.total_seconds, l.sleep_score, l.period_start_local, l.period_end_local,\n         extract(epoch from cast(l.period_start_local as time))\n           + case when cast(l.period_start_local as time) < time '12:00' then 86400 else 0 end as bed_seconds,\n         extract(epoch from cast(l.period_end_local as time)) as wake_seconds,\n         extract(epoch from g.wake_up_time - g.bed_time)\n           + case when g.wake_up_time < g.bed_time then 86400 else 0 end as target_seconds,\n         extract(epoch from g.bed_time)\n           + case when g.bed_time < time '12:00' then 86400 else 0 end as goal_bed_seconds,\n         extract(epoch from g.wake_up_time) as goal_wake_seconds\n  from longest l\n  left join read_model.current_daily_goal g on g.goal = 'sleep_goal' and g.day = l.day\n),\nstage as (\n  select s.day,\n         sum(extract(epoch from st.end_at - st.start_at)) filter (where case st.stage when 'AWAKE' then 'Acordado' when 'REM' then 'REM' when 'LIGHT' then 'Leve' when 'DEEP' then 'Profundo' else 'Indefinido' end = 'Acordado') as \"Acordado\",\n         sum(extract(epoch from st.end_at - st.start_at)) filter (where case st.stage when 'AWAKE' then 'Acordado' when 'REM' then 'REM' when 'LIGHT' then 'Leve' when 'DEEP' then 'Profundo' else 'Indefinido' end = 'REM') as \"REM\",\n         sum(extract(epoch from st.end_at - st.start_at)) filter (where case st.stage when 'AWAKE' then 'Acordado' when 'REM' then 'REM' when 'LIGHT' then 'Leve' when 'DEEP' then 'Profundo' else 'Indefinido' end = 'Leve') as \"Leve\",\n         sum(extract(epoch from st.end_at - st.start_at)) filter (where case st.stage when 'AWAKE' then 'Acordado' when 'REM' then 'REM' when 'LIGHT' then 'Leve' when 'DEEP' then 'Profundo' else 'Indefinido' end = 'Profundo') as \"Profundo\",\n         sum(extract(epoch from st.end_at - st.start_at)) filter (where case st.stage when 'AWAKE' then 'Acordado' when 'REM' then 'REM' when 'LIGHT' then 'Leve' when 'DEEP' then 'Profundo' else 'Indefinido' end = 'Indefinido') as \"Indefinido\"\n  from sleep s\n  join read_model.current_sleep_stage st on st.samsung_uid = s.samsung_uid\n  group by s.day\n)\nselect read_model.local_bucket(case when '$agrupar' = 'hour' then 'day' else '$agrupar' end, n.day::timestamp) at time zone '$__timezone' as time,\n       avg(coalesce(st.\"Acordado\", 0)) as \"Acordado\",\n       avg(coalesce(st.\"REM\", 0)) as \"REM\",\n       avg(coalesce(st.\"Leve\", 0)) as \"Leve\",\n       avg(coalesce(st.\"Profundo\", 0)) as \"Profundo\",\n       avg(coalesce(st.\"Indefinido\", 0)) as \"Indefinido\"\nfrom nightly n\nleft join stage st on st.day = n.day\ngroup by 1\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Sleep score",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 100,
+          "decimals": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local\n),\nsleep as (\n  select s.samsung_uid, s.sleep_score, s.period_start_local, s.period_end_local,\n         cast(s.period_end_local as date) as day,\n         coalesce(s.duration_seconds, extract(epoch from s.period_end - s.period_start)) as duration_seconds\n  from read_model.current_sleep s, period\n  where s.period_end_local >= period.from_local and s.period_end_local < period.to_local\n),\nlongest as (\n  select distinct on (day) day, samsung_uid, sleep_score, period_start_local, period_end_local,\n         sum(duration_seconds) over (partition by day) as total_seconds\n  from sleep\n  order by day, sleep.duration_seconds desc, sleep.period_end_local desc\n),\nnightly as (\n  select l.day, l.samsung_uid, l.total_seconds, l.sleep_score, l.period_start_local, l.period_end_local,\n         extract(epoch from cast(l.period_start_local as time))\n           + case when cast(l.period_start_local as time) < time '12:00' then 86400 else 0 end as bed_seconds,\n         extract(epoch from cast(l.period_end_local as time)) as wake_seconds,\n         extract(epoch from g.wake_up_time - g.bed_time)\n           + case when g.wake_up_time < g.bed_time then 86400 else 0 end as target_seconds,\n         extract(epoch from g.bed_time)\n           + case when g.bed_time < time '12:00' then 86400 else 0 end as goal_bed_seconds,\n         extract(epoch from g.wake_up_time) as goal_wake_seconds\n  from longest l\n  left join read_model.current_daily_goal g on g.goal = 'sleep_goal' and g.day = l.day\n)\nselect read_model.local_bucket(case when '$agrupar' = 'hour' then 'day' else '$agrupar' end, n.day::timestamp) at time zone '$__timezone' as time,\n       avg(n.sleep_score) as \"Sleep score\"\nfrom nightly n\ngroup by 1\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Deitar",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dthms",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Meta"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineInterpolation",
+                "value": "stepAfter"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local\n),\nsleep as (\n  select s.samsung_uid, s.sleep_score, s.period_start_local, s.period_end_local,\n         cast(s.period_end_local as date) as day,\n         coalesce(s.duration_seconds, extract(epoch from s.period_end - s.period_start)) as duration_seconds\n  from read_model.current_sleep s, period\n  where s.period_end_local >= period.from_local and s.period_end_local < period.to_local\n),\nlongest as (\n  select distinct on (day) day, samsung_uid, sleep_score, period_start_local, period_end_local,\n         sum(duration_seconds) over (partition by day) as total_seconds\n  from sleep\n  order by day, sleep.duration_seconds desc, sleep.period_end_local desc\n),\nnightly as (\n  select l.day, l.samsung_uid, l.total_seconds, l.sleep_score, l.period_start_local, l.period_end_local,\n         extract(epoch from cast(l.period_start_local as time))\n           + case when cast(l.period_start_local as time) < time '12:00' then 86400 else 0 end as bed_seconds,\n         extract(epoch from cast(l.period_end_local as time)) as wake_seconds,\n         extract(epoch from g.wake_up_time - g.bed_time)\n           + case when g.wake_up_time < g.bed_time then 86400 else 0 end as target_seconds,\n         extract(epoch from g.bed_time)\n           + case when g.bed_time < time '12:00' then 86400 else 0 end as goal_bed_seconds,\n         extract(epoch from g.wake_up_time) as goal_wake_seconds\n  from longest l\n  left join read_model.current_daily_goal g on g.goal = 'sleep_goal' and g.day = l.day\n)\nselect read_model.local_bucket(case when '$agrupar' = 'hour' then 'day' else '$agrupar' end, n.day::timestamp) at time zone '$__timezone' as time,\n       avg(n.bed_seconds) as \"Deitar\",\n       avg(n.goal_bed_seconds) as \"Meta\"\nfrom nightly n\ngroup by 1\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Acordar",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dthms",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Meta"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.lineInterpolation",
+                "value": "stepAfter"
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 2
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local\n),\nsleep as (\n  select s.samsung_uid, s.sleep_score, s.period_start_local, s.period_end_local,\n         cast(s.period_end_local as date) as day,\n         coalesce(s.duration_seconds, extract(epoch from s.period_end - s.period_start)) as duration_seconds\n  from read_model.current_sleep s, period\n  where s.period_end_local >= period.from_local and s.period_end_local < period.to_local\n),\nlongest as (\n  select distinct on (day) day, samsung_uid, sleep_score, period_start_local, period_end_local,\n         sum(duration_seconds) over (partition by day) as total_seconds\n  from sleep\n  order by day, sleep.duration_seconds desc, sleep.period_end_local desc\n),\nnightly as (\n  select l.day, l.samsung_uid, l.total_seconds, l.sleep_score, l.period_start_local, l.period_end_local,\n         extract(epoch from cast(l.period_start_local as time))\n           + case when cast(l.period_start_local as time) < time '12:00' then 86400 else 0 end as bed_seconds,\n         extract(epoch from cast(l.period_end_local as time)) as wake_seconds,\n         extract(epoch from g.wake_up_time - g.bed_time)\n           + case when g.wake_up_time < g.bed_time then 86400 else 0 end as target_seconds,\n         extract(epoch from g.bed_time)\n           + case when g.bed_time < time '12:00' then 86400 else 0 end as goal_bed_seconds,\n         extract(epoch from g.wake_up_time) as goal_wake_seconds\n  from longest l\n  left join read_model.current_daily_goal g on g.goal = 'sleep_goal' and g.day = l.day\n)\nselect read_model.local_bucket(case when '$agrupar' = 'hour' then 'day' else '$agrupar' end, n.day::timestamp) at time zone '$__timezone' as time,\n       avg(n.wake_seconds) as \"Acordar\",\n       avg(n.goal_wake_seconds) as \"Meta\"\nfrom nightly n\ngroup by 1\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Noites",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Dia"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Abrir a noite",
+                    "url": "/d/myhealth--noite-de-sono?var-samsung_uid=${__data.fields.samsung_uid}&from=${__data.fields.from}&to=${__data.fields.to}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duração"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sleep score"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "samsung_uid"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "from"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "to"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local\n),\nsleep as (\n  select s.samsung_uid, s.sleep_score, s.period_start_local, s.period_end_local,\n         cast(s.period_end_local as date) as day,\n         coalesce(s.duration_seconds, extract(epoch from s.period_end - s.period_start)) as duration_seconds\n  from read_model.current_sleep s, period\n  where s.period_end_local >= period.from_local and s.period_end_local < period.to_local\n)\nselect to_char(day, 'DD/MM/YYYY') as \"Dia\",\n       to_char(period_start_local, 'HH24:MI') as \"Deitar\",\n       to_char(period_end_local, 'HH24:MI') as \"Acordar\",\n       duration_seconds as \"Duração\",\n       sleep_score as \"Sleep score\",\n       samsung_uid,\n       cast(cast(extract(epoch from (period_start_local - interval '30 minutes') at time zone '$__timezone') * 1000 as bigint) as text) as \"from\",\n       cast(cast(extract(epoch from (period_end_local + interval '30 minutes') at time zone '$__timezone') * 1000 as bigint) as text) as \"to\"\nfrom sleep\norder by period_end_local desc"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Apneia",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 41
+      },
+      "panels": [
+        {
+          "id": 9,
+          "type": "table",
+          "title": "Histórico de apneia",
+          "description": "Todo o histórico, independente do período.",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 42
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-postgresql-datasource",
+                "uid": "myhealth-read"
+              },
+              "editorMode": "code",
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "select to_char(cast(period_end_local as date), 'DD/MM/YYYY') as \"Dia\",\n       case result when 'DETECTED' then 'Detectado' when 'NOT_DETECTED' then 'Não detectado' else 'Indefinido' end as \"Resultado\"\nfrom read_model.current_sleep_apnea\norder by period_end desc"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

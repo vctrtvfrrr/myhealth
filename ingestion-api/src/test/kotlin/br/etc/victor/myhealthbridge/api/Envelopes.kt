@@ -145,6 +145,8 @@ object Envelopes {
         mapperVersion: String = SLEEP_MAPPER_VERSION,
         observedAt: String = "2026-08-10T09:35:00Z",
         withSleep: Boolean = true,
+        start: String = "2026-08-10T02:00:00Z",
+        end: String = "2026-08-10T09:30:00Z",
     ): JsonObject = buildJsonObject {
         put("samsungUid", samsungUid)
         putJsonObject("observedAt") {
@@ -160,11 +162,11 @@ object Envelopes {
             put("kind", "present")
             putJsonObject("period") {
                 putJsonObject("start") {
-                    put("instant", "2026-08-10T02:00:00Z")
+                    put("instant", start)
                     put("offset", "-03:00")
                 }
                 putJsonObject("end") {
-                    put("instant", "2026-08-10T09:30:00Z")
+                    put("instant", end)
                     put("offset", "-03:00")
                 }
             }

@@ -1,0 +1,378 @@
+{
+  "uid": "noite-de-sono",
+  "title": "Noite de sono",
+  "description": "Hipnograma, SpO2 e temperatura da pele de uma noite, aberta a partir do Sono.",
+  "tags": [
+    "saude"
+  ],
+  "timezone": "browser",
+  "weekStart": "sunday",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "",
+  "schemaVersion": 41,
+  "graphTooltip": 1,
+  "editable": false,
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Atividade",
+      "type": "link",
+      "url": "/d/myhealth--atividade",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Sono",
+      "type": "link",
+      "url": "/d/myhealth--sono",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "samsung_uid",
+        "label": "Noite",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": [],
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Noite",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duração"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sleep score"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/"
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select to_char(cast(s.period_end_local as date), 'DD/MM/YYYY') as \"Dia\",\n       to_char(s.period_start_local, 'HH24:MI') as \"Deitar\",\n       to_char(s.period_end_local, 'HH24:MI') as \"Acordar\",\n       coalesce(s.duration_seconds, extract(epoch from s.period_end - s.period_start)) as \"Duração\",\n       s.sleep_score as \"Sleep score\"\nfrom read_model.current_sleep s where s.samsung_uid = '$samsung_uid'"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "state-timeline",
+      "title": "Hipnograma",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "custom": {
+            "fillOpacity": 90,
+            "lineWidth": 0,
+            "spanNulls": false,
+            "insertNulls": false
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "Acordado": {
+                  "color": "orange",
+                  "index": 0
+                },
+                "REM": {
+                  "color": "light-blue",
+                  "index": 1
+                },
+                "Leve": {
+                  "color": "blue",
+                  "index": 2
+                },
+                "Profundo": {
+                  "color": "dark-purple",
+                  "index": 3
+                },
+                "Indefinido": {
+                  "color": "#8e8e8e",
+                  "index": 4
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "showValue": "never",
+        "mergeValues": true,
+        "alignValue": "left",
+        "rowHeight": 0.9,
+        "legend": {
+          "showLegend": false,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "indexByName": {
+              "time": 0,
+              "Indefinido": 1,
+              "Acordado": 2,
+              "REM": 3,
+              "Leve": 4,
+              "Profundo": 5
+            },
+            "excludeByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "with stage as (\n  select start_at_local, end_at_local, case stage when 'AWAKE' then 'Acordado' when 'REM' then 'REM' when 'LIGHT' then 'Leve' when 'DEEP' then 'Profundo' else 'Indefinido' end as label\n  from read_model.current_sleep_stage\n  where samsung_uid = '$samsung_uid'\n)\nselect time, \"Indefinido\", \"Acordado\", \"REM\", \"Leve\", \"Profundo\"\nfrom (\n  select start_at_local at time zone '$__timezone' as time, 1 as edge,\n         case when label = 'Indefinido' then label end as \"Indefinido\",\n         case when label = 'Acordado' then label end as \"Acordado\",\n         case when label = 'REM' then label end as \"REM\",\n         case when label = 'Leve' then label end as \"Leve\",\n         case when label = 'Profundo' then label end as \"Profundo\"\n  from stage\n  union all\n  select end_at_local at time zone '$__timezone', 0, null as \"Indefinido\", null as \"Acordado\", null as \"REM\", null as \"Leve\", null as \"Profundo\"\n  from stage\n) hypnogram\norder by time, edge"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "SpO2",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "custom": {
+            "drawStyle": "line",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisSoftMax": 100
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "min",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select b.start_at_local at time zone '$__timezone' as time,\n       b.oxygen_saturation_percent as \"SpO2\"\nfrom read_model.current_sleep s\njoin read_model.current_blood_oxygen_series b on b.start_at >= s.period_start and b.start_at < s.period_end\nwhere s.samsung_uid = '$samsung_uid'\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Temperatura da pele",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "custom": {
+            "drawStyle": "line",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "min",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select b.start_at_local at time zone '$__timezone' as time,\n       b.temperature_celsius as \"Temperatura da pele\"\nfrom read_model.current_sleep s\njoin read_model.current_skin_temperature_series b on b.start_at >= s.period_start and b.start_at < s.period_end\nwhere s.samsung_uid = '$samsung_uid'\norder by 1"
+        }
+      ]
+    }
+  ]
+}

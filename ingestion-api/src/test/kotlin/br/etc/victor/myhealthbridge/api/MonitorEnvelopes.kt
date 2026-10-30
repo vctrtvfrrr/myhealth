@@ -45,12 +45,14 @@ object MonitorEnvelopes {
         mapperVersion: String = SLEEP_APNEA_MAPPER_VERSION,
         observedAt: String = "2026-08-10T09:45:00Z",
         withPayload: Boolean = true,
+        start: String = "2026-08-10T02:00:00Z",
+        end: String = "2026-08-10T09:30:00Z",
     ): JsonObject = present(
         samsungUid,
         mapperVersion,
         observedAt,
-        start = "2026-08-10T02:00:00Z",
-        end = "2026-08-10T09:30:00Z",
+        start = start,
+        end = end,
         sourceFields = { result?.let { put("result", it) } },
     ) {
         if (withPayload) putJsonObject("sleepApnea") { result?.let { put("result", it) } }
