@@ -156,7 +156,11 @@
               },
               {
                 "id": "custom.showPoints",
-                "value": "never"
+                "value": "always"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
               },
               {
                 "id": "color",
@@ -179,7 +183,11 @@
               },
               {
                 "id": "custom.showPoints",
-                "value": "never"
+                "value": "always"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
               },
               {
                 "id": "color",
@@ -292,7 +300,11 @@
               },
               {
                 "id": "custom.showPoints",
-                "value": "never"
+                "value": "always"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
               },
               {
                 "id": "color",
@@ -315,7 +327,11 @@
               },
               {
                 "id": "custom.showPoints",
-                "value": "never"
+                "value": "always"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
               },
               {
                 "id": "color",
@@ -427,7 +443,11 @@
               },
               {
                 "id": "custom.showPoints",
-                "value": "never"
+                "value": "always"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
               },
               {
                 "id": "color",
@@ -450,7 +470,11 @@
               },
               {
                 "id": "custom.showPoints",
-                "value": "never"
+                "value": "always"
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 3
               },
               {
                 "id": "color",

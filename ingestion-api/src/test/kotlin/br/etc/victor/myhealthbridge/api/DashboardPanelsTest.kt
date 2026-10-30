@@ -393,6 +393,14 @@ class DashboardPanelsTest : IngestionApiTest() {
     }
 
     @Test
+    fun `a week or a month of oxygen and skin temperature reads the records, not their bins`() {
+        for (grouping in listOf("week", "month")) {
+            assertEquals(listOf(96.0, 93.0, 98.0), series("coracao", "SpO2", grouping, SEEDED, *RANGE).first().drop(1))
+            assertEquals(listOf(33.5, 33.1, 33.9), series("coracao", "Temperatura da pele", grouping, SEEDED, *RANGE).first().drop(1))
+        }
+    }
+
+    @Test
     fun `skin temperature reads its records on the day they end, and their bins on the hour each starts`() {
         assertEquals(
             listOf(
