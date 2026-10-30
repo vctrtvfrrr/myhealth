@@ -14,6 +14,8 @@ object GrafanaPreview {
     private val json = Json { prettyPrint = true }
 
     fun write(source: File, target: File) {
+        val violations = PlatformGeneration.violations(PlatformDashboards.read(source))
+        require(violations.isEmpty()) { "the platform would reject this generation:\n" + violations.joinToString("\n") }
         val dashboards = target.resolve("dashboards")
         dashboards.deleteRecursively()
         dashboards.mkdirs()

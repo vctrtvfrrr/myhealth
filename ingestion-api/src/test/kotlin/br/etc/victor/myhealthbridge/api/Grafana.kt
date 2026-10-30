@@ -123,16 +123,23 @@ class Grafana(network: Network, datasourceProvisioning: String) : AutoCloseable 
 
         fun panel(title: String): JsonObject = panels.single { it["title"]?.jsonPrimitive?.content == title }
 
+        private val variables: List<JsonObject> =
+            (json["templating"]?.jsonObject?.get("list") as? JsonArray).orEmpty().map { it.jsonObject }
+
         /** The values of each custom variable, as `Text : value` pairs of its query. */
         val customVariables: Map<String, List<String>> =
-            (json["templating"]?.jsonObject?.get("list") as? JsonArray).orEmpty()
-                .map { it.jsonObject }
+            variables
                 .filter { it["type"]?.jsonPrimitive?.content == "custom" }
                 .associate { variable ->
                     variable["name"]!!.jsonPrimitive.content to variable["query"]!!.jsonPrimitive.content
                         .split(',')
                         .map { option -> option.substringAfter(" : ").trim() }
                 }
+
+        /** The variables whose value only a link or the viewer gives, which a test has to choose. */
+        val givenVariables: List<String> = variables
+            .filter { it["type"]?.jsonPrimitive?.content != "custom" }
+            .map { it["name"]!!.jsonPrimitive.content }
 
         private fun JsonObject.panels(): List<JsonObject> = (this["panels"] as? JsonArray).orEmpty().map { it.jsonObject }
     }

@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
 
@@ -69,6 +70,15 @@ class PlatformDashboardsTest {
         assertTrue(datasource.contains("uid: myhealth-read"), datasource)
         assertTrue(datasource.contains("user: myhealth_read"), datasource)
         assertTrue(datasource.contains("password: \$MYHEALTH_READ_PASSWORD"), "the password is versioned: $datasource")
+    }
+
+    @Test
+    fun `refuses to preview a generation the platform would reject`(@TempDir root: File) {
+        val source = root.resolve("dashboards").apply { mkdirs() }
+        source.resolve("visao.json").writeText("""{"uid": "visão geral"}""")
+
+        assertThrows<IllegalArgumentException> { GrafanaPreview.write(source, root.resolve("preview")) }
+        assertFalse(root.resolve("preview").exists(), "a rejected generation was written")
     }
 
     @Test

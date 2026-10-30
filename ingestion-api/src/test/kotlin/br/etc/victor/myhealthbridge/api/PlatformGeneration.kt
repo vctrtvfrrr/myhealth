@@ -63,7 +63,10 @@ object PlatformGeneration {
             val url = (node["url"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return@walk
             DASHBOARD_LINK.findAll(url).map { it.groupValues[1] }.forEach { target ->
                 val local = target.removePrefix("${PlatformDashboards.APP}--")
-                if (local == target || local !in known) add("links to /d/$target, which is not in this generation")
+                when {
+                    !url.startsWith("/d/") -> add("links to $url, which is not a path of this Grafana")
+                    local == target || local !in known -> add("links to /d/$target, which is not in this generation")
+                }
             }
         }
     }

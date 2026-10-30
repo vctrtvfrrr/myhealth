@@ -45,9 +45,9 @@ Um dashboard novo pede três coisas em `DashboardPanelsTest`:
 
 1. Os registros sintéticos que dão linhas a cada painel dele no período `SEEDED`.
 2. Os valores exatos onde o SQL de um painel carrega regra própria, como o dia local, a meta vigente ou um nulo numa lacuna.
-3. Para uma variável que não é custom, como o `samsung_uid` de um detalhe, o valor de teste.
+3. Para uma variável que não é custom, como o `samsung_uid` de um detalhe, o valor de teste em `GIVEN_VARIABLES`. Sem ele, o teste falha.
 
-Nenhuma fixture versionada pode conter dado pessoal.
+Um painel sem consulta, fora `row` e `text`, falha. Uma consulta ao `loki` ou ao `prometheus` aparece como ignorada, porque o teste não os tem: ela é conferida na prévia. Nenhuma fixture versionada pode conter dado pessoal.
 
 ## Pré-visualizar
 

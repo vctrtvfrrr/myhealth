@@ -17,7 +17,10 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Assertions.fail
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.DynamicTest
+import org.junit.jupiter.api.DynamicTest.dynamicTest
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestFactory
@@ -70,11 +73,28 @@ class DashboardPanelsTest : IngestionApiTest() {
         PlatformDashboards.read(DeploymentArtifacts.root.resolve("observability/dashboards")).flatMap { authored ->
             val localUid = authored["uid"]!!.jsonPrimitive.content
             val dashboard = grafana.dashboard(localUid)
-            dashboard.panels.flatMap { panel ->
-                panel.readModelTargets().flatMap { target ->
-                    combinations(dashboard.customVariables).map { variables ->
-                        DynamicTest.dynamicTest("$localUid / ${panel.title()} / ${target.refId()} / $variables") {
-                            val result = grafana.query(target, SEEDED, variables)
+            val variables = dashboard.customVariables + dashboard.givenVariables.associateWith { name ->
+                listOf(
+                    GIVEN_VARIABLES[localUid]?.get(name)
+                        ?: error("\$$name of $localUid has no value to test with: give it one in GIVEN_VARIABLES"),
+                )
+            }
+            dashboard.panels.filter { it.type() !in PANELS_WITHOUT_QUERY }.flatMap { panel ->
+                val name = "$localUid / ${panel.title()}"
+                val targets = panel.targets()
+                if (targets.isEmpty()) return@flatMap listOf(dynamicTest(name) { fail<Unit>("the panel runs no query") })
+                targets.flatMap { target ->
+                    val datasource = target.datasourceUid(panel)
+                    if (datasource != PlatformDashboards.DATASOURCE_UID) {
+                        return@flatMap listOf(
+                            dynamicTest("$name / ${target.refId()}") {
+                                assumeTrue(false, "$datasource is not reachable here: check this query in the preview")
+                            },
+                        )
+                    }
+                    combinations(variables).map { values ->
+                        dynamicTest("$name / ${target.refId()} / $values") {
+                            val result = grafana.query(target, SEEDED, values)
 
                             assertNull(result.error, result.error)
                             assertTrue(result.rows.isNotEmpty(), "the panel answered no rows")
@@ -122,6 +142,14 @@ class DashboardPanelsTest : IngestionApiTest() {
     }
 
     @Test
+    fun `a month sums the daily goals of its days`() {
+        assertEquals(
+            listOf(listOf("2026-08-01T03:00:00Z", 3800.0, 14000.0)),
+            series("atividade", "Passos", "month", SEEDED, "Passos", "Meta"),
+        )
+    }
+
+    @Test
     fun `an hour has no goal`() {
         val hours = series("atividade", "Passos", "hour", SEEDED, "Passos", "Meta")
 
@@ -138,10 +166,22 @@ class DashboardPanelsTest : IngestionApiTest() {
     }
 
     @Test
+    fun `active calories are set beside their own goal`() {
+        assertEquals(
+            listOf("2026-08-10T03:00:00Z", 42.5, 400.0),
+            series("atividade", "Calorias ativas", "day", SEEDED, "Calorias ativas", "Meta").first(),
+        )
+    }
+
+    @Test
     fun `floors fall on the local day they were climbed on, and a day without them has no row`() {
         assertEquals(
             listOf(listOf("2026-08-10T03:00:00Z", 3.0)),
             series("atividade", "Andares", "day", SEEDED, "Andares"),
+        )
+        assertEquals(
+            emptyList<List<Any?>>(),
+            series("atividade", "Andares", "day", Grafana.TimeRange(localMidnight("2026-08-11"), SEEDED.to), "Andares"),
         )
     }
 
@@ -152,7 +192,8 @@ class DashboardPanelsTest : IngestionApiTest() {
         range: Grafana.TimeRange,
         vararg fields: String,
     ): List<List<Any?>> {
-        val target = grafana.dashboard(dashboard).panel(panel).readModelTargets().single()
+        val found = grafana.dashboard(dashboard).panel(panel)
+        val target = found.targets().single { it.datasourceUid(found) == PlatformDashboards.DATASOURCE_UID }
         val result = grafana.query(target, range, mapOf("agrupar" to grouping))
         assertNull(result.error, result.error)
         return result.rows.map { row ->
@@ -228,11 +269,11 @@ class DashboardPanelsTest : IngestionApiTest() {
 
     private fun JsonObject.refId(): String = this["refId"]!!.jsonPrimitive.content
 
-    private fun JsonObject.readModelTargets(): List<JsonObject> =
-        (this["targets"]?.jsonArray.orEmpty()).map { it.jsonObject }.filter { target ->
-            val datasource = target["datasource"] ?: this["datasource"]
-            datasource.uid() == PlatformDashboards.DATASOURCE_UID
-        }
+    private fun JsonObject.type(): String = this["type"]?.jsonPrimitive?.content.orEmpty()
+
+    private fun JsonObject.targets(): List<JsonObject> = this["targets"]?.jsonArray.orEmpty().map { it.jsonObject }
+
+    private fun JsonObject.datasourceUid(panel: JsonObject): String? = (this["datasource"] ?: panel["datasource"]).uid()
 
     private fun JsonElement?.uid(): String? = when (this) {
         is JsonObject -> this["uid"]?.jsonPrimitive?.content
@@ -249,6 +290,11 @@ class DashboardPanelsTest : IngestionApiTest() {
         const val DATABASE_HOST = "postgres"
         const val READER_PASSWORD = "dashboard-reader"
         const val OBSERVED = "2026-08-20T12:00:00Z"
+
+        val PANELS_WITHOUT_QUERY = setOf("row", "text")
+
+        /** The value a test gives each variable that only a link or the viewer sets, by dashboard uid. */
+        val GIVEN_VARIABLES: Map<String, Map<String, String>> = emptyMap()
 
         fun localMidnight(day: String): Instant = Instant.parse("${day}T03:00:00Z")
 

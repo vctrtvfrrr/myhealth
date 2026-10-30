@@ -118,7 +118,8 @@ class PlatformGenerationTest {
                      "panels": [
                        {"fieldConfig": {"defaults": {"links": [{"url": "/d/myhealth--treino?var-treino=1"}]}}},
                        {"options": {"dashboardUID": "noite"}},
-                       {"links": [{"url": "/d/atividade"}]}
+                       {"links": [{"url": "/d/atividade"}]},
+                       {"links": [{"url": "https://grafana.example.com/d/myhealth--atividade"}]}
                      ]}
                     """,
                 ),
@@ -131,6 +132,7 @@ class PlatformGenerationTest {
                 "dashboard atividade: links to /d/myhealth--sono, which is not in this generation",
                 "dashboard atividade: links to /d/myhealth--treino, which is not in this generation",
                 "dashboard atividade: links to /d/atividade, which is not in this generation",
+                "dashboard atividade: links to https://grafana.example.com/d/myhealth--atividade, which is not a path of this Grafana",
             ),
             violations,
         )
