@@ -20,6 +20,18 @@
   },
   "links": [
     {
+      "title": "Visão geral",
+      "type": "link",
+      "url": "/d/myhealth--visao-geral",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
       "title": "Atividade",
       "type": "link",
       "url": "/d/myhealth--atividade",
@@ -59,18 +71,6 @@
       "title": "Coração e sinais vitais",
       "type": "link",
       "url": "/d/myhealth--coracao",
-      "icon": "dashboard",
-      "keepTime": true,
-      "includeVars": true,
-      "asDropdown": false,
-      "targetBlank": false,
-      "tags": [],
-      "tooltip": ""
-    },
-    {
-      "title": "Operacional",
-      "type": "link",
-      "url": "/d/myhealth--operacional",
       "icon": "dashboard",
       "keepTime": true,
       "includeVars": true,

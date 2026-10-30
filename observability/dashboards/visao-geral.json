@@ -1,0 +1,1085 @@
+{
+  "uid": "visao-geral",
+  "title": "Visão geral",
+  "description": "O dia de cada área com a curva diária do período, o Energy Score e o registro mais recente de cada Health Category, pela hora local de cada registro.",
+  "tags": [
+    "saude"
+  ],
+  "timezone": "browser",
+  "weekStart": "sunday",
+  "time": {
+    "from": "now-7d/d",
+    "to": "now/d"
+  },
+  "refresh": "",
+  "schemaVersion": 41,
+  "graphTooltip": 1,
+  "editable": false,
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Visão geral",
+      "type": "link",
+      "url": "/d/myhealth--visao-geral",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Atividade",
+      "type": "link",
+      "url": "/d/myhealth--atividade",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Exercício",
+      "type": "link",
+      "url": "/d/myhealth--exercicio",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Sono",
+      "type": "link",
+      "url": "/d/myhealth--sono",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Coração e sinais vitais",
+      "type": "link",
+      "url": "/d/myhealth--coracao",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Operacional",
+      "type": "link",
+      "url": "/d/myhealth--operacional",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    }
+  ],
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Energy Score",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Energy Score",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 2
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n),\nmetric as (\n  select read_model.local_bucket('day', period_start_local) as day, avg(score) as value\n  from read_model.current_energy_score, period\n  where period_start_local >= from_local and period_start_local < to_local\n  group by 1\n)\nselect d.day at time zone '$__timezone' as time,\n       m.value as \"Energy Score\"\nfrom days d\nleft join metric m on m.day = d.day\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### [Atividade](/d/myhealth--atividade?${__url_time_range})",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Passos",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "% da meta"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "noValue",
+                "value": "sem meta"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 100
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n    and day >= (select read_model.local_bucket('day', min(window_start)) from read_model.current_hourly_steps)\n),\nmetric as (\n  select read_model.local_bucket('day', window_start) as day, sum(steps) as value\n  from read_model.current_hourly_steps, period\n  where window_start >= from_local and window_start < to_local\n  group by 1\n),\ngoal as (\n  select day::timestamp as day, steps as goal\n  from read_model.current_daily_goal, period\n  where goal = 'steps_goal' and day >= from_local::date and day < to_local\n)\nselect d.day at time zone '$__timezone' as time,\n       coalesce(m.value, 0) as \"Passos\",\n       coalesce(m.value, 0) * 100.0 / nullif(g.goal, 0) as \"% da meta\"\nfrom days d\nleft join metric m on m.day = d.day\nleft join goal g on g.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Atividade",
+          "url": "/d/myhealth--atividade?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Tempo ativo",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "dthms"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "% da meta"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "noValue",
+                "value": "sem meta"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 100
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n    and day >= (select read_model.local_bucket('day', min(window_start)) from read_model.current_hourly_activity_summary)\n),\nmetric as (\n  select read_model.local_bucket('day', window_start) as day, sum(active_time_seconds) as value\n  from read_model.current_hourly_activity_summary, period\n  where window_start >= from_local and window_start < to_local\n  group by 1\n),\ngoal as (\n  select day::timestamp as day, active_time_seconds as goal\n  from read_model.current_daily_goal, period\n  where goal = 'active_time_goal' and day >= from_local::date and day < to_local\n)\nselect d.day at time zone '$__timezone' as time,\n       coalesce(m.value, 0) as \"Tempo ativo\",\n       coalesce(m.value, 0) * 100.0 / nullif(g.goal, 0) as \"% da meta\"\nfrom days d\nleft join metric m on m.day = d.day\nleft join goal g on g.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Atividade",
+          "url": "/d/myhealth--atividade?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Calorias ativas",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "suffix: kcal",
+          "decimals": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "% da meta"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "noValue",
+                "value": "sem meta"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "text",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 100
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n    and day >= (select read_model.local_bucket('day', min(window_start)) from read_model.current_hourly_activity_summary)\n),\nmetric as (\n  select read_model.local_bucket('day', window_start) as day, sum(active_calories_burned_kilocalories) as value\n  from read_model.current_hourly_activity_summary, period\n  where window_start >= from_local and window_start < to_local\n  group by 1\n),\ngoal as (\n  select day::timestamp as day, active_calories_burned_kilocalories as goal\n  from read_model.current_daily_goal, period\n  where goal = 'active_calories_burned_goal' and day >= from_local::date and day < to_local\n)\nselect d.day at time zone '$__timezone' as time,\n       coalesce(m.value, 0) as \"Calorias ativas\",\n       coalesce(m.value, 0) * 100.0 / nullif(g.goal, 0) as \"% da meta\"\nfrom days d\nleft join metric m on m.day = d.day\nleft join goal g on g.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Atividade",
+          "url": "/d/myhealth--atividade?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### [Exercício](/d/myhealth--exercicio?${__url_time_range})",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Duração dos treinos",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "dthms"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n),\nmetric as (\n  select read_model.local_bucket('day', period_start_local) as day,\n         sum(duration_seconds) as duration_seconds,\n         count(*) as exercises\n  from read_model.current_exercise, period\n  where period_start_local >= from_local and period_start_local < to_local\n  group by 1\n)\nselect d.day at time zone '$__timezone' as time,\n       coalesce(m.duration_seconds, 0) as \"Duração\"\nfrom days d\nleft join metric m on m.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Exercício",
+          "url": "/d/myhealth--exercicio?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Treinos no período",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n),\nmetric as (\n  select read_model.local_bucket('day', period_start_local) as day,\n         sum(duration_seconds) as duration_seconds,\n         count(*) as exercises\n  from read_model.current_exercise, period\n  where period_start_local >= from_local and period_start_local < to_local\n  group by 1\n)\nselect d.day at time zone '$__timezone' as time,\n       sum(coalesce(m.exercises, 0)) over (order by d.day) as \"Treinos\"\nfrom days d\nleft join metric m on m.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Exercício",
+          "url": "/d/myhealth--exercicio?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### [Sono](/d/myhealth--sono?${__url_time_range})",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Duração do sono",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 23
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "dthms"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n),\nsleep as (\n  select read_model.local_bucket('day', period_end_local) as day, samsung_uid, sleep_score, period_end_local,\n         coalesce(duration_seconds, extract(epoch from period_end - period_start)) as duration_seconds\n  from read_model.current_sleep, period\n  where period_end_local >= from_local and period_end_local < to_local\n),\nmetric as (\n  select distinct on (day) day, sleep_score, sum(duration_seconds) over (partition by day) as total_seconds\n  from sleep\n  order by day, duration_seconds desc, period_end_local desc, samsung_uid\n)\nselect d.day at time zone '$__timezone' as time,\n       m.total_seconds as \"Duração\"\nfrom days d\nleft join metric m on m.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Sono",
+          "url": "/d/myhealth--sono?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Sleep score",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 23
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "none",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n),\nsleep as (\n  select read_model.local_bucket('day', period_end_local) as day, samsung_uid, sleep_score, period_end_local,\n         coalesce(duration_seconds, extract(epoch from period_end - period_start)) as duration_seconds\n  from read_model.current_sleep, period\n  where period_end_local >= from_local and period_end_local < to_local\n),\nmetric as (\n  select distinct on (day) day, sleep_score, sum(duration_seconds) over (partition by day) as total_seconds\n  from sleep\n  order by day, duration_seconds desc, period_end_local desc, samsung_uid\n)\nselect d.day at time zone '$__timezone' as time,\n       m.sleep_score as \"Sleep score\"\nfrom days d\nleft join metric m on m.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Sono",
+          "url": "/d/myhealth--sono?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### [Coração e sinais vitais](/d/myhealth--coracao?${__url_time_range})",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Frequência cardíaca",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "suffix: bpm",
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n),\nmetric as (\n  select read_model.local_bucket('day', period_start_local) as day, avg(beats_per_minute) as value\n  from read_model.current_heart_rate, period\n  where period_start_local >= from_local and period_start_local < to_local\n  group by 1\n)\nselect d.day at time zone '$__timezone' as time,\n       m.value as \"Média\"\nfrom days d\nleft join metric m on m.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Coração e sinais vitais",
+          "url": "/d/myhealth--coracao?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "SpO2",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "percent",
+          "decimals": 1,
+          "max": 100
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n),\nmetric as (\n  select read_model.local_bucket('day', period_end_local) as day, avg(oxygen_saturation_percent) as value\n  from read_model.current_blood_oxygen, period\n  where period_end_local >= from_local and period_end_local < to_local\n  group by 1\n)\nselect d.day at time zone '$__timezone' as time,\n       m.value as \"Média\"\nfrom days d\nleft join metric m on m.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Coração e sinais vitais",
+          "url": "/d/myhealth--coracao?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Temperatura da pele",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 30
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "unit": "celsius",
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "wideLayout": true,
+        "showPercentChange": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\ndays as (\n  select day\n  from period,\n       generate_series(read_model.local_bucket('day', from_local),\n                       read_model.local_bucket('day', least(to_local, now_local)),\n                       interval '1 day') as day\n  where day < to_local\n),\nmetric as (\n  select read_model.local_bucket('day', period_end_local) as day, avg(temperature_celsius) as value\n  from read_model.current_skin_temperature, period\n  where period_end_local >= from_local and period_end_local < to_local\n  group by 1\n)\nselect d.day at time zone '$__timezone' as time,\n       m.value as \"Média\"\nfrom days d\nleft join metric m on m.day = d.day\norder by 1"
+        }
+      ],
+      "links": [
+        {
+          "title": "Abrir Coração e sinais vitais",
+          "url": "/d/myhealth--coracao?${__url_time_range}",
+          "targetBlank": false
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "text",
+      "title": "",
+      "transparent": true,
+      "gridPos": {
+        "h": 2,
+        "w": 24,
+        "x": 0,
+        "y": 35
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Dado mais recente",
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        }
+      }
+    },
+    {
+      "id": 18,
+      "type": "table",
+      "title": "Dado mais recente",
+      "description": "O registro mais recente de cada Health Category, pela hora local do próprio registro, qualquer que seja o período.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Há quanto tempo"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dtdurations"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "with sources as (\n  select 1 as area_order, 'Energy Score' as area, 1 as category_order, 'Energy Score' as category,\n         period_start_local as local_time, period_start as instant\n  from read_model.current_energy_score\n  union all\n  select 2, 'Atividade', 1, 'Passos', window_end, (window_end - cast(observed_at_offset as interval)) at time zone 'UTC'\n  from read_model.current_hourly_steps\n  union all\n  select 2, 'Atividade', 2, 'Atividade', window_end, (window_end - cast(observed_at_offset as interval)) at time zone 'UTC'\n  from read_model.current_hourly_activity_summary\n  union all\n  select 2, 'Atividade', 3, 'Andares', coalesce(period_end_local, period_start_local), coalesce(period_end, period_start)\n  from read_model.current_floors_climbed\n  union all\n  select 3, 'Exercício', 1, 'Exercício', coalesce(period_end_local, period_start_local), coalesce(period_end, period_start)\n  from read_model.current_exercise\n  union all\n  select 4, 'Sono', 1, 'Sono', coalesce(period_end_local, period_start_local), coalesce(period_end, period_start)\n  from read_model.current_sleep\n  union all\n  select 4, 'Sono', 2, 'Apneia do sono', coalesce(period_end_local, period_start_local), coalesce(period_end, period_start)\n  from read_model.current_sleep_apnea\n  union all\n  select 5, 'Coração e sinais vitais', 1, 'Frequência cardíaca', coalesce(period_end_local, period_start_local), coalesce(period_end, period_start)\n  from read_model.current_heart_rate\n  union all\n  select 5, 'Coração e sinais vitais', 2, 'SpO2', coalesce(period_end_local, period_start_local), coalesce(period_end, period_start)\n  from read_model.current_blood_oxygen\n  union all\n  select 5, 'Coração e sinais vitais', 3, 'Temperatura da pele', coalesce(period_end_local, period_start_local), coalesce(period_end, period_start)\n  from read_model.current_skin_temperature\n)\nselect distinct on (area_order, category_order)\n       area as \"Área\",\n       category as \"Health Category\",\n       to_char(local_time, 'DD/MM/YYYY HH24:MI') as \"Registro mais recente\",\n       extract(epoch from now() - instant) as \"Há quanto tempo\"\nfrom sources\norder by area_order, category_order, local_time desc, instant desc"
+        }
+      ]
+    }
+  ]
+}

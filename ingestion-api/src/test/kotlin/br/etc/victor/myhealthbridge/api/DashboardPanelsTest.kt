@@ -619,6 +619,126 @@ class DashboardPanelsTest : IngestionApiTest() {
         )
     }
 
+    @Test
+    fun `the overview scores each local day, leaving the days without a score empty`() {
+        assertEquals(
+            listOf(
+                listOf("2026-08-09T03:00:00Z", null),
+                listOf("2026-08-10T03:00:00Z", 75.0),
+                listOf("2026-08-11T03:00:00Z", null),
+                listOf("2026-08-12T03:00:00Z", 80.0),
+                listOf("2026-08-13T03:00:00Z", null),
+                listOf("2026-08-14T03:00:00Z", null),
+                listOf("2026-08-15T03:00:00Z", null),
+                listOf("2026-08-16T03:00:00Z", null),
+            ),
+            series("visao-geral", "Energy Score", "day", SEEDED, "Energy Score"),
+        )
+    }
+
+    @Test
+    fun `the overview sets the activity of each local day beside the share of that day's goal`() {
+        assertEquals(
+            listOf(
+                listOf("2026-08-10T03:00:00Z", 1500.0, 25.0),
+                listOf("2026-08-11T03:00:00Z", 2000.0, 25.0),
+                listOf("2026-08-12T03:00:00Z", 0.0, null),
+                listOf("2026-08-13T03:00:00Z", 300.0, null),
+                listOf("2026-08-14T03:00:00Z", 0.0, null),
+                listOf("2026-08-15T03:00:00Z", 0.0, null),
+                listOf("2026-08-16T03:00:00Z", 0.0, null),
+            ),
+            series("visao-geral", "Passos", "day", SEEDED, "Passos", GOAL_SHARE),
+        )
+        mapOf("Tempo ativo" to (754.321 to 3600.0), "Calorias ativas" to (42.5 to 400.0)).forEach { (panel, day) ->
+            val (time, value, share) = series("visao-geral", panel, "day", SEEDED, panel, GOAL_SHARE).first()
+            assertEquals(listOf("2026-08-10T03:00:00Z", day.first), listOf(time, value), panel)
+            assertEquals(day.first * 100 / day.second, share as Double, 1e-9, panel)
+        }
+    }
+
+    @Test
+    fun `the overview totals the exercise of each local day it starts on, zero without one, and counts the exercises of the period so far`() {
+        assertEquals(
+            listOf(0.0, 1800.0, 3600.0, 1200.0, 0.0, 600.0, 0.0, 0.0),
+            series("visao-geral", "Duração dos treinos", "day", SEEDED, "Duração").map { it[1] },
+        )
+        assertEquals(
+            listOf(0.0, 1.0, 2.0, 3.0, 3.0, 4.0, 4.0, 4.0),
+            series("visao-geral", "Treinos no período", "day", SEEDED, "Treinos").map { it[1] },
+        )
+        assertEquals(
+            listOf(listOf("2026-08-13T03:00:00Z", 0.0), listOf("2026-08-14T03:00:00Z", 1.0)),
+            series("visao-geral", "Treinos no período", "day", Grafana.TimeRange(localMidnight("2026-08-13"), localMidnight("2026-08-15")), "Treinos"),
+        )
+    }
+
+    @Test
+    fun `the overview sets each night on the local day it ends, summing its sleeps and scoring the longest`() {
+        val days = (9..16).map { "2026-08-%02dT03:00:00Z".format(it) }
+        assertEquals(
+            days.zip(listOf(null, 28800.0, null, 25200.0, null, 25200.0, null, null)) { day, value -> listOf(day, value) },
+            series("visao-geral", "Duração do sono", "day", SEEDED, "Duração"),
+        )
+        assertEquals(
+            days.zip(listOf(null, 82.0, null, 70.0, null, 76.0, null, null)) { day, value -> listOf(day, value) },
+            series("visao-geral", "Sleep score", "day", SEEDED, "Sleep score"),
+        )
+    }
+
+    @Test
+    fun `the overview averages the heart rate of the day it starts on, and the oxygen and skin readings of the day they end on`() {
+        assertEquals(
+            listOf(null, 75.0, 66.0, 80.0, null, null, null, null),
+            series("visao-geral", "Frequência cardíaca", "day", SEEDED, "Média").map { it[1] },
+        )
+        assertEquals(
+            listOf(null, 96.0, null, null, null, null, null, null),
+            series("visao-geral", "SpO2", "day", SEEDED, "Média").map { it[1] },
+        )
+        assertEquals(
+            listOf(33.5, 33.5, null, null, null, null, null, null),
+            series("visao-geral", "Temperatura da pele", "day", SEEDED, "Média").map { it[1] },
+        )
+    }
+
+    @Test
+    fun `the latest record of each category is its latest end in record local time, or its start without one, and the latest hour with steps`() {
+        val latest = table("visao-geral", "Dado mais recente", Grafana.TimeRange(localMidnight("2026-09-01"), localMidnight("2026-09-02")))
+
+        assertEquals(
+            listOf(
+                listOf("Energy Score", "Energy Score", "12/08/2026 00:00"),
+                listOf("Atividade", "Passos", "13/08/2026 09:00"),
+                listOf("Atividade", "Atividade", "11/08/2026 10:00"),
+                listOf("Atividade", "Andares", "10/08/2026 22:40"),
+                listOf("Exercício", "Exercício", "14/08/2026 07:10"),
+                listOf("Sono", "Sono", "14/08/2026 10:00"),
+                listOf("Sono", "Apneia do sono", "10/08/2026 06:00"),
+                listOf("Coração e sinais vitais", "Frequência cardíaca", "12/08/2026 22:40"),
+                listOf("Coração e sinais vitais", "SpO2", "10/08/2026 12:10"),
+                listOf("Coração e sinais vitais", "Temperatura da pele", "10/08/2026 12:10"),
+            ),
+            latest.map { listOf(it["Área"], it["Health Category"], it["Registro mais recente"]) },
+        )
+        val now = Instant.now()
+        mapOf("Passos" to "2026-08-13T12:00:00Z", "Sono" to "2026-08-14T09:00:00Z").forEach { (category, instant) ->
+            val age = latest.single { it["Health Category"] == category }.getValue("Há quanto tempo")!!.toDouble()
+            assertEquals(Instant.parse(instant).until(now, ChronoUnit.SECONDS).toDouble(), age, 60.0, category)
+        }
+    }
+
+    @Test
+    fun `the overview and every area open each other from the same bar, keeping the period and the variables`() {
+        val bar = listOf("visao-geral", "atividade", "exercicio", "sono", "coracao", "operacional")
+        for (uid in bar + listOf("treino", "noite-de-sono")) {
+            val links = grafana.dashboard(uid).json["links"]!!.jsonArray.map { it.jsonObject }
+
+            assertEquals(bar.map { "/d/myhealth--$it" }, links.map { it["url"]!!.jsonPrimitive.content }, uid)
+            assertTrue(links.all { it["keepTime"]!!.jsonPrimitive.content == "true" && it["includeVars"]!!.jsonPrimitive.content == "true" }, uid)
+        }
+    }
+
     private fun operations(panel: String, range: Grafana.TimeRange, breakdown: String, vararg fields: String): List<List<Any?>> =
         rowsOf("operacional", panel, range, mapOf("quebrar" to breakdown)).map { row ->
             listOf(Instant.ofEpochMilli(row.getValue("Time").jsonPrimitive.longOrNull!!).toString()) +
@@ -661,6 +781,8 @@ class DashboardPanelsTest : IngestionApiTest() {
             Snapshots.steps(start = "2026-08-10T14:00:00", end = "2026-08-10T15:00:00", observedAt = OBSERVED, steps = 500),
             Snapshots.steps(start = "2026-08-11T09:00:00", end = "2026-08-11T10:00:00", observedAt = OBSERVED, steps = 2000),
             Snapshots.steps(start = "2026-08-13T08:00:00", end = "2026-08-13T09:00:00", observedAt = OBSERVED, steps = 300),
+            // Observed as empty: the latest hour with steps is still the 13th's.
+            Snapshots.steps(start = "2026-08-15T10:00:00", end = "2026-08-15T11:00:00", observedAt = OBSERVED, steps = null, explicitEmpty = true),
         )
         snapshots(
             Snapshots.ACTIVITY_SUMMARY,
@@ -780,6 +902,11 @@ class DashboardPanelsTest : IngestionApiTest() {
             MonitorEnvelopes.sleepApnea("apnea-detected", "DETECTED", start = "2026-08-08T02:00:00Z", end = "2026-08-08T09:00:00Z"),
             MonitorEnvelopes.sleepApnea("apnea-not-detected", "NOT_DETECTED", start = "2026-08-09T02:00:00Z", end = "2026-08-09T09:00:00Z"),
             MonitorEnvelopes.sleepApnea("apnea-undefined", "UNDEFINED", start = "2026-08-10T02:00:00Z", end = "2026-08-10T09:00:00Z"),
+        )
+        records(
+            MonitorEnvelopes.ENERGY_SCORE_RECORD_TYPE,
+            MonitorEnvelopes.energyScore(samsungUid = "energy-10", score = "75", day = "2026-08-10T03:00:00Z", observedAt = OBSERVED),
+            MonitorEnvelopes.energyScore(samsungUid = "energy-12", score = "80", day = "2026-08-12T03:00:00Z", observedAt = OBSERVED),
         )
         records(
             Envelopes.EXERCISE_RECORD_TYPE,
@@ -1021,6 +1148,8 @@ class DashboardPanelsTest : IngestionApiTest() {
         val PANELS_WITHOUT_QUERY = setOf("row", "text")
 
         val RANGE = arrayOf("Média", "Mínimo", "Máximo")
+
+        const val GOAL_SHARE = "% da meta"
 
         /** The value a test gives each variable that only a link or the viewer sets, by dashboard uid. */
         val GIVEN_VARIABLES: Map<String, Map<String, String>> = mapOf(
