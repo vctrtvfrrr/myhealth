@@ -214,7 +214,15 @@
             "fixedColor": "text"
           },
           "unit": "none",
-          "decimals": 0
+          "decimals": 0,
+          "links": [
+            {
+              "title": "Abrir Atividade",
+              "url": "/d/myhealth--atividade?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": [
           {
@@ -318,7 +326,15 @@
             "mode": "fixed",
             "fixedColor": "text"
           },
-          "unit": "dthms"
+          "unit": "dthms",
+          "links": [
+            {
+              "title": "Abrir Atividade",
+              "url": "/d/myhealth--atividade?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": [
           {
@@ -423,7 +439,15 @@
             "fixedColor": "text"
           },
           "unit": "suffix: kcal",
-          "decimals": 0
+          "decimals": 0,
+          "links": [
+            {
+              "title": "Abrir Atividade",
+              "url": "/d/myhealth--atividade?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": [
           {
@@ -548,7 +572,15 @@
             "mode": "fixed",
             "fixedColor": "text"
           },
-          "unit": "dthms"
+          "unit": "dthms",
+          "links": [
+            {
+              "title": "Abrir Exercício",
+              "url": "/d/myhealth--exercicio?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": []
       },
@@ -610,7 +642,15 @@
             "fixedColor": "text"
           },
           "unit": "none",
-          "decimals": 0
+          "decimals": 0,
+          "links": [
+            {
+              "title": "Abrir Exercício",
+              "url": "/d/myhealth--exercicio?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": []
       },
@@ -692,7 +732,15 @@
             "mode": "fixed",
             "fixedColor": "text"
           },
-          "unit": "dthms"
+          "unit": "dthms",
+          "links": [
+            {
+              "title": "Abrir Sono",
+              "url": "/d/myhealth--sono?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": []
       },
@@ -754,7 +802,15 @@
             "fixedColor": "text"
           },
           "unit": "none",
-          "decimals": 0
+          "decimals": 0,
+          "links": [
+            {
+              "title": "Abrir Sono",
+              "url": "/d/myhealth--sono?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": []
       },
@@ -837,7 +893,15 @@
             "fixedColor": "text"
           },
           "unit": "suffix: bpm",
-          "decimals": 0
+          "decimals": 0,
+          "links": [
+            {
+              "title": "Abrir Coração e sinais vitais",
+              "url": "/d/myhealth--coracao?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": []
       },
@@ -900,7 +964,15 @@
           },
           "unit": "percent",
           "decimals": 1,
-          "max": 100
+          "max": 100,
+          "links": [
+            {
+              "title": "Abrir Coração e sinais vitais",
+              "url": "/d/myhealth--coracao?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": []
       },
@@ -962,7 +1034,15 @@
             "fixedColor": "text"
           },
           "unit": "celsius",
-          "decimals": 1
+          "decimals": 1,
+          "links": [
+            {
+              "title": "Abrir Coração e sinais vitais",
+              "url": "/d/myhealth--coracao?${__url_time_range}",
+              "targetBlank": false,
+              "oneClick": true
+            }
+          ]
         },
         "overrides": []
       },

@@ -737,6 +737,21 @@ class DashboardPanelsTest : IngestionApiTest() {
             assertEquals(bar.map { "/d/myhealth--$it" }, links.map { it["url"]!!.jsonPrimitive.content }, uid)
             assertTrue(links.all { it["keepTime"]!!.jsonPrimitive.content == "true" && it["includeVars"]!!.jsonPrimitive.content == "true" }, uid)
         }
+        val areas = grafana.dashboard("visao-geral").panels
+            .filter { it.type() == "stat" && it.title() != "Energy Score" }
+            .associate { panel ->
+                panel.title() to panel["fieldConfig"]!!.jsonObject["defaults"]!!.jsonObject["links"]!!.jsonArray.single().jsonObject["url"]!!
+                    .jsonPrimitive.content.substringBefore('?')
+            }
+        assertEquals(
+            mapOf(
+                "Passos" to "atividade", "Tempo ativo" to "atividade", "Calorias ativas" to "atividade",
+                "Duração dos treinos" to "exercicio", "Treinos no período" to "exercicio",
+                "Duração do sono" to "sono", "Sleep score" to "sono",
+                "Frequência cardíaca" to "coracao", "SpO2" to "coracao", "Temperatura da pele" to "coracao",
+            ).mapValues { "/d/myhealth--${it.value}" },
+            areas,
+        )
     }
 
     private fun operations(panel: String, range: Grafana.TimeRange, breakdown: String, vararg fields: String): List<List<Any?>> =
