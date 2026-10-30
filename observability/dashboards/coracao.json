@@ -1,0 +1,505 @@
+{
+  "uid": "coracao",
+  "title": "Coração e sinais vitais",
+  "description": "Frequência cardíaca, SpO2 e temperatura da pele como média com a faixa do mínimo ao máximo; sem medição, o balde fica vazio.",
+  "tags": [
+    "saude"
+  ],
+  "timezone": "browser",
+  "weekStart": "sunday",
+  "time": {
+    "from": "now-7d/d",
+    "to": "now"
+  },
+  "refresh": "",
+  "schemaVersion": 41,
+  "graphTooltip": 1,
+  "editable": false,
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Atividade",
+      "type": "link",
+      "url": "/d/myhealth--atividade",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Sono",
+      "type": "link",
+      "url": "/d/myhealth--sono",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Coração e sinais vitais",
+      "type": "link",
+      "url": "/d/myhealth--coracao",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "custom",
+        "name": "agrupar",
+        "label": "Agrupar por",
+        "query": "Hora : hour,Dia : day,Semana : week,Mês : month",
+        "current": {
+          "text": "Dia",
+          "value": "day"
+        },
+        "options": [
+          {
+            "text": "Hora",
+            "value": "hour",
+            "selected": false
+          },
+          {
+            "text": "Dia",
+            "value": "day",
+            "selected": true
+          },
+          {
+            "text": "Semana",
+            "value": "week",
+            "selected": false
+          },
+          {
+            "text": "Mês",
+            "value": "month",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Frequência cardíaca",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: bpm",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Média"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mínimo"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Máximo"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              },
+              {
+                "id": "custom.fillBelowTo",
+                "value": "Mínimo"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 15
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "min",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nbuckets as (\n  select generate_series(\n           read_model.local_bucket('$agrupar', from_local),\n           read_model.local_bucket('$agrupar', least(to_local, now_local)),\n           '1 $agrupar'::interval) as bucket\n  from period\n),\nmetric as (\n  select read_model.local_bucket('$agrupar', period_start_local) as bucket,\n         avg(beats_per_minute) as mean,\n         min(min_beats_per_minute) as low,\n         max(max_beats_per_minute) as high\n  from read_model.current_heart_rate, period\n  where period_start_local >= from_local and period_start_local < to_local\n  group by 1\n)\nselect b.bucket at time zone '$__timezone' as time,\n       m.mean as \"Média\",\n       m.low as \"Mínimo\",\n       m.high as \"Máximo\"\nfrom buckets b\nleft join metric m on m.bucket = b.bucket\nwhere b.bucket < (select to_local from period)\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "SpO2",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "axisSoftMax": 100
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Média"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mínimo"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Máximo"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              },
+              {
+                "id": "custom.fillBelowTo",
+                "value": "Mínimo"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 15
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "min",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nbuckets as (\n  select generate_series(\n           read_model.local_bucket('$agrupar', from_local),\n           read_model.local_bucket('$agrupar', least(to_local, now_local)),\n           '1 $agrupar'::interval) as bucket\n  from period\n),\nmetric as (\n  select read_model.local_bucket('$agrupar', period_end_local) as bucket,\n         avg(oxygen_saturation_percent) as mean,\n         min(min_oxygen_saturation_percent) as low,\n         max(max_oxygen_saturation_percent) as high\n  from read_model.current_blood_oxygen, period\n  where '$agrupar' <> 'hour' and period_end_local >= from_local and period_end_local < to_local\n  group by 1\n  union all\n  select read_model.local_bucket('$agrupar', start_at_local) as bucket,\n         avg(oxygen_saturation_percent) as mean,\n         min(min_oxygen_saturation_percent) as low,\n         max(max_oxygen_saturation_percent) as high\n  from read_model.current_blood_oxygen_series, period\n  where '$agrupar' = 'hour' and start_at_local >= from_local and start_at_local < to_local\n  group by 1\n)\nselect b.bucket at time zone '$__timezone' as time,\n       m.mean as \"Média\",\n       m.low as \"Mínimo\",\n       m.high as \"Máximo\"\nfrom buckets b\nleft join metric m on m.bucket = b.bucket\nwhere b.bucket < (select to_local from period)\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Temperatura da pele",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "decimals": 1,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 6,
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Média"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mínimo"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Máximo"
+            },
+            "properties": [
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "never"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              },
+              {
+                "id": "custom.fillBelowTo",
+                "value": "Mínimo"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 15
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "min",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nbuckets as (\n  select generate_series(\n           read_model.local_bucket('$agrupar', from_local),\n           read_model.local_bucket('$agrupar', least(to_local, now_local)),\n           '1 $agrupar'::interval) as bucket\n  from period\n),\nmetric as (\n  select read_model.local_bucket('$agrupar', period_end_local) as bucket,\n         avg(temperature_celsius) as mean,\n         min(min_temperature_celsius) as low,\n         max(max_temperature_celsius) as high\n  from read_model.current_skin_temperature, period\n  where '$agrupar' <> 'hour' and period_end_local >= from_local and period_end_local < to_local\n  group by 1\n  union all\n  select read_model.local_bucket('$agrupar', start_at_local) as bucket,\n         avg(temperature_celsius) as mean,\n         min(min_temperature_celsius) as low,\n         max(max_temperature_celsius) as high\n  from read_model.current_skin_temperature_series, period\n  where '$agrupar' = 'hour' and start_at_local >= from_local and start_at_local < to_local\n  group by 1\n)\nselect b.bucket at time zone '$__timezone' as time,\n       m.mean as \"Média\",\n       m.low as \"Mínimo\",\n       m.high as \"Máximo\"\nfrom buckets b\nleft join metric m on m.bucket = b.bucket\nwhere b.bucket < (select to_local from period)\norder by 1"
+        }
+      ]
+    }
+  ]
+}

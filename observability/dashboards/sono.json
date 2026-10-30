@@ -42,6 +42,18 @@
       "targetBlank": false,
       "tags": [],
       "tooltip": ""
+    },
+    {
+      "title": "Coração e sinais vitais",
+      "type": "link",
+      "url": "/d/myhealth--coracao",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
     }
   ],
   "templating": {

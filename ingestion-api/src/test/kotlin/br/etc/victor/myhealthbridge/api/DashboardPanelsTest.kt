@@ -337,6 +337,77 @@ class DashboardPanelsTest : IngestionApiTest() {
         )
     }
 
+    @Test
+    fun `heart rate averages the rates of each local day, takes its range only from the records that carry one, and leaves the days without a measurement empty`() {
+        assertEquals(
+            listOf(
+                listOf("2026-08-09T03:00:00Z", null, null, null),
+                listOf("2026-08-10T03:00:00Z", 75.0, 55.0, 120.0),
+                listOf("2026-08-11T03:00:00Z", 66.0, null, null),
+                listOf("2026-08-12T03:00:00Z", 80.0, 50.0, 70.0),
+                listOf("2026-08-13T03:00:00Z", null, null, null),
+                listOf("2026-08-14T03:00:00Z", null, null, null),
+                listOf("2026-08-15T03:00:00Z", null, null, null),
+                listOf("2026-08-16T03:00:00Z", null, null, null),
+            ),
+            series("coracao", "Frequência cardíaca", "day", SEEDED, *RANGE),
+        )
+        assertEquals(
+            listOf(listOf("2026-08-09T03:00:00Z", 75.2, 50.0, 120.0), listOf("2026-08-16T03:00:00Z", null, null, null)),
+            series("coracao", "Frequência cardíaca", "week", SEEDED, *RANGE),
+        )
+    }
+
+    @Test
+    fun `heart rate by the hour places each record on the hour it starts, every hour of the period present`() {
+        val hours = series("coracao", "Frequência cardíaca", "hour", SEEDED, *RANGE)
+
+        assertEquals(8 * 24, hours.size)
+        assertEquals(
+            listOf(
+                listOf("2026-08-10T12:00:00Z", 70.0, 60.0, 90.0),
+                listOf("2026-08-10T21:00:00Z", 80.0, 55.0, 120.0),
+                listOf("2026-08-11T15:00:00Z", 66.0, null, null),
+                listOf("2026-08-12T15:00:00Z", 60.0, 50.0, 70.0),
+                listOf("2026-08-13T01:00:00Z", 100.0, null, null),
+            ),
+            hours.filter { it[1] != null },
+        )
+    }
+
+    @Test
+    fun `oxygen reads its records on the day they end, and their bins on the hour each starts`() {
+        assertEquals(
+            listOf(listOf("2026-08-09T03:00:00Z", null, null, null), listOf("2026-08-10T03:00:00Z", 96.0, 93.0, 98.0)),
+            series("coracao", "SpO2", "day", SEEDED, *RANGE).take(2),
+        )
+        assertEquals(
+            listOf(
+                listOf("2026-08-10T01:00:00Z", 93.5, 93.0, 98.0),
+                listOf("2026-08-10T02:00:00Z", 95.0, 93.0, 98.0),
+                listOf("2026-08-10T05:00:00Z", 97.0, 93.0, 98.0),
+                listOf("2026-08-10T15:00:00Z", 96.0, 93.0, 98.0),
+            ),
+            series("coracao", "SpO2", "hour", SEEDED, *RANGE).filter { it[1] != null },
+        )
+    }
+
+    @Test
+    fun `skin temperature reads its records on the day they end, and their bins on the hour each starts`() {
+        assertEquals(
+            listOf(
+                listOf("2026-08-09T03:00:00Z", 33.5, 33.1, 33.9),
+                listOf("2026-08-10T03:00:00Z", 33.5, 33.1, 33.9),
+                listOf("2026-08-11T03:00:00Z", null, null, null),
+            ),
+            series("coracao", "Temperatura da pele", "day", SEEDED, *RANGE).take(3),
+        )
+        assertEquals(
+            listOf(listOf("2026-08-10T02:00:00Z", 33.2, 33.1, 33.9), listOf("2026-08-10T15:00:00Z", 33.5, 33.1, 33.9)),
+            series("coracao", "Temperatura da pele", "hour", SEEDED, *RANGE).filter { it[1] != null },
+        )
+    }
+
     private fun series(
         dashboard: String,
         panel: String,
@@ -479,6 +550,15 @@ class DashboardPanelsTest : IngestionApiTest() {
             ),
         )
         records(
+            BinnedEnvelopes.HEART_RATE_RECORD_TYPE,
+            heartRate("heart-rate-morning-10", start = "2026-08-10T12:00:00Z", rate = "70", min = "60", max = "90"),
+            heartRate("heart-rate-evening-10", start = "2026-08-10T21:00:00Z", rate = "80", min = "55", max = "120"),
+            heartRate("heart-rate-11", start = "2026-08-11T15:00:00Z", rate = "66", min = null, max = null),
+            heartRate("heart-rate-ranged-12", start = "2026-08-12T15:00:00Z", rate = "60", min = "50", max = "70"),
+            // 22:30 of the 12th in São Paulo, already the 13th in UTC, and with no range to fall back from.
+            heartRate("heart-rate-unranged-12", start = "2026-08-13T01:30:00Z", rate = "100", min = null, max = null),
+        )
+        records(
             MonitorEnvelopes.SLEEP_APNEA_RECORD_TYPE,
             MonitorEnvelopes.sleepApnea("apnea-detected", "DETECTED", start = "2026-08-08T02:00:00Z", end = "2026-08-08T09:00:00Z"),
             MonitorEnvelopes.sleepApnea("apnea-not-detected", "NOT_DETECTED", start = "2026-08-09T02:00:00Z", end = "2026-08-09T09:00:00Z"),
@@ -503,6 +583,17 @@ class DashboardPanelsTest : IngestionApiTest() {
         offset = offset,
         sessions = listOf(Envelopes.sleepSession(start = start, end = end, durationSeconds = duration, stages = stages.toList())),
     )
+
+    private fun heartRate(samsungUid: String, start: String, rate: String, min: String?, max: String?): JsonObject =
+        BinnedEnvelopes.heartRate(
+            samsungUid = samsungUid,
+            rate = rate,
+            min = min,
+            max = max,
+            series = null,
+            start = start,
+            end = Instant.parse(start).plusSeconds(600).toString(),
+        )
 
     private fun sleepGoal(day: String, nextDay: String, bedTime: String, wakeUpTime: String): JsonObject =
         goal(day, nextDay, "samsung-health-sleep-goal/2") {
@@ -568,6 +659,8 @@ class DashboardPanelsTest : IngestionApiTest() {
         const val OBSERVED = "2026-08-20T12:00:00Z"
 
         val PANELS_WITHOUT_QUERY = setOf("row", "text")
+
+        val RANGE = arrayOf("Média", "Mínimo", "Máximo")
 
         /** The value a test gives each variable that only a link or the viewer sets, by dashboard uid. */
         val GIVEN_VARIABLES: Map<String, Map<String, String>> = mapOf("noite-de-sono" to mapOf("samsung_uid" to "night-10"))

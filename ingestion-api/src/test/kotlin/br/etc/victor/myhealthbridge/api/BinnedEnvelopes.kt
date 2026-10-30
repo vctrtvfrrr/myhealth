@@ -35,7 +35,9 @@ object BinnedEnvelopes {
         mapperVersion: String = HEART_RATE_MAPPER_VERSION,
         observedAt: String = "2026-08-10T03:15:00Z",
         withPayload: Boolean = true,
-    ): JsonObject = present(samsungUid, mapperVersion, observedAt, "heart_rate", rate) {
+        start: String = "2026-08-10T03:00:00Z",
+        end: String = "2026-08-10T03:10:00Z",
+    ): JsonObject = present(samsungUid, mapperVersion, observedAt, "heart_rate", rate, start, end) {
         if (withPayload) {
             putJsonObject("heartRate") {
                 quantity("rate", rate, unit)
