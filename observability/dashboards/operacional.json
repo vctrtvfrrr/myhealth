@@ -1,0 +1,731 @@
+{
+  "uid": "operacional",
+  "title": "Operacional",
+  "description": "A sincronização vista pela API: Ingestions e itens por resultado, há quanto tempo cada Health Category não recebe uma Ingestion, inventários, remoções concluídas e as recusas e indisponibilidades dos logs. Sem regras de alerta.",
+  "tags": [
+    "operacao"
+  ],
+  "timezone": "browser",
+  "weekStart": "sunday",
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "",
+  "schemaVersion": 41,
+  "graphTooltip": 1,
+  "editable": false,
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Atividade",
+      "type": "link",
+      "url": "/d/myhealth--atividade",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Exercício",
+      "type": "link",
+      "url": "/d/myhealth--exercicio",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Sono",
+      "type": "link",
+      "url": "/d/myhealth--sono",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Coração e sinais vitais",
+      "type": "link",
+      "url": "/d/myhealth--coracao",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Operacional",
+      "type": "link",
+      "url": "/d/myhealth--operacional",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "custom",
+        "name": "quebrar",
+        "label": "Quebrar por",
+        "query": "Total : total,Health Category : category,Ingestion Contract Version : version",
+        "current": {
+          "text": "Total",
+          "value": "total"
+        },
+        "options": [
+          {
+            "text": "Total",
+            "value": "total",
+            "selected": true
+          },
+          {
+            "text": "Health Category",
+            "value": "category",
+            "selected": false
+          },
+          {
+            "text": "Ingestion Contract Version",
+            "value": "version",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Tempo desde a última Ingestion",
+      "description": "Por Health Category, desde a Ingestion mais recente até o fim do período, contando os reenvios do que já estava presente. Amarelo acima de 26 h e vermelho acima de 48 h, só como cor: não há alerta.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Última Ingestion"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeAsLocal"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Tempo desde"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dtdurations"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 93600
+                    },
+                    {
+                      "color": "red",
+                      "value": 172800
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select health_category as \"Health Category\",\n       max(received_at) as \"Última Ingestion\",\n       extract(epoch from $__timeTo()::timestamptz - max(received_at)) as \"Tempo desde\"\nfrom read_model.ingestion_outcome\nwhere received_at <= $__timeTo()\n  and health_category is not null\ngroup by 1\norder by 3 desc, 1"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Inventários e remoções",
+      "description": "Record Inventories recebidos no período por status, e as Source Removals que os concluídos concluíram, por Health Category.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Concluídos"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Incompletos"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Inválidos"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Remoções concluídas"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select coalesce(health_category, 'sem categoria') as \"Health Category\",\n       count(*) filter (where inventory_status = 'concluded') as \"Concluídos\",\n       count(*) filter (where inventory_status = 'incomplete') as \"Incompletos\",\n       count(*) filter (where inventory_status = 'invalid') as \"Inválidos\",\n       coalesce(sum(concluded_removal_count), 0) as \"Remoções concluídas\"\nfrom read_model.ingestion_outcome\nwhere $__timeFilter(received_at)\n  and inventory_status is not null\ngroup by 1\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Ingestions",
+      "description": "Ingestions recebidas por intervalo, no total, por Health Category ou por Ingestion Contract Version, conforme \"Quebrar por\".",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "barAlignment": -1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select $__timeGroupAlias(received_at, $__interval),\n       case '$quebrar'\n         when 'category' then coalesce(health_category, 'sem categoria')\n         when 'version' then 'Versão ' || contract_version\n         else 'Total'\n       end as metric,\n       count(*) as value\nfrom read_model.ingestion_outcome\nwhere $__timeFilter(received_at)\ngroup by 1, 2\norder by 1, 2"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Itens",
+      "description": "Itens enviados nas Ingestions de cada intervalo, no total, por Health Category ou por Ingestion Contract Version, conforme \"Quebrar por\".",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "barAlignment": -1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select $__timeGroupAlias(received_at, $__interval),\n       case '$quebrar'\n         when 'category' then coalesce(health_category, 'sem categoria')\n         when 'version' then 'Versão ' || contract_version\n         else 'Total'\n       end as metric,\n       sum(item_count) as value\nfrom read_model.ingestion_outcome\nwhere $__timeFilter(received_at)\ngroup by 1, 2\norder by 1, 2"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Itens por resultado",
+      "description": "Itens aceitos, já presentes e recusados por intervalo.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "interval": "1h",
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 0,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "barAlignment": -1,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "axisPlacement": "auto",
+            "spanNulls": false
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Aceitos"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Já presentes"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Recusados"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select $__timeGroupAlias(received_at, $__interval),\n       sum(accepted_count) as \"Aceitos\",\n       sum(already_present_count) as \"Já presentes\",\n       sum(rejected_count) as \"Recusados\"\nfrom read_model.ingestion_outcome\nwhere $__timeFilter(received_at)\ngroup by 1\norder by 1"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Códigos de recusa",
+      "description": "Itens recusados no período por código e Health Category; um item recusado por dois motivos conta nos dois.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Itens"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select coalesce(health_category, 'sem categoria') as \"Health Category\",\n       rejection_code as \"Código\",\n       count(*) as \"Itens\"\nfrom read_model.ingestion_rejection\nwhere $__timeFilter(received_at)\ngroup by 1, 2\norder by 3 desc, 1, 2"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "bargauge",
+      "title": "Recusas e indisponibilidades por código",
+      "description": "Lotes recusados inteiros, por código e status HTTP, e Ingestions que o banco não deixou gravar, por SQL state, contados nos logs da API no período.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 26
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "orange"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "color",
+        "namePlacement": "auto",
+        "sizing": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (code, status) (count_over_time({app=\"myhealth\", service=\"api\"} |= \"ingestion refused\" | regexp `ingestion refused code=(?P<code>[a-z_]+) status=(?P<status>[0-9]+)` [$__range]))",
+          "queryType": "instant",
+          "legendFormat": "{{code}} ({{status}})"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (code, sqlState) (count_over_time({app=\"myhealth\", service=\"api\"} |= \"ingestion unavailable\" | regexp `ingestion unavailable code=(?P<code>[a-z_]+) failure=\\S+ sqlState=(?P<sqlState>\\S+)` [$__range]))",
+          "queryType": "instant",
+          "legendFormat": "{{code}} (sqlState {{sqlState}})"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "Linhas de recusa, indisponibilidade e startup",
+      "description": "As linhas de lote recusado e de Ingestion indisponível, e o ERROR de um startup abortado, nos logs da API.",
+      "datasource": {
+        "type": "loki",
+        "uid": "loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 26
+      },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "editorMode": "code",
+          "expr": "{app=\"myhealth\", service=\"api\"} |~ \"ingestion (refused|unavailable) code=| ERROR .* - Startup aborted\" | regexp `ingestion (?P<outcome>refused|unavailable) code=(?P<code>[a-z_]+)`",
+          "queryType": "range"
+        }
+      ]
+    }
+  ]
+}

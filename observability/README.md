@@ -31,6 +31,13 @@ Os painéis só leem views de `read_model`, as únicas que a conta de leitura al
 - Uma série por categoria, como a duração por tipo de exercício, sai de `format: time_series` com a categoria numa coluna `metric`: o Grafana dá a cada série o valor dessa coluna como nome. Para que um balde sem registro mostre zero, a consulta cruza os baldes com as categorias presentes no período.
 - O Geomap usa o basemap `osm-standard`, porque o padrão (Carto) pede chave, e colore o segmento da camada Route por thresholds sobre a coluna da sessão. Sem pontos, ele mostra o mapa-múndi vazio, nunca "No data". Na 13.1, a camada Route desenha só o primeiro frame, então a consulta devolve todos os pontos num frame só, na ordem do traço.
 
+O Operacional é a exceção: ele mostra a sincronização vista pela API, não a Personal Health History, e por isso não segue o ADR `0029`:
+
+- Não tem "Agrupar por". O tempo é o `received_at` da Ingestion, no recorte nativo do Grafana: `$__timeFilter(received_at)` e `$__timeGroupAlias(received_at, $__interval)`, com o fuso do navegador. Os painéis de barras têm intervalo mínimo de 1 h.
+- A variável custom `quebrar` ("Quebrar por") separa Ingestions e itens em séries por Health Category ou por Ingestion Contract Version. Uma Ingestion anterior à Health Category da Ingestion aparece como "sem categoria".
+- O tempo desde a última Ingestion conta até o fim do período (`$__timeTo()`), que é agora no período padrão, e deixa de fora as Ingestions sem categoria. A cor (amarelo acima de 26 h, vermelho acima de 48 h) não é alerta.
+- Os painéis de logs leem o `loki` pelos rótulos `app="myhealth"` e `service="api"`, que o Alloy da plataforma tira do projeto e do serviço do Compose, e extraem o código, o status e o SQL state das linhas `ingestion refused` e `ingestion unavailable` da API com o estágio `regexp`. Mudar o texto dessas linhas em `IngestionLog` quebra esses painéis, e o `OperationalLogsTest` falha.
+
 Unidades: durações e horários em `dthms`, distância em `lengthkm` com 2 casas, calorias com `suffix: kcal`, frequência cardíaca com `suffix: bpm`, SpO2 em `percent` com 1 casa e soft max 100 e temperatura da pele em `celsius` com 1 casa, velocidade em `velocitykmh` com 1 casa e ritmo como texto `m:ss /km` montado no SQL. FC, SpO2 e pele ficam nulas num balde sem medição, nunca zero, e o painel não liga os nulos (`spanNulls: false`). Nenhum painel tem limite, faixa ou cor de referência clínica.
 
 ## Testar
@@ -51,7 +58,7 @@ Um dashboard novo pede três coisas em `DashboardPanelsTest`:
 2. Os valores exatos onde o SQL de um painel carrega regra própria, como o dia local, a meta vigente ou um nulo numa lacuna.
 3. Para uma variável que não é custom, como o `samsung_uid` de um detalhe, o valor de teste em `GIVEN_VARIABLES`. Sem ele, o teste falha.
 
-Um painel sem consulta, fora `row` e `text`, falha. Uma consulta ao `loki` ou ao `prometheus` aparece como ignorada, porque o teste não os tem: ela é conferida na prévia. Nenhuma fixture versionada pode conter dado pessoal.
+Um painel sem consulta, fora `row` e `text`, falha. Uma consulta ao `loki` ou ao `prometheus` aparece como ignorada, porque nem o teste nem a prévia os têm: ela só é conferida no Explore da plataforma. Nas consultas do Operacional ao `loki`, o `OperationalLogsTest` e o `StartupProcessTest` aplicam os filtros de linha e o `regexp` do dashboard às linhas que a API de fato escreve, por `OperationalLogQueries`. O `received_at` de uma Ingestion é o instante em que o teste a envia, então o `seed()` reescreve o das Ingestions do Operacional para instantes dentro de `SEEDED`. Nenhuma fixture versionada pode conter dado pessoal.
 
 ## Pré-visualizar
 

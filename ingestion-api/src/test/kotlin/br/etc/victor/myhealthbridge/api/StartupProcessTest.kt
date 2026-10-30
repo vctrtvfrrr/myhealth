@@ -61,6 +61,15 @@ class StartupProcessTest {
         assertThrows<ConnectException> { Socket("localhost", port).close() }
     }
 
+    @Test
+    fun `the operational dashboard shows the error a failed startup logs`() {
+        val api = start(extraClasspath = brokenMigrations())
+        assertTrue(api.waitFor(2, TimeUnit.MINUTES), "the process never exited")
+        val error = output().lineSequence().single { " ERROR " in it }
+
+        assertTrue(OperationalLogQueries.read().shows("Linhas de recusa, indisponibilidade e startup", error), error)
+    }
+
     /**
      * Two instances against the same empty database is the ordinary way this stack is restarted, so the
      * Flyway lock has to make it a non-event.

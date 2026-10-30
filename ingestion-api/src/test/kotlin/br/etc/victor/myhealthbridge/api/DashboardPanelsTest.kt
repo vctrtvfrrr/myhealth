@@ -532,6 +532,99 @@ class DashboardPanelsTest : IngestionApiTest() {
         )
     }
 
+    @Test
+    fun `ingestions and their items fall on the interval they were received in, as a total, by category or by contract version`() {
+        assertEquals(
+            listOf(
+                listOf("2026-08-14T00:00:00Z", 1.0),
+                listOf("2026-08-15T12:00:00Z", 2.0),
+                listOf("2026-08-15T12:05:00Z", 1.0),
+                listOf("2026-08-15T18:00:00Z", 1.0),
+                listOf("2026-08-16T06:00:00Z", 1.0),
+                listOf("2026-08-16T09:00:00Z", 1.0),
+            ),
+            operations("Ingestions", SEEDED, "total", "Total"),
+        )
+        assertEquals(
+            listOf(
+                listOf("2026-08-14T00:00:00Z", 1.0, null, null),
+                listOf("2026-08-15T12:00:00Z", 2.0, null, null),
+                listOf("2026-08-15T12:05:00Z", null, 1.0, null),
+                listOf("2026-08-15T18:00:00Z", null, null, 1.0),
+                listOf("2026-08-16T06:00:00Z", null, 1.0, null),
+                listOf("2026-08-16T09:00:00Z", 1.0, null, null),
+            ),
+            operations("Ingestions", SEEDED, "version", "Versão 1", "Versão 2", "Versão 3"),
+        )
+        assertEquals(
+            listOf(
+                listOf("2026-08-14T00:00:00Z", null, 1.0, null),
+                listOf("2026-08-15T12:00:00Z", 5.0, null, null),
+                listOf("2026-08-15T12:05:00Z", 0.0, null, null),
+                listOf("2026-08-15T18:00:00Z", null, null, 1.0),
+                listOf("2026-08-16T06:00:00Z", 0.0, null, null),
+                listOf("2026-08-16T09:00:00Z", 1.0, null, null),
+            ),
+            operations("Itens", SEEDED, "category", Envelopes.RECORD_TYPE, VitalSignEnvelopes.BLOOD_PRESSURE_RECORD_TYPE, Snapshots.USER_PROFILE),
+        )
+    }
+
+    @Test
+    fun `items are counted by result on the interval they were received in, and refusal codes by category`() {
+        assertEquals(
+            listOf(
+                listOf("2026-08-14T00:00:00Z", 1.0, 0.0, 0.0),
+                listOf("2026-08-15T12:00:00Z", 2.0, 2.0, 1.0),
+                listOf("2026-08-15T12:05:00Z", 0.0, 0.0, 0.0),
+                listOf("2026-08-15T18:00:00Z", 1.0, 0.0, 0.0),
+                listOf("2026-08-16T06:00:00Z", 0.0, 0.0, 0.0),
+                listOf("2026-08-16T09:00:00Z", 0.0, 1.0, 0.0),
+            ),
+            operations("Itens por resultado", SEEDED, "total", "Aceitos", "Já presentes", "Recusados"),
+        )
+        assertEquals(
+            listOf(listOf(Envelopes.RECORD_TYPE, "unsupported_mapper", "1")),
+            table("operacional", "Códigos de recusa", SEEDED).map { listOf(it["Health Category"], it["Código"], it["Itens"]) },
+        )
+    }
+
+    @Test
+    fun `the time since the last ingestion of a category counts a resend of what was already present, as of the end of the period`() {
+        assertEquals(
+            listOf(
+                listOf(VitalSignEnvelopes.BLOOD_PRESSURE_RECORD_TYPE, "270000"),
+                listOf(Snapshots.USER_PROFILE, "118800"),
+                listOf(Envelopes.RECORD_TYPE, "64800"),
+            ),
+            table("operacional", "Tempo desde a última Ingestion", SEEDED).map { listOf(it["Health Category"], it["Tempo desde"]) },
+        )
+        assertEquals(
+            listOf(
+                listOf(VitalSignEnvelopes.BLOOD_PRESSURE_RECORD_TYPE, "183600"),
+                listOf(Envelopes.RECORD_TYPE, "53700"),
+                listOf(Snapshots.USER_PROFILE, "32400"),
+            ),
+            table("operacional", "Tempo desde a última Ingestion", Grafana.TimeRange(SEEDED.from, localMidnight("2026-08-16")))
+                .map { listOf(it["Health Category"], it["Tempo desde"]) },
+        )
+    }
+
+    @Test
+    fun `record inventories are counted by status beside the removals they concluded, by category`() {
+        assertEquals(
+            listOf(listOf(Envelopes.RECORD_TYPE, "1", "1", "0", "1")),
+            table("operacional", "Inventários e remoções", SEEDED).map {
+                listOf(it["Health Category"], it["Concluídos"], it["Incompletos"], it["Inválidos"], it["Remoções concluídas"])
+            },
+        )
+    }
+
+    private fun operations(panel: String, range: Grafana.TimeRange, breakdown: String, vararg fields: String): List<List<Any?>> =
+        rowsOf("operacional", panel, range, mapOf("quebrar" to breakdown)).map { row ->
+            listOf(Instant.ofEpochMilli(row.getValue("Time").jsonPrimitive.longOrNull!!).toString()) +
+                fields.map { field -> row.getValue(field).takeUnless { it is JsonNull }?.jsonPrimitive?.doubleOrNull }
+        }
+
     private fun series(
         dashboard: String,
         panel: String,
@@ -738,6 +831,62 @@ class DashboardPanelsTest : IngestionApiTest() {
             exercise("run-late-12", "RUNNING", "2026-08-13T01:30:00Z", "2026-08-13T01:50:00Z", duration = "1200", distance = "3000", calories = "150", title = null),
             exercise("run-treadmill-14", "RUNNING", "2026-08-14T10:00:00Z", "2026-08-14T10:10:00Z", duration = "600", distance = null, calories = "60", title = null),
         )
+        seedOperations()
+    }
+
+    /**
+     * Ingestions received inside [SEEDED], each moved to the instant it names, about categories no area
+     * dashboard reads, or about heart rates of July, before the earliest day any dashboard counts from. Every other Ingestion of the seed keeps the moment it was really
+     * received, after [SEEDED].
+     */
+    private fun seedOperations() {
+        val heartRate = { uid: String, start: String -> Envelopes.heartRate(samsungUid = uid, start = start, end = start) }
+        receivedAt(
+            "2026-08-14T00:00:00Z",
+            Envelopes.batch(
+                recordType = VitalSignEnvelopes.BLOOD_PRESSURE_RECORD_TYPE,
+                items = listOf(VitalSignEnvelopes.bloodPressure(samsungUid = "operations-pressure", observedAt = "2026-07-05T12:00:00Z")),
+            ),
+        )
+        receivedAt(
+            "2026-08-15T12:00:00Z",
+            Envelopes.batch(
+                items = listOf(
+                    heartRate("operations-kept", "2026-07-01T12:00:00Z"),
+                    heartRate("operations-removed", "2026-07-01T13:00:00Z"),
+                    Envelopes.heartRate(samsungUid = "operations-refused", mapperVersion = "heart_rate/999"),
+                ),
+            ),
+        )
+        receivedAt(
+            "2026-08-15T12:00:40Z",
+            Envelopes.batch(items = listOf(heartRate("operations-kept", "2026-07-01T12:00:00Z"), heartRate("operations-removed", "2026-07-01T13:00:00Z"))),
+        )
+        receivedAt(
+            "2026-08-15T12:05:00Z",
+            Envelopes.inventoryBatch(listOf("operations-kept"), "2026-07-01T00:00:00", "2026-07-02T00:00:00", OBSERVED),
+        )
+        receivedAt(
+            "2026-08-15T18:00:00Z",
+            Snapshots.batch(snapshotType = Snapshots.USER_PROFILE, items = listOf(Snapshots.profile(observedAt = "2026-07-05T12:00:00Z"))),
+        )
+        receivedAt(
+            "2026-08-16T06:00:00Z",
+            Envelopes.inventoryBatch(listOf("operations-never-stored"), "2026-07-03T00:00:00", "2026-07-04T00:00:00", "2026-07-04T10:00:00Z"),
+        )
+        receivedAt("2026-08-16T09:00:00Z", Envelopes.batch(items = listOf(heartRate("operations-kept", "2026-07-01T12:00:00Z"))))
+    }
+
+    private fun receivedAt(instant: String, batch: String) {
+        val response = api.postBatch(batch, token)
+        assertEquals(200, response.status, response.body)
+        api.query { connection ->
+            connection.prepareStatement("update ingestion set received_at = cast(? as timestamptz) where id = cast(? as uuid)").use {
+                it.setString(1, instant)
+                it.setString(2, ingestionId(response.body))
+                assertEquals(1, it.executeUpdate())
+            }
+        }
     }
 
     private fun exercise(
