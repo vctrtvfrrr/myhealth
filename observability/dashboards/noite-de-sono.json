@@ -306,7 +306,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "select b.start_at_local at time zone '$__timezone' as time,\n       b.oxygen_saturation_percent as \"SpO2\"\nfrom read_model.current_sleep s\njoin read_model.current_blood_oxygen_series b on b.start_at >= s.period_start and b.start_at < s.period_end\nwhere s.samsung_uid = '$samsung_uid'\norder by 1"
+          "rawSql": "select b.start_at_local at time zone '$__timezone' as time,\n       b.oxygen_saturation_percent as \"SpO2\"\nfrom read_model.current_sleep s\njoin read_model.current_blood_oxygen_series b on b.start_at < s.period_end and b.end_at > s.period_start\nwhere s.samsung_uid = '$samsung_uid'\norder by 1"
         }
       ]
     },
@@ -370,7 +370,7 @@
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "select b.start_at_local at time zone '$__timezone' as time,\n       b.temperature_celsius as \"Temperatura da pele\"\nfrom read_model.current_sleep s\njoin read_model.current_skin_temperature_series b on b.start_at >= s.period_start and b.start_at < s.period_end\nwhere s.samsung_uid = '$samsung_uid'\norder by 1"
+          "rawSql": "select b.start_at_local at time zone '$__timezone' as time,\n       b.temperature_celsius as \"Temperatura da pele\"\nfrom read_model.current_sleep s\njoin read_model.current_skin_temperature_series b on b.start_at < s.period_end and b.end_at > s.period_start\nwhere s.samsung_uid = '$samsung_uid'\norder by 1"
         }
       ]
     }

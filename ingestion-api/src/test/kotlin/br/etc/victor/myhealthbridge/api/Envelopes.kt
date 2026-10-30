@@ -147,6 +147,7 @@ object Envelopes {
         withSleep: Boolean = true,
         start: String = "2026-08-10T02:00:00Z",
         end: String = "2026-08-10T09:30:00Z",
+        offset: String = "-03:00",
     ): JsonObject = buildJsonObject {
         put("samsungUid", samsungUid)
         putJsonObject("observedAt") {
@@ -163,11 +164,11 @@ object Envelopes {
             putJsonObject("period") {
                 putJsonObject("start") {
                     put("instant", start)
-                    put("offset", "-03:00")
+                    put("offset", offset)
                 }
                 putJsonObject("end") {
                     put("instant", end)
-                    put("offset", "-03:00")
+                    put("offset", offset)
                 }
             }
             putJsonObject("sourcePayload") {
