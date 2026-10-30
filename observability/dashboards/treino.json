@@ -1,0 +1,1035 @@
+{
+  "uid": "treino",
+  "title": "Treino",
+  "description": "Rota, frequência cardíaca, velocidade e sessões de um treino, aberto a partir do Exercício.",
+  "tags": [
+    "saude"
+  ],
+  "timezone": "browser",
+  "weekStart": "sunday",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "refresh": "",
+  "schemaVersion": 41,
+  "graphTooltip": 1,
+  "editable": false,
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Atividade",
+      "type": "link",
+      "url": "/d/myhealth--atividade",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Exercício",
+      "type": "link",
+      "url": "/d/myhealth--exercicio",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Sono",
+      "type": "link",
+      "url": "/d/myhealth--sono",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Coração e sinais vitais",
+      "type": "link",
+      "url": "/d/myhealth--coracao",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "textbox",
+        "name": "treino",
+        "label": "Treino",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": [],
+        "hide": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Treino",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          },
+          "mappings": []
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duração"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distância"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthkm"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Calorias"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: kcal"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Velocidade"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "velocitykmh"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "/.*/"
+        },
+        "orientation": "horizontal",
+        "textMode": "value_and_name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select to_char(e.period_start_local, 'DD/MM/YYYY HH24:MI') as \"Início\",\n       coalesce(e.exercise_label, 'Sem tipo') as \"Tipo\",\n       e.custom_title as \"Título\",\n       coalesce(e.duration_seconds, extract(epoch from e.period_end - e.period_start)) as \"Duração\",\n       e.distance_meters / 1000 as \"Distância\",\n       e.calories_kilocalories as \"Calorias\",\n       paced.kilometers_per_hour as \"Velocidade\",\n       (paced.seconds_per_km / 60)::text || ':' || lpad((paced.seconds_per_km % 60)::text, 2, '0') || ' /km' as \"Ritmo\"\nfrom read_model.current_exercise e\nleft join lateral (\n  select e.distance_meters / coalesce(e.duration_seconds, extract(epoch from e.period_end - e.period_start)) * 3.6 as kilometers_per_hour,\n         round(coalesce(e.duration_seconds, extract(epoch from e.period_end - e.period_start)) * 1000 / e.distance_meters)::int as seconds_per_km\n  where e.distance_meters > 0 and coalesce(e.duration_seconds, extract(epoch from e.period_end - e.period_start)) > 0\n) paced on true\nwhere e.samsung_uid = '$treino'"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "geomap",
+      "title": "Rota",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Sessão"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "thresholds"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "blue",
+                      "value": 2
+                    },
+                    {
+                      "color": "orange",
+                      "value": 3
+                    },
+                    {
+                      "color": "purple",
+                      "value": 4
+                    },
+                    {
+                      "color": "red",
+                      "value": 5
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 6
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "view": {
+          "id": "fit",
+          "allLayers": true,
+          "lat": 0,
+          "lon": 0,
+          "zoom": 15
+        },
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true,
+          "showAttribution": true
+        },
+        "basemap": {
+          "type": "osm-standard",
+          "name": "Mapa"
+        },
+        "layers": [
+          {
+            "type": "route",
+            "name": "Rota",
+            "tooltip": true,
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "style": {
+                "color": {
+                  "field": "Sessão",
+                  "fixed": "green"
+                },
+                "opacity": 1,
+                "lineWidth": 3,
+                "size": {
+                  "fixed": 3,
+                  "min": 2,
+                  "max": 15
+                }
+              },
+              "arrow": 0
+            }
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select l.latitude_degrees as latitude,\n       l.longitude_degrees as longitude,\n       l.session_position as \"Sessão\",\n       to_char(l.at_local, 'HH24:MI:SS') as \"Horário\"\nfrom read_model.current_exercise_location l\nwhere l.samsung_uid = '$treino'\norder by l.session_position nulls first, l.position"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Frequência cardíaca",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: bpm",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select g.at_local at time zone '$__timezone' as time,\n       g.heart_rate_beats_per_minute as \"FC\"\nfrom read_model.current_exercise_log g\nwhere g.samsung_uid = '$treino' and g.heart_rate_beats_per_minute is not null\norder by g.at, g.session_position, g.position"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Velocidade (km/h)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "velocitykmh",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "barAlignment": 0,
+            "fillOpacity": 0,
+            "lineWidth": 2,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto"
+          },
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "select g.at_local at time zone '$__timezone' as time,\n       g.speed_meters_per_second * 3.6 as \"Velocidade\"\nfrom read_model.current_exercise_log g\nwhere g.samsung_uid = '$treino' and g.speed_meters_per_second * 3.6 is not null\norder by g.at, g.session_position, g.position"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Sessões",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duração"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Calorias"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: kcal"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distância"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthkm"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distância em subida"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthkm"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distância em descida"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthkm"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distância nadada"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthkm"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Ganho de altitude"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Perda de altitude"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Altitude mín."
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Altitude máx."
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Piscina"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthm"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Velocidade média"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "velocitykmh"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Velocidade máx."
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "velocitykmh"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cadência média"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: /min"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Cadência máx."
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: /min"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Queima média"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: kcal/h"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Queima máx."
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: kcal/h"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Potência média"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "watt"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Potência máx."
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "watt"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RPM médio"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "rotrpm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RPM máx."
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "rotrpm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "FC média"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: bpm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "FC mín."
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: bpm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "FC máx."
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: bpm"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "VO2 max"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duração nadando"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "select s.position as \"Sessão\",\n       to_char(s.start_at_local, 'HH24:MI') as \"Início\",\n       to_char(s.end_at_local, 'HH24:MI') as \"Fim\",\n       coalesce(s.duration_seconds, extract(epoch from s.end_at - s.start_at)) as \"Duração\",\n       s.exercise_label as \"Tipo\",\n       s.custom_title as \"Título\",\n       s.count as \"Contagem\",\n       s.count_type as \"Tipo de contagem\",\n       s.calories_kilocalories as \"Calorias\",\n       s.distance_meters / 1000 as \"Distância\",\n       s.incline_distance_meters / 1000 as \"Distância em subida\",\n       s.decline_distance_meters / 1000 as \"Distância em descida\",\n       s.altitude_gain_meters as \"Ganho de altitude\",\n       s.altitude_loss_meters as \"Perda de altitude\",\n       s.min_altitude_meters as \"Altitude mín.\",\n       s.max_altitude_meters as \"Altitude máx.\",\n       s.mean_speed_meters_per_second * 3.6 as \"Velocidade média\",\n       s.max_speed_meters_per_second * 3.6 as \"Velocidade máx.\",\n       s.mean_cadence_per_minute as \"Cadência média\",\n       s.max_cadence_per_minute as \"Cadência máx.\",\n       s.mean_calorie_burn_rate_kilocalories_per_hour as \"Queima média\",\n       s.max_calorie_burn_rate_kilocalories_per_hour as \"Queima máx.\",\n       s.mean_power_watts as \"Potência média\",\n       s.max_power_watts as \"Potência máx.\",\n       s.mean_rpm as \"RPM médio\",\n       s.max_rpm as \"RPM máx.\",\n       s.mean_heart_rate_beats_per_minute as \"FC média\",\n       s.min_heart_rate_beats_per_minute as \"FC mín.\",\n       s.max_heart_rate_beats_per_minute as \"FC máx.\",\n       s.vo2_max as \"VO2 max\",\n       case s.auto_detected when true then 'Sim' when false then 'Não' end as \"Detecção automática\",\n       s.comment as \"Comentário\",\n       s.pool_length_meters as \"Piscina\",\n       s.swimming_distance_meters / 1000 as \"Distância nadada\",\n       s.swimming_duration_seconds as \"Duração nadando\"\nfrom read_model.current_exercise_session s\nwhere s.samsung_uid = '$treino'\norder by s.position"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Natação",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "panels": [
+        {
+          "id": 7,
+          "type": "table",
+          "title": "Intervalos de natação",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 29
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto"
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Duração"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "dthms"
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Estilo"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "FREESTYLE": {
+                            "text": "Livre",
+                            "index": 0
+                          },
+                          "BACKSTROKE": {
+                            "text": "Costas",
+                            "index": 1
+                          },
+                          "BREASTSTROKE": {
+                            "text": "Peito",
+                            "index": 2
+                          },
+                          "BUTTERFLY": {
+                            "text": "Borboleta",
+                            "index": 3
+                          },
+                          "MIXED": {
+                            "text": "Medley",
+                            "index": 4
+                          },
+                          "KICK_BOARD": {
+                            "text": "Prancha",
+                            "index": 5
+                          },
+                          "UNDEFINED": {
+                            "text": "Indefinido",
+                            "index": 6
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Braçadas"
+                },
+                "properties": [
+                  {
+                    "id": "unit",
+                    "value": "none"
+                  },
+                  {
+                    "id": "decimals",
+                    "value": 0
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "datasource": {
+                "type": "grafana-postgresql-datasource",
+                "uid": "myhealth-read"
+              },
+              "editorMode": "code",
+              "format": "table",
+              "rawQuery": true,
+              "rawSql": "select w.session_position as \"Sessão\",\n       w.interval_number as \"Intervalo\",\n       w.duration_seconds as \"Duração\",\n       w.stroke_type as \"Estilo\",\n       w.stroke_count as \"Braçadas\"\nfrom read_model.current_exercise_swimming_interval w\nwhere w.samsung_uid = '$treino'\norder by w.session_position, w.position"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

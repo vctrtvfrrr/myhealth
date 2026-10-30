@@ -1,0 +1,449 @@
+{
+  "uid": "exercicio",
+  "title": "Exercício",
+  "description": "Duração por tipo de exercício, totais do período e a tabela dos treinos; um exercício conta no dia e na hora em que começa.",
+  "tags": [
+    "saude"
+  ],
+  "timezone": "browser",
+  "weekStart": "sunday",
+  "time": {
+    "from": "now-90d/d",
+    "to": "now"
+  },
+  "refresh": "",
+  "schemaVersion": 41,
+  "graphTooltip": 1,
+  "editable": false,
+  "annotations": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Atividade",
+      "type": "link",
+      "url": "/d/myhealth--atividade",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Exercício",
+      "type": "link",
+      "url": "/d/myhealth--exercicio",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Sono",
+      "type": "link",
+      "url": "/d/myhealth--sono",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
+      "title": "Coração e sinais vitais",
+      "type": "link",
+      "url": "/d/myhealth--coracao",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "type": "custom",
+        "name": "agrupar",
+        "label": "Agrupar por",
+        "query": "Hora : hour,Dia : day,Semana : week,Mês : month",
+        "current": {
+          "text": "Semana",
+          "value": "week"
+        },
+        "options": [
+          {
+            "text": "Hora",
+            "value": "hour",
+            "selected": false
+          },
+          {
+            "text": "Dia",
+            "value": "day",
+            "selected": false
+          },
+          {
+            "text": "Semana",
+            "value": "week",
+            "selected": true
+          },
+          {
+            "text": "Mês",
+            "value": "month",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Duração por tipo",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dthms",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "bars",
+            "barAlignment": 1,
+            "fillOpacity": 80,
+            "lineWidth": 1,
+            "showPoints": "never",
+            "spanNulls": false,
+            "axisPlacement": "auto",
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nexercise as (\n  select read_model.local_bucket('$agrupar', e.period_start_local) as bucket,\n         coalesce(e.exercise_label, 'Sem tipo') as label,\n         coalesce(e.duration_seconds, extract(epoch from e.period_end - e.period_start)) as duration_seconds\n  from read_model.current_exercise e, period\n  where e.period_start_local >= from_local and e.period_start_local < to_local\n),\nfirst_data as (\n  select read_model.local_bucket('$agrupar', min(period_start_local)) as bucket from read_model.current_exercise\n),\nbuckets as (\n  select generate_series(\n           greatest(read_model.local_bucket('$agrupar', from_local), first_data.bucket),\n           read_model.local_bucket('$agrupar', least(to_local, now_local)),\n           '1 $agrupar'::interval) as bucket\n  from period, first_data\n  where first_data.bucket is not null\n  union\n  select bucket from exercise\n),\nlabel as (\n  select distinct label from exercise\n)\nselect b.bucket at time zone '$__timezone' as time,\n       l.label as metric,\n       coalesce(sum(e.duration_seconds), 0) as \"Duração\"\nfrom buckets b\ncross join label l\nleft join exercise e on e.bucket = b.bucket and e.label = l.label\nwhere b.bucket < (select to_local from period)\ngroup by b.bucket, l.label\norder by 1, 2"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Totais por tipo",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Treinos"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duração"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distância"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthkm"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Calorias"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: kcal"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Velocidade"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "velocitykmh"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nexercise as (\n  select coalesce(e.exercise_label, 'Sem tipo') as label,\n         coalesce(e.duration_seconds, extract(epoch from e.period_end - e.period_start)) as duration_seconds,\n         e.distance_meters,\n         e.calories_kilocalories\n  from read_model.current_exercise e, period\n  where e.period_start_local >= from_local and e.period_start_local < to_local\n),\ntotal as (\n  select label,\n         count(*) as workouts,\n         sum(duration_seconds) as duration_seconds,\n         sum(distance_meters) as distance_meters,\n         sum(calories_kilocalories) as calories_kilocalories,\n         sum(distance_meters) filter (where distance_meters > 0 and duration_seconds > 0) as paced_meters,\n         sum(duration_seconds) filter (where distance_meters > 0 and duration_seconds > 0) as paced_seconds\n  from exercise\n  group by label\n)\nselect label as \"Tipo\",\n       workouts as \"Treinos\",\n       duration_seconds as \"Duração\",\n       distance_meters / 1000 as \"Distância\",\n       calories_kilocalories as \"Calorias\",\n       paced.kilometers_per_hour as \"Velocidade\",\n       (paced.seconds_per_km / 60)::text || ':' || lpad((paced.seconds_per_km % 60)::text, 2, '0') || ' /km' as \"Ritmo\"\nfrom total\nleft join lateral (\n  select paced_meters / paced_seconds * 3.6 as kilometers_per_hour,\n         round(paced_seconds * 1000 / paced_meters)::int as seconds_per_km\n  where paced_meters > 0 and paced_seconds > 0\n) paced on true\norder by duration_seconds desc, label"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Treinos",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "myhealth-read"
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Início"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Abrir o treino",
+                    "url": "/d/myhealth--treino?var-treino=${__data.fields.samsung_uid}&from=${__data.fields.from}&to=${__data.fields.to}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duração"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dthms"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Distância"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "lengthkm"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Calorias"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "suffix: kcal"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Velocidade"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "velocitykmh"
+              },
+              {
+                "id": "decimals",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "samsung_uid"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "from"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "to"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "myhealth-read"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "with period as (\n  select $__timeFrom()::timestamptz at time zone '$__timezone' as from_local,\n         $__timeTo()::timestamptz at time zone '$__timezone' as to_local,\n         now() at time zone '$__timezone' as now_local\n),\nexercise as (\n  select e.samsung_uid, e.custom_title, e.period_start, e.period_start_local, e.period_end_local,\n         coalesce(e.exercise_label, 'Sem tipo') as label,\n         coalesce(e.duration_seconds, extract(epoch from e.period_end - e.period_start)) as duration_seconds,\n         e.distance_meters,\n         e.calories_kilocalories\n  from read_model.current_exercise e, period\n  where e.period_start_local >= from_local and e.period_start_local < to_local\n)\nselect to_char(period_start_local, 'DD/MM/YYYY HH24:MI') as \"Início\",\n       label as \"Tipo\",\n       custom_title as \"Título\",\n       duration_seconds as \"Duração\",\n       distance_meters / 1000 as \"Distância\",\n       calories_kilocalories as \"Calorias\",\n       paced.kilometers_per_hour as \"Velocidade\",\n       (paced.seconds_per_km / 60)::text || ':' || lpad((paced.seconds_per_km % 60)::text, 2, '0') || ' /km' as \"Ritmo\",\n       samsung_uid,\n       cast(cast(extract(epoch from (period_start_local - interval '5 minutes') at time zone '$__timezone') * 1000 as bigint) as text) as \"from\",\n       cast(cast(extract(epoch from (period_end_local + interval '5 minutes') at time zone '$__timezone') * 1000 as bigint) as text) as \"to\"\nfrom exercise\nleft join lateral (\n  select distance_meters / duration_seconds * 3.6 as kilometers_per_hour,\n         round(duration_seconds * 1000 / distance_meters)::int as seconds_per_km\n  where distance_meters > 0 and duration_seconds > 0\n) paced on true\norder by period_start desc, samsung_uid"
+        }
+      ]
+    }
+  ]
+}

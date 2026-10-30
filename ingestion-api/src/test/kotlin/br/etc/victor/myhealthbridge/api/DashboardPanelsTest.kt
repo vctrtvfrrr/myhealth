@@ -416,6 +416,122 @@ class DashboardPanelsTest : IngestionApiTest() {
         )
     }
 
+    @Test
+    fun `exercise time stacks by type on the local day each exercise starts, zero where there was none`() {
+        assertEquals(
+            listOf(
+                listOf("2026-08-10T03:00:00Z", 1800.0, 0.0),
+                listOf("2026-08-11T03:00:00Z", 0.0, 3600.0),
+                listOf("2026-08-12T03:00:00Z", 1200.0, 0.0),
+                listOf("2026-08-13T03:00:00Z", 0.0, 0.0),
+                listOf("2026-08-14T03:00:00Z", 600.0, 0.0),
+                listOf("2026-08-15T03:00:00Z", 0.0, 0.0),
+                listOf("2026-08-16T03:00:00Z", 0.0, 0.0),
+            ),
+            series("exercicio", "Duração por tipo", "day", SEEDED, "Corrida", "Ciclismo"),
+        )
+        assertEquals(
+            listOf(listOf("2026-08-09T03:00:00Z", 3600.0, 3600.0), listOf("2026-08-16T03:00:00Z", 0.0, 0.0)),
+            series("exercicio", "Duração por tipo", "week", SEEDED, "Corrida", "Ciclismo"),
+        )
+    }
+
+    @Test
+    fun `the totals of each type pace only the exercises with a distance, whatever the grouping`() {
+        val totals = table("exercicio", "Totais por tipo", SEEDED)
+
+        assertEquals(listOf("Ciclismo", "Corrida"), totals.map { it["Tipo"] })
+        val running = totals.single { it["Tipo"] == "Corrida" }
+        assertEquals(
+            listOf(3.0, 3600.0, 8.0, 530.0),
+            listOf("Treinos", "Duração", "Distância", "Calorias").map { running.getValue(it)!!.toDouble() },
+        )
+        assertEquals(9.6, running.getValue("Velocidade")!!.toDouble(), 1e-9)
+        assertEquals("6:15 /km", running["Ritmo"])
+        assertEquals("3:00 /km", totals.single { it["Tipo"] == "Ciclismo" }["Ritmo"])
+        for (grouping in listOf("hour", "week", "month")) {
+            assertEquals(
+                rowsOf("exercicio", "Totais por tipo", SEEDED, mapOf("agrupar" to "day")),
+                rowsOf("exercicio", "Totais por tipo", SEEDED, mapOf("agrupar" to grouping)),
+            )
+        }
+    }
+
+    @Test
+    fun `each exercise is listed from the latest, on the local time it starts, linking to its detail five minutes wider on each side`() {
+        val workouts = table("exercicio", "Treinos", SEEDED)
+
+        assertEquals(listOf("run-treadmill-14", "run-late-12", "ride-11", "run-10"), workouts.map { it["samsung_uid"] })
+        val late = workouts.single { it["samsung_uid"] == "run-late-12" }
+        assertEquals(
+            listOf(
+                "12/08/2026 22:30",
+                Instant.parse("2026-08-13T01:25:00Z").toEpochMilli().toString(),
+                Instant.parse("2026-08-13T01:55:00Z").toEpochMilli().toString(),
+            ),
+            listOf(late["Início"], late["from"], late["to"]),
+        )
+        val run = workouts.single { it["samsung_uid"] == "run-10" }
+        assertEquals(listOf("Corrida", "morning loop", "6:00 /km"), listOf(run["Tipo"], run["Título"], run["Ritmo"]))
+        assertEquals(10.0, run.getValue("Velocidade")!!.toDouble(), 1e-9)
+        val treadmill = workouts.single { it["samsung_uid"] == "run-treadmill-14" }
+        assertEquals(listOf(null, null), listOf(treadmill["Velocidade"], treadmill["Ritmo"]))
+    }
+
+    @Test
+    fun `the detail of an exercise states its totals`() {
+        val workout = table("treino", "Treino", WORKOUT).single()
+
+        assertEquals(
+            listOf("11/08/2026 09:00", "Ciclismo", "two legs", "3:00 /km"),
+            listOf(workout["Início"], workout["Tipo"], workout["Título"], workout["Ritmo"]),
+        )
+        assertEquals(20.0, workout.getValue("Velocidade")!!.toDouble(), 1e-9)
+    }
+
+    @Test
+    fun `the route runs through every point, session by session, and an exercise without one has no point`() {
+        assertEquals(
+            listOf(
+                listOf("-23.5", "-46.6", "1"),
+                listOf("-23.51", "-46.61", "1"),
+                listOf("-23.52", "-46.6", "2"),
+                listOf("-23.53", "-46.62", "2"),
+            ),
+            table("treino", "Rota", WORKOUT).map { listOf(it["latitude"], it["longitude"], it["Sessão"]) },
+        )
+        assertEquals(
+            emptyList<Map<String, JsonElement>>(),
+            rowsOf("treino", "Rota", SEEDED, mapOf("treino" to "run-treadmill-14")),
+        )
+    }
+
+    @Test
+    fun `the heart rate and the speed of an exercise follow its log across sessions, leaving out what an instant did not measure`() {
+        assertEquals(
+            listOf(listOf("2026-08-11T12:05:00Z", 120.0), listOf("2026-08-11T12:10:00Z", 130.0), listOf("2026-08-11T12:40:00Z", 140.0)),
+            series("treino", "Frequência cardíaca", "day", WORKOUT, "FC"),
+        )
+        assertEquals(
+            listOf(listOf("2026-08-11T12:05:00Z", 18.0), listOf("2026-08-11T12:40:00Z", 22.5)),
+            series("treino", "Velocidade (km/h)", "day", WORKOUT, "Velocidade"),
+        )
+    }
+
+    @Test
+    fun `the detail of an exercise lists each session and the swim intervals of each`() {
+        assertEquals(
+            listOf(listOf("1", "09:00", "Ciclismo", null), listOf("2", "09:30", "Natação em piscina", "25")),
+            table("treino", "Sessões", WORKOUT).map { listOf(it["Sessão"], it["Início"], it["Tipo"], it["Piscina"]) },
+        )
+        assertEquals(
+            listOf(listOf("2", "1", "95.5", "FREESTYLE", "36"), listOf("2", "2", "101.25", "BACKSTROKE", "40")),
+            table("treino", "Intervalos de natação", WORKOUT).map {
+                listOf(it["Sessão"], it["Intervalo"], it["Duração"], it["Estilo"], it["Braçadas"])
+            },
+        )
+    }
+
     private fun series(
         dashboard: String,
         panel: String,
@@ -440,7 +556,7 @@ class DashboardPanelsTest : IngestionApiTest() {
     ): List<Map<String, JsonElement>> {
         val found = grafana.dashboard(dashboard).panel(panel)
         val target = found.targets().single { it.datasourceUid(found) == PlatformDashboards.DATASOURCE_UID }
-        val result = grafana.query(target, range, variables + GIVEN_VARIABLES[dashboard].orEmpty())
+        val result = grafana.query(target, range, GIVEN_VARIABLES[dashboard].orEmpty() + variables)
         assertNull(result.error, result.error)
         return result.rows
     }
@@ -572,7 +688,79 @@ class DashboardPanelsTest : IngestionApiTest() {
             MonitorEnvelopes.sleepApnea("apnea-not-detected", "NOT_DETECTED", start = "2026-08-09T02:00:00Z", end = "2026-08-09T09:00:00Z"),
             MonitorEnvelopes.sleepApnea("apnea-undefined", "UNDEFINED", start = "2026-08-10T02:00:00Z", end = "2026-08-10T09:00:00Z"),
         )
+        records(
+            Envelopes.EXERCISE_RECORD_TYPE,
+            exercise("run-10", "RUNNING", "2026-08-10T09:00:00Z", "2026-08-10T09:30:00Z", duration = "1800", distance = "5000", calories = "320", title = "morning loop"),
+            ExerciseEnvelopes.exercise(
+                samsungUid = "ride-11",
+                type = "BIKING",
+                customTitle = "two legs",
+                start = "2026-08-11T12:00:00Z",
+                end = "2026-08-11T13:00:00Z",
+                duration = "3600",
+                distance = "20000",
+                calories = "500",
+                observedAt = OBSERVED,
+                sessions = listOf(
+                    ExerciseEnvelopes.session(
+                        start = "2026-08-11T12:00:00Z",
+                        end = "2026-08-11T12:30:00Z",
+                        log = listOf(
+                            ExerciseEnvelopes.logEntry("2026-08-11T12:05:00Z", mapOf("heartRateBeatsPerMinute" to "120", "speedMetersPerSecond" to "5")),
+                            ExerciseEnvelopes.logEntry("2026-08-11T12:10:00Z", mapOf("heartRateBeatsPerMinute" to "130", "speedMetersPerSecond" to null)),
+                        ),
+                        route = listOf(
+                            Envelopes.routePoint("2026-08-11T12:00:00Z", latitude = "-23.5", longitude = "-46.6"),
+                            Envelopes.routePoint("2026-08-11T12:15:00Z", latitude = "-23.51", longitude = "-46.61"),
+                        ),
+                    ),
+                    ExerciseEnvelopes.session(
+                        start = "2026-08-11T12:30:00Z",
+                        end = "2026-08-11T13:00:00Z",
+                        values = mapOf("type" to "POOL_SWIMMING"),
+                        log = listOf(
+                            ExerciseEnvelopes.logEntry("2026-08-11T12:40:00Z", mapOf("heartRateBeatsPerMinute" to "140", "speedMetersPerSecond" to "6.25")),
+                        ),
+                        swimming = ExerciseEnvelopes.swimming(
+                            intervals = listOf(
+                                ExerciseEnvelopes.swimmingInterval("95.5", "FREESTYLE", "36", "1"),
+                                ExerciseEnvelopes.swimmingInterval("101.25", "BACKSTROKE", "40", "2"),
+                            ),
+                        ),
+                        route = listOf(
+                            Envelopes.routePoint("2026-08-11T12:30:00Z", latitude = "-23.52", longitude = "-46.6"),
+                            Envelopes.routePoint("2026-08-11T12:45:00Z", latitude = "-23.53", longitude = "-46.62"),
+                        ),
+                    ),
+                ),
+            ),
+            // 22:30 of the 12th in São Paulo, already the 13th in UTC.
+            exercise("run-late-12", "RUNNING", "2026-08-13T01:30:00Z", "2026-08-13T01:50:00Z", duration = "1200", distance = "3000", calories = "150", title = null),
+            exercise("run-treadmill-14", "RUNNING", "2026-08-14T10:00:00Z", "2026-08-14T10:10:00Z", duration = "600", distance = null, calories = "60", title = null),
+        )
     }
+
+    private fun exercise(
+        samsungUid: String,
+        type: String,
+        start: String,
+        end: String,
+        duration: String,
+        distance: String?,
+        calories: String,
+        title: String?,
+    ): JsonObject = ExerciseEnvelopes.exercise(
+        samsungUid = samsungUid,
+        type = type,
+        customTitle = title,
+        start = start,
+        end = end,
+        duration = duration,
+        distance = distance,
+        calories = calories,
+        observedAt = OBSERVED,
+        sessions = listOf(ExerciseEnvelopes.session(start = start, end = end, values = mapOf("type" to type))),
+    )
 
     private fun night(
         samsungUid: String,
@@ -671,7 +859,10 @@ class DashboardPanelsTest : IngestionApiTest() {
         val RANGE = arrayOf("Média", "Mínimo", "Máximo")
 
         /** The value a test gives each variable that only a link or the viewer sets, by dashboard uid. */
-        val GIVEN_VARIABLES: Map<String, Map<String, String>> = mapOf("noite-de-sono" to mapOf("samsung_uid" to "night-10"))
+        val GIVEN_VARIABLES: Map<String, Map<String, String>> = mapOf(
+            "noite-de-sono" to mapOf("samsung_uid" to "night-10"),
+            "treino" to mapOf("treino" to "ride-11"),
+        )
 
         fun localMidnight(day: String): Instant = Instant.parse("${day}T03:00:00Z")
 
@@ -683,5 +874,8 @@ class DashboardPanelsTest : IngestionApiTest() {
 
         /** Wide enough to hold the readings of the 10th's day too, which the night must still leave out. */
         val WIDE_NIGHT = Grafana.TimeRange(localMidnight("2026-08-09"), localMidnight("2026-08-11"))
+
+        /** The exercise of the 11th as its link opens it, five minutes wider on each side. */
+        val WORKOUT = Grafana.TimeRange(Instant.parse("2026-08-11T11:55:00Z"), Instant.parse("2026-08-11T13:05:00Z"))
     }
 }

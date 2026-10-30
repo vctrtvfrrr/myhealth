@@ -26,13 +26,23 @@ object ExerciseEnvelopes {
         route: List<JsonObject>? = null,
         observedAt: String = "2026-08-10T10:00:00Z",
         mapperVersion: String = MAPPER_VERSION,
+        start: String = "2026-08-10T09:00:00Z",
+        end: String = "2026-08-10T09:30:00Z",
+        duration: String? = "1800.0",
+        distance: String? = "5000.0",
+        calories: String? = "320.0",
     ): JsonObject {
         val v1 = Envelopes.exercise(
             samsungUid = samsungUid,
             type = type,
+            duration = duration,
+            distance = distance,
+            calories = calories,
             route = route,
             mapperVersion = mapperVersion,
             observedAt = observedAt,
+            start = start,
+            end = end,
         )
         val state = v1.getValue("state") as JsonObject
         val normalized = state.getValue("normalizedPayload") as JsonObject

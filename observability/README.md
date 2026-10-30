@@ -28,8 +28,10 @@ Os painéis só leem views de `read_model`, as únicas que a conta de leitura al
 - `$__timeGroup` não serve, porque só tem baldes fixos alinhados ao UTC.
 - Uma consulta que devolve colunas de texto ao lado do tempo, como os campos ocultos de um link ou os estágios de um State timeline, usa `format: table`. No `time_series`, o Grafana trata o texto como rótulo e remonta as séries.
 - Um data link para outro dashboard lê campos ocultos da própria linha (`${__data.fields.<campo>}`) e é escrito como `/d/myhealth--<uid>`, igual à barra de links.
+- Uma série por categoria, como a duração por tipo de exercício, sai de `format: time_series` com a categoria numa coluna `metric`: o Grafana dá a cada série o valor dessa coluna como nome. Para que um balde sem registro mostre zero, a consulta cruza os baldes com as categorias presentes no período.
+- O Geomap usa o basemap `osm-standard`, porque o padrão (Carto) pede chave, e colore o segmento da camada Route por thresholds sobre a coluna da sessão. Sem pontos, ele mostra o mapa-múndi vazio, nunca "No data". Na 13.1, a camada Route desenha só o primeiro frame, então a consulta devolve todos os pontos num frame só, na ordem do traço.
 
-Unidades: durações e horários em `dthms`, distância em `lengthkm` com 2 casas, calorias com `suffix: kcal`, frequência cardíaca com `suffix: bpm`, SpO2 em `percent` com 1 casa e soft max 100 e temperatura da pele em `celsius` com 1 casa. FC, SpO2 e pele ficam nulas num balde sem medição, nunca zero, e o painel não liga os nulos (`spanNulls: false`). Nenhum painel tem limite, faixa ou cor de referência clínica.
+Unidades: durações e horários em `dthms`, distância em `lengthkm` com 2 casas, calorias com `suffix: kcal`, frequência cardíaca com `suffix: bpm`, SpO2 em `percent` com 1 casa e soft max 100 e temperatura da pele em `celsius` com 1 casa, velocidade em `velocitykmh` com 1 casa e ritmo como texto `m:ss /km` montado no SQL. FC, SpO2 e pele ficam nulas num balde sem medição, nunca zero, e o painel não liga os nulos (`spanNulls: false`). Nenhum painel tem limite, faixa ou cor de referência clínica.
 
 ## Testar
 

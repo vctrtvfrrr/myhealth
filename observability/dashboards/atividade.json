@@ -32,6 +32,18 @@
       "tooltip": ""
     },
     {
+      "title": "Exercício",
+      "type": "link",
+      "url": "/d/myhealth--exercicio",
+      "icon": "dashboard",
+      "keepTime": true,
+      "includeVars": true,
+      "asDropdown": false,
+      "targetBlank": false,
+      "tags": [],
+      "tooltip": ""
+    },
+    {
       "title": "Sono",
       "type": "link",
       "url": "/d/myhealth--sono",
