@@ -256,6 +256,78 @@
                     {
                       "color": "yellow",
                       "value": 6
+                    },
+                    {
+                      "color": "green",
+                      "value": 7
+                    },
+                    {
+                      "color": "blue",
+                      "value": 8
+                    },
+                    {
+                      "color": "orange",
+                      "value": 9
+                    },
+                    {
+                      "color": "purple",
+                      "value": 10
+                    },
+                    {
+                      "color": "red",
+                      "value": 11
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 12
+                    },
+                    {
+                      "color": "green",
+                      "value": 13
+                    },
+                    {
+                      "color": "blue",
+                      "value": 14
+                    },
+                    {
+                      "color": "orange",
+                      "value": 15
+                    },
+                    {
+                      "color": "purple",
+                      "value": 16
+                    },
+                    {
+                      "color": "red",
+                      "value": 17
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 18
+                    },
+                    {
+                      "color": "green",
+                      "value": 19
+                    },
+                    {
+                      "color": "blue",
+                      "value": 20
+                    },
+                    {
+                      "color": "orange",
+                      "value": 21
+                    },
+                    {
+                      "color": "purple",
+                      "value": 22
+                    },
+                    {
+                      "color": "red",
+                      "value": 23
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 24
                     }
                   ]
                 }
